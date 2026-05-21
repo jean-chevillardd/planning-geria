@@ -20,22 +20,22 @@ const DAY_H    = 32;
 
 // ── Couleurs par type d'absence (fixes, sémantiques) ────────
 const TYPE_COLORS = {
-  'Congé annuel (CA)':              '#185FA5', // bleu
-  'Formation / DPC':                '#0F6E56', // vert
-  'Congé maladie':                  '#C94A20', // rouge-orangé
-  'Temps non clinique':             '#7B3FA0', // violet
-  'RTT':                            '#2D6EA0', // bleu acier
-  'Récupération de garde':          '#B54D00', // orange brun
-  'Congé formation (CF)':           '#1A7E74', // teal
-  'Activité externe (CM2R / MTG…)': '#8A5C0A', // brun doré
+  'Congé annuel (CA)':              '#2272f0', // bleu
+  'Formation / DPC':                '#059669', // emeraude
+  'Congé maladie':                  '#e11d48', // rose
+  'Temps non clinique':             '#9333ea', // violet
+  'RTT':                            '#4f46e5', // indigo
+  'Récupération de garde':          '#ea580c', // orange
+  'Congé formation (CF)':           '#0891b2', // cyan
+  'Activité externe (CM2R / MTG…)': '#d97706', // ambre
 };
 function typeColor(typeAbs) { return TYPE_COLORS[typeAbs] ?? '#6A6A66'; }
 
 // ── Palette couleurs par praticien (légende filtre calendrier) ─
 const PALETTE = [
-  '#185FA5','#0F6E56','#C94A20','#C44070','#4A4A47',
-  '#7B3FA0','#1A7E74','#B54D00','#2D6EA0','#5E8C00',
-  '#A0362D','#006D7A','#7A5200','#8A5C0A','#6A6A66',
+  '#2272f0','#059669','#e11d48','#db2777','#0891b2',
+  '#9333ea','#0d9488','#ea580c','#4f46e5','#d97706',
+  '#7c3aed','#6366f1','#047857','#b91c1c','#92400e',
 ];
 function medColor(medId) {
   let h = 0;
@@ -572,7 +572,7 @@ function BarPopover({ abs, x, y, isSecretary, onClose, onDelete }) {
             marginTop:10, width:'100%', padding:'4px 0',
             fontSize:10, fontFamily:'sans-serif',
             background:'var(--danger-bg)', color:'var(--danger)',
-            border:'1px solid #f0a0a0', borderRadius:'var(--r)', cursor:'pointer',
+            border:'1px solid var(--danger-bd,#fda4af)', borderRadius:'var(--r)', cursor:'pointer',
           }}
         >
           Supprimer cette absence
