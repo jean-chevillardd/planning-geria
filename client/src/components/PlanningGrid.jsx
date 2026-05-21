@@ -130,14 +130,14 @@ function fmtWeek(monday, days) {
 // ── Définition des filtres (correspondent à la légende) ────
 const FILTERS = [
   { id: null,      label: 'Tout afficher',    color: null,      grps: null },
-  { id: 'cs',      label: 'Court séjour',     color: '#185FA5', grps: ['Court séjour 1', 'Court séjour 2'] },
-  { id: 'ssr',     label: 'SSR',              color: '#0F6E56', grps: ['SSR'] },
-  { id: 'hdj',     label: 'HDJ',              color: '#C94A20', grps: ['Hôpital de jour'] },
-  { id: 'ucc',     label: 'UCC/EMCC',         color: '#C44070', grps: ['UCC / EMCC'] },
-  { id: 'extra',   label: 'Extra-hosp.',      color: '#4A4A47', grps: ['Extra-hospitalier'] },
-  { id: 'tnc',     label: 'Tps non clin.',    color: '#7B3FA0', grps: ['Temps non clinique'] },
-  { id: 'ehpad',   label: 'EHPAD',            color: '#8A5C0A', grps: ['EHPAD'] },
-  { id: 'consult', label: 'Consultations',    color: '#6A6A66', grps: ['Consultations'] },
+  { id: 'cs',      label: 'Court séjour',     color: '#2272f0', grps: ['Court séjour 1', 'Court séjour 2'] },
+  { id: 'ssr',     label: 'SSR',              color: '#1D9E75', grps: ['SSR'] },
+  { id: 'hdj',     label: 'HDJ',              color: '#ea580c', grps: ['Hôpital de jour'] },
+  { id: 'ucc',     label: 'UCC/EMCC',         color: '#e11d48', grps: ['UCC / EMCC'] },
+  { id: 'extra',   label: 'Extra-hosp.',      color: '#0891b2', grps: ['Extra-hospitalier'] },
+  { id: 'tnc',     label: 'Tps non clin.',    color: '#9333ea', grps: ['Temps non clinique'] },
+  { id: 'ehpad',   label: 'EHPAD',            color: '#d97706', grps: ['EHPAD'] },
+  { id: 'consult', label: 'Consultations',    color: '#7c3aed', grps: ['Consultations'] },
 ];
 
 // ── Composant principal ────────────────────────────────────
@@ -215,7 +215,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                 border:`1.5px solid ${col}`,
                 borderRadius:20,
                 fontSize:10,
-                fontFamily:'Trebuchet MS,sans-serif',
+                fontFamily:'system-ui,-apple-system,sans-serif',
                 fontWeight:700,
                 letterSpacing:'.04em',
                 cursor:'pointer',

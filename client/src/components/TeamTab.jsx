@@ -4,11 +4,11 @@ import { TYPE_LBL, DAYS_FR, countDemiJournees } from '../utils';
 import * as api from '../api';
 
 const GROUPS = [
-  { key:'ph',      label:'Praticiens hospitaliers', color:'#185FA5' },
-  { key:'ipa',     label:'IPA',                     color:'#0F6E56' },
-  { key:'interne', label:'Internes',                color:'#C94A20' },
-  { key:'externe', label:'Externes',                color:'#4A4A47' },
-  { key:'padhue',  label:'PADHUE',                  color:'#8A5C0A' },
+  { key:'ph',      label:'Praticiens hospitaliers', color:'#2272f0' },
+  { key:'ipa',     label:'IPA',                     color:'#1D9E75' },
+  { key:'interne', label:'Internes',                color:'#ea580c' },
+  { key:'externe', label:'Externes',                color:'#6366f1' },
+  { key:'padhue',  label:'PADHUE',                  color:'#d97706' },
 ];
 
 export default function TeamTab({ medecins, isSecretary, onReload, onToast }) {
@@ -91,7 +91,7 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast }) {
                 border:`1.5px solid ${g.color}`,
                 borderRadius:20,
                 fontSize:10,
-                fontFamily:'Trebuchet MS,sans-serif',
+                fontFamily:'system-ui,-apple-system,sans-serif',
                 fontWeight:700,
                 letterSpacing:'.04em',
                 cursor:'pointer',
