@@ -181,9 +181,29 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
   }, []);
 
   const activeFilter  = FILTERS.find(f => f.id === filter);
-  const visibleGroups = filter === null
+
+  // Postes où le médecin filtré apparaît (assigné ou extra) au moins un jour
+  const doctorPostes = useMemo(() => {
+    if (!doctorFilter) return null;
+    const ids = new Set();
+    POSTES.forEach(p => {
+      const assigned = byPoste[p.id]?.medecins || [];
+      if (assigned.some(m => m.id === doctorFilter)) { ids.add(p.id); return; }
+      if (days.some(d => extras.some(e => e.poste_id === p.id && e.jour === toIso(d) && e.med_id === doctorFilter)))
+        ids.add(p.id);
+    });
+    return ids;
+  }, [doctorFilter, byPoste, extras, days]);
+
+  const baseGroups   = filter === null
     ? Object.entries(allGroups)
     : Object.entries(allGroups).filter(([grp]) => activeFilter?.grps?.includes(grp));
+
+  const visibleGroups = doctorPostes
+    ? baseGroups
+        .map(([grp, postes]) => [grp, postes.filter(p => doctorPostes.has(p.id))])
+        .filter(([, postes]) => postes.length > 0)
+    : baseGroups;
 
   return (
     <div>
@@ -367,12 +387,10 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
     >
       {present.map(m => {
         const highlighted = doctorFilter === m.id;
-        const dimmed      = doctorFilter && !highlighted;
         return (
           <div key={m.id} className="chip" style={{
             background:  poste.c + (highlighted ? '33' : '18'),
             borderColor: poste.c + (highlighted ? 'cc' : '55'),
-            opacity:     dimmed ? 0.22 : 1,
             boxShadow:   highlighted ? `0 0 0 2px ${poste.c}55` : 'none',
           }}>
             <span className="chip-nm" style={{ color: poste.c }}>{m.nom}</span>
@@ -381,12 +399,10 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
       })}
       {dayExtras.map(e => {
         const highlighted = doctorFilter === e.med_id;
-        const dimmed      = doctorFilter && !highlighted;
         return (
           <div key={e.med_id} className="chip" style={{
             background:  poste.c + (highlighted ? '44' : '28'),
             borderColor: poste.c + (highlighted ? 'cc' : '88'),
-            opacity:     dimmed ? 0.22 : 1,
             boxShadow:   highlighted ? `0 0 0 2px ${poste.c}55` : 'none',
           }}>
             <span className="chip-nm" style={{ color: poste.c }}>
@@ -395,14 +411,9 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
           </div>
         );
       })}
-      {absent.map(m => {
-        const dimmed = doctorFilter && doctorFilter !== m.id;
-        return (
-          <div key={m.id} className="chip-abs" style={{ opacity: dimmed ? 0.22 : 1 }}>
-            {m.nom} (absent)
-          </div>
-        );
-      })}
+      {absent.map(m => (
+        <div key={m.id} className="chip-abs">{m.nom} (absent)</div>
+      ))}
       {isSecretary && <span className="add-lnk print-hide">+ affecter</span>}
     </div>
   );
