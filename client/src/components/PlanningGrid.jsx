@@ -1,6 +1,100 @@
 // components/PlanningGrid.jsx
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent } from '../utils';
+
+// ── Barre de recherche médecin ─────────────────────────────
+function DoctorSearch({ medecins, value, onChange }) {
+  const [search,   setSearch]   = useState('');
+  const [open,     setOpen]     = useState(false);
+  const [selected, setSelected] = useState(null);
+
+  useEffect(() => {
+    if (!value) { setSelected(null); setSearch(''); }
+  }, [value]);
+
+  const q        = search.trim().toLowerCase();
+  const filtered = q ? medecins.filter(m => m.nom.toLowerCase().includes(q)) : medecins;
+
+  function pick(m) {
+    setSelected(m);
+    setSearch(m.nom);
+    setOpen(false);
+    onChange(m.id);
+  }
+
+  function clear() {
+    setSelected(null);
+    setSearch('');
+    setOpen(false);
+    onChange('');
+  }
+
+  return (
+    <div style={{ position:'relative', minWidth:190 }}>
+      <input
+        type="text"
+        className="team-search"
+        placeholder="Rechercher un médecin…"
+        value={search}
+        autoComplete="off"
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && open && filtered.length > 0 && !selected) pick(filtered[0]);
+          if (e.key === 'Escape') setOpen(false);
+        }}
+        onChange={e => {
+          setSearch(e.target.value);
+          setSelected(null);
+          onChange('');
+          setOpen(true);
+        }}
+        style={{
+          width:'100%',
+          padding:'4px 24px 4px 28px',
+          fontSize:11,
+          background: selected ? 'var(--accent-light)' : undefined,
+          borderColor: selected ? 'var(--accent-mid)' : undefined,
+        }}
+      />
+      {search && (
+        <button
+          onMouseDown={e => { e.preventDefault(); clear(); }}
+          style={{
+            position:'absolute', right:6, top:'50%', transform:'translateY(-50%)',
+            background:'none', border:'none', cursor:'pointer',
+            color:'var(--text3)', fontSize:15, lineHeight:1, padding:0,
+          }}
+        >×</button>
+      )}
+      {open && filtered.length > 0 && !selected && (
+        <div style={{
+          position:'absolute', top:'calc(100% + 3px)', left:0, right:0, zIndex:500,
+          background:'var(--surface)', border:'1px solid var(--border2)',
+          borderRadius:'var(--r)', boxShadow:'0 4px 16px rgba(0,0,0,.13)',
+          maxHeight:200, overflowY:'auto',
+        }}>
+          {filtered.map(m => (
+            <div
+              key={m.id}
+              onMouseDown={() => pick(m)}
+              style={{
+                padding:'6px 12px', cursor:'pointer',
+                fontSize:11, fontFamily:'sans-serif',
+                borderBottom:'1px solid var(--border)',
+                transition:'background .08s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-light)'}
+              onMouseLeave={e => e.currentTarget.style.background = ''}
+            >
+              {m.nom}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function fmtWeek(monday, days) {
   const opts = { day: 'numeric', month: 'long', year: 'numeric' };
@@ -22,7 +116,7 @@ const FILTERS = [
 
 // ── Composant principal ────────────────────────────────────
 
-export default function PlanningGrid({ monday, planningData, absences, isSecretary, onCellClick }) {
+export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick }) {
   const [filter,       setFilter]       = useState(null);
   const [doctorFilter, setDoctorFilter] = useState('');
 
@@ -32,16 +126,6 @@ export default function PlanningGrid({ monday, planningData, absences, isSecreta
   const byPoste    = planningData?.affectations || {};
   const exclusions = planningData?.exclusions   || [];
   const extras     = planningData?.extras       || [];
-
-  // Tous les médecins présents dans le planning de cette semaine
-  const planningDoctors = useMemo(() => {
-    const seen = new Map();
-    Object.values(byPoste).forEach(p => {
-      (p.medecins || []).forEach(m => { if (!seen.has(m.id)) seen.set(m.id, m.nom); });
-    });
-    extras.forEach(e => { if (!seen.has(e.med_id)) seen.set(e.med_id, e.nom); });
-    return [...seen.entries()].map(([id, nom]) => ({ id, nom })).sort((a, b) => a.nom.localeCompare(b.nom));
-  }, [planningData]);
 
   // ── Alertes (toujours sur l'ensemble des postes, filtre ignoré) ──
   const alerts = useMemo(() => {
@@ -134,41 +218,17 @@ export default function PlanningGrid({ monday, planningData, absences, isSecreta
         </div>
 
         {/* ── Vue médecin ── */}
-        {planningDoctors.length > 0 && (
+        {medecins.length > 0 && (
           <>
             <span style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }} />
-            <span style={{ fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700, color:'var(--text2)', letterSpacing:'.04em' }}>
+            <span style={{ fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700, color:'var(--text2)', letterSpacing:'.04em', whiteSpace:'nowrap' }}>
               Vue médecin :
             </span>
-            <select
+            <DoctorSearch
+              medecins={medecins}
               value={doctorFilter}
-              onChange={e => setDoctorFilter(e.target.value)}
-              style={{
-                border:`1px solid ${doctorFilter ? 'var(--accent-mid)' : 'var(--border2)'}`,
-                borderRadius:'var(--r)',
-                padding:'3px 8px', fontSize:11, fontFamily:'sans-serif',
-                background: doctorFilter ? 'var(--accent-light)' : 'var(--surface)',
-                color: doctorFilter ? 'var(--accent)' : 'var(--text)',
-                cursor:'pointer',
-                fontWeight: doctorFilter ? 700 : 400,
-              }}
-            >
-              <option value="">Tous les médecins</option>
-              {planningDoctors.map(m => <option key={m.id} value={m.id}>{m.nom}</option>)}
-            </select>
-            {doctorFilter && (
-              <button
-                onClick={() => setDoctorFilter('')}
-                style={{
-                  fontSize:10, padding:'3px 9px', borderRadius:20,
-                  fontFamily:'sans-serif', cursor:'pointer',
-                  border:'1px solid var(--border2)',
-                  background:'transparent', color:'var(--text2)',
-                }}
-              >
-                × Effacer
-              </button>
-            )}
+              onChange={setDoctorFilter}
+            />
           </>
         )}
 

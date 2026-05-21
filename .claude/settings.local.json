@@ -5,7 +5,8 @@
       "Bash(node --check \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/index.js\")",
       "Read(//tmp/**)",
       "Bash(sleep 4 && cat /tmp/dev-server.log)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(curl -s http://localhost:3001/api/medecins)"
     ]
   },
   "hooks": {

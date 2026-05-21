@@ -257,6 +257,7 @@ export default function App() {
                   monday={monday}
                   planningData={planningData}
                   absences={absences}
+                  medecins={medecins}
                   isSecretary={isSecretary}
                   onCellClick={(poste, dayIso) => isSecretary && setModal({ poste, dayIso })}
                 />
