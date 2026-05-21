@@ -4,13 +4,22 @@ import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent } from '../utils';
 
 // ── Barre de recherche médecin ─────────────────────────────
 function DoctorSearch({ medecins, value, onChange }) {
-  const [search,   setSearch]   = useState('');
-  const [open,     setOpen]     = useState(false);
-  const [selected, setSelected] = useState(null);
+  const [search,    setSearch]    = useState('');
+  const [open,      setOpen]      = useState(false);
+  const [selected,  setSelected]  = useState(null);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const listRef = useRef(null);
 
   useEffect(() => {
     if (!value) { setSelected(null); setSearch(''); }
   }, [value]);
+
+  // Scroll l'élément actif dans la zone visible
+  useEffect(() => {
+    if (activeIdx < 0 || !listRef.current) return;
+    const item = listRef.current.children[activeIdx];
+    if (item) item.scrollIntoView({ block: 'nearest' });
+  }, [activeIdx]);
 
   const q        = search.trim().toLowerCase();
   const filtered = q ? medecins.filter(m => m.nom.toLowerCase().includes(q)) : medecins;
@@ -19,6 +28,7 @@ function DoctorSearch({ medecins, value, onChange }) {
     setSelected(m);
     setSearch(m.nom);
     setOpen(false);
+    setActiveIdx(-1);
     onChange(m.id);
   }
 
@@ -26,7 +36,25 @@ function DoctorSearch({ medecins, value, onChange }) {
     setSelected(null);
     setSearch('');
     setOpen(false);
+    setActiveIdx(-1);
     onChange('');
+  }
+
+  function handleKeyDown(e) {
+    if (!open || selected) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIdx(i => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIdx(i => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filtered.length > 0) pick(filtered[activeIdx >= 0 ? activeIdx : 0]);
+    } else if (e.key === 'Escape') {
+      setOpen(false);
+      setActiveIdx(-1);
+    }
   }
 
   return (
@@ -38,14 +66,12 @@ function DoctorSearch({ medecins, value, onChange }) {
         value={search}
         autoComplete="off"
         onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' && open && filtered.length > 0 && !selected) pick(filtered[0]);
-          if (e.key === 'Escape') setOpen(false);
-        }}
+        onBlur={() => setTimeout(() => { setOpen(false); setActiveIdx(-1); }, 150)}
+        onKeyDown={handleKeyDown}
         onChange={e => {
           setSearch(e.target.value);
           setSelected(null);
+          setActiveIdx(-1);
           onChange('');
           setOpen(true);
         }}
@@ -68,24 +94,24 @@ function DoctorSearch({ medecins, value, onChange }) {
         >×</button>
       )}
       {open && filtered.length > 0 && !selected && (
-        <div style={{
+        <div ref={listRef} style={{
           position:'absolute', top:'calc(100% + 3px)', left:0, right:0, zIndex:500,
           background:'var(--surface)', border:'1px solid var(--border2)',
           borderRadius:'var(--r)', boxShadow:'0 4px 16px rgba(0,0,0,.13)',
           maxHeight:200, overflowY:'auto',
         }}>
-          {filtered.map(m => (
+          {filtered.map((m, idx) => (
             <div
               key={m.id}
               onMouseDown={() => pick(m)}
+              onMouseEnter={() => setActiveIdx(idx)}
+              onMouseLeave={() => setActiveIdx(-1)}
               style={{
                 padding:'6px 12px', cursor:'pointer',
                 fontSize:11, fontFamily:'sans-serif',
                 borderBottom:'1px solid var(--border)',
-                transition:'background .08s',
+                background: idx === activeIdx ? 'var(--accent-light)' : '',
               }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-light)'}
-              onMouseLeave={e => e.currentTarget.style.background = ''}
             >
               {m.nom}
             </div>

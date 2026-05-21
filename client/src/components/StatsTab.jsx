@@ -1,5 +1,5 @@
 // components/StatsTab.jsx
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { POSTES, TYPE_LBL, getMonday } from '../utils';
 import * as api from '../api';
 
@@ -59,23 +59,31 @@ const POSTES_BY_GROUP = SERVICE_GROUPS.map(grp => ({
 // ── Composant principal ────────────────────────────────────
 
 export default function StatsTab({ medecins }) {
-  const [search,   setSearch]   = useState('');
-  const [selected, setSelected] = useState(null); // med object
-  const [stats,    setStats]    = useState(null);
-  const [loading,  setLoading]  = useState(false);
-  const [open,     setOpen]     = useState(false); // dropdown visible
+  const [search,    setSearch]    = useState('');
+  const [selected,  setSelected]  = useState(null);
+  const [stats,     setStats]     = useState(null);
+  const [loading,   setLoading]   = useState(false);
+  const [open,      setOpen]      = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const listRef = useRef(null);
 
   const totalWeeks = getTotalWeeksYear();
   const year       = new Date().getFullYear();
 
-  // Filtre de la dropdown
   const q        = search.trim().toLowerCase();
   const filtered = q ? medecins.filter(m => m.nom.toLowerCase().includes(q)) : medecins;
+
+  useEffect(() => {
+    if (activeIdx < 0 || !listRef.current) return;
+    const item = listRef.current.children[activeIdx];
+    if (item) item.scrollIntoView({ block: 'nearest' });
+  }, [activeIdx]);
 
   async function selectMed(med) {
     setSelected(med);
     setSearch(med.nom);
     setOpen(false);
+    setActiveIdx(-1);
     setStats(null);
     setLoading(true);
     try {
@@ -92,6 +100,7 @@ export default function StatsTab({ medecins }) {
     setSelected(null);
     setSearch('');
     setStats(null);
+    setActiveIdx(-1);
     setOpen(false);
   }
 
@@ -113,8 +122,23 @@ export default function StatsTab({ medecins }) {
           value={search}
           autoComplete="off"
           onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onChange={e => { setSearch(e.target.value); setSelected(null); setStats(null); setOpen(true); }}
+          onBlur={() => setTimeout(() => { setOpen(false); setActiveIdx(-1); }, 150)}
+          onChange={e => { setSearch(e.target.value); setSelected(null); setStats(null); setActiveIdx(-1); setOpen(true); }}
+          onKeyDown={e => {
+            if (!open || selected) return;
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              setActiveIdx(i => Math.min(i + 1, filtered.length - 1));
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              setActiveIdx(i => Math.max(i - 1, 0));
+            } else if (e.key === 'Enter') {
+              e.preventDefault();
+              if (filtered.length > 0) selectMed(filtered[activeIdx >= 0 ? activeIdx : 0]);
+            } else if (e.key === 'Escape') {
+              setOpen(false); setActiveIdx(-1);
+            }
+          }}
         />
         {/* Bouton effacer */}
         {search && (
@@ -127,20 +151,23 @@ export default function StatsTab({ medecins }) {
 
         {/* Dropdown */}
         {open && filtered.length > 0 && !selected && (
-          <div style={{
+          <div ref={listRef} style={{
             position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:200,
             background:'var(--surface)', border:'1px solid var(--border2)',
             borderRadius:'var(--r)', boxShadow:'0 4px 16px rgba(0,0,0,.12)',
             maxHeight:220, overflowY:'auto',
           }}>
-            {filtered.map(m => (
+            {filtered.map((m, idx) => (
               <div key={m.id}
                 onMouseDown={() => selectMed(m)}
+                onMouseEnter={() => setActiveIdx(idx)}
+                onMouseLeave={() => setActiveIdx(-1)}
                 style={{
                   padding:'8px 12px', cursor:'pointer',
                   fontSize:12, fontFamily:'sans-serif',
                   display:'flex', justifyContent:'space-between', alignItems:'center',
                   borderBottom:'1px solid var(--border)',
+                  background: idx === activeIdx ? 'var(--accent-light)' : '',
                 }}>
                 <span style={{ fontWeight:600 }}>{m.nom}</span>
                 <span style={{ fontSize:10, color:'var(--text2)' }}>{TYPE_LBL[m.type]}</span>
