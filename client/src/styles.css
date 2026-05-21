@@ -172,6 +172,32 @@ button, input, select { font-family:inherit; }
 .toast-err { background:var(--warn);   color:#fff; border:1px solid rgba(255,255,255,.15); }
 @keyframes toast-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
 
+/* Print */
+.print-only { display: none; }
+.print-title {
+  font-family: 'Trebuchet MS', sans-serif; font-weight: 700; font-size: 15px;
+  margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid var(--accent);
+}
+
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+
+  .hdr, .tabs, .foot, .toast-wrap, .print-hide { display: none !important; }
+  .print-only { display: block !important; }
+
+  body { background: white; }
+  .main { max-width: 100%; padding: 0; margin: 0; }
+
+  /* Planning grid */
+  .grid-wrap { overflow: visible; box-shadow: none; border: 1px solid #bbb; }
+  .pgrid { min-width: 0 !important; width: 100%; }
+
+  /* Month view */
+  .monthly-grid { gap: 4px; }
+  .month-day { min-height: 60px; padding: 4px 6px; break-inside: avoid; }
+  .month-week-lbl { margin-top: 8px; padding: 6px 0 2px; }
+}
+
 /* Team search */
 .team-search { width:100%; border:1px solid var(--border2); border-radius:var(--r); padding:6px 10px 6px 28px; font-size:12px; font-family:sans-serif; background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239a9890' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") 8px center no-repeat; color:var(--text); }
 .team-search:focus { outline:none; border-color:var(--accent); }

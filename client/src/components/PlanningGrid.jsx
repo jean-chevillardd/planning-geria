@@ -2,6 +2,11 @@
 import { useMemo, useState } from 'react';
 import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent } from '../utils';
 
+function fmtWeek(monday, days) {
+  const opts = { day: 'numeric', month: 'long', year: 'numeric' };
+  return `${days[0].toLocaleDateString('fr-FR', { day:'numeric', month:'long' })} au ${days[4].toLocaleDateString('fr-FR', opts)}`;
+}
+
 // ── Définition des filtres (correspondent à la légende) ────
 const FILTERS = [
   { id: null,      label: 'Tout afficher',    color: null,      grps: null },
@@ -18,7 +23,8 @@ const FILTERS = [
 // ── Composant principal ────────────────────────────────────
 
 export default function PlanningGrid({ monday, planningData, absences, isSecretary, onCellClick }) {
-  const [filter, setFilter] = useState(null);
+  const [filter,       setFilter]       = useState(null);
+  const [doctorFilter, setDoctorFilter] = useState('');
 
   const days     = weekDays(monday);
   const todayIso = toIso(new Date());
@@ -26,6 +32,16 @@ export default function PlanningGrid({ monday, planningData, absences, isSecreta
   const byPoste    = planningData?.affectations || {};
   const exclusions = planningData?.exclusions   || [];
   const extras     = planningData?.extras       || [];
+
+  // Tous les médecins présents dans le planning de cette semaine
+  const planningDoctors = useMemo(() => {
+    const seen = new Map();
+    Object.values(byPoste).forEach(p => {
+      (p.medecins || []).forEach(m => { if (!seen.has(m.id)) seen.set(m.id, m.nom); });
+    });
+    extras.forEach(e => { if (!seen.has(e.med_id)) seen.set(e.med_id, e.nom); });
+    return [...seen.entries()].map(([id, nom]) => ({ id, nom })).sort((a, b) => a.nom.localeCompare(b.nom));
+  }, [planningData]);
 
   // ── Alertes (toujours sur l'ensemble des postes, filtre ignoré) ──
   const alerts = useMemo(() => {
@@ -61,15 +77,21 @@ export default function PlanningGrid({ monday, planningData, absences, isSecreta
 
   return (
     <div>
+      {/* ── Titre impression ── */}
+      <div className="print-only print-title">
+        Planning — Semaine du {fmtWeek(monday, days)}
+      </div>
+
       {/* ── Alerte couverture ── */}
-      <div className={`alert ${alerts.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom:10 }}>
+      <div className={`alert print-hide ${alerts.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom:10 }}>
         {alerts.length === 0
           ? '✓ Tous les postes obligatoires sont couverts.'
           : `⚠ ${alerts.length} créneau(x) non couvert(s) : ${alerts.slice(0, 6).join(' · ')}${alerts.length > 6 ? ' …' : ''}`}
       </div>
 
-      {/* ── Filtres / légende ── */}
-      <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:12, alignItems:'center' }}>
+      {/* ── Filtres / légende + vue médecin + imprimer ── */}
+      <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:12, alignItems:'center' }}>
+        {/* Filtres par groupe */}
         {FILTERS.map(f => {
           const active = filter === f.id;
           const col    = f.color || 'var(--accent)';
@@ -104,12 +126,67 @@ export default function PlanningGrid({ monday, planningData, absences, isSecreta
           );
         })}
 
-        {/* Séparateur + légende "Jour non travaillé" (non cliquable) */}
+        {/* Séparateur + légende "Jour non travaillé" */}
         <span style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }} />
         <div className="li">
           <div className="l-hatch" />
           <span style={{ fontSize:10, fontFamily:'sans-serif', color:'var(--text2)' }}>Jour non travaillé</span>
         </div>
+
+        {/* ── Vue médecin ── */}
+        {planningDoctors.length > 0 && (
+          <>
+            <span style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }} />
+            <span style={{ fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700, color:'var(--text2)', letterSpacing:'.04em' }}>
+              Vue médecin :
+            </span>
+            <select
+              value={doctorFilter}
+              onChange={e => setDoctorFilter(e.target.value)}
+              style={{
+                border:`1px solid ${doctorFilter ? 'var(--accent-mid)' : 'var(--border2)'}`,
+                borderRadius:'var(--r)',
+                padding:'3px 8px', fontSize:11, fontFamily:'sans-serif',
+                background: doctorFilter ? 'var(--accent-light)' : 'var(--surface)',
+                color: doctorFilter ? 'var(--accent)' : 'var(--text)',
+                cursor:'pointer',
+                fontWeight: doctorFilter ? 700 : 400,
+              }}
+            >
+              <option value="">Tous les médecins</option>
+              {planningDoctors.map(m => <option key={m.id} value={m.id}>{m.nom}</option>)}
+            </select>
+            {doctorFilter && (
+              <button
+                onClick={() => setDoctorFilter('')}
+                style={{
+                  fontSize:10, padding:'3px 9px', borderRadius:20,
+                  fontFamily:'sans-serif', cursor:'pointer',
+                  border:'1px solid var(--border2)',
+                  background:'transparent', color:'var(--text2)',
+                }}
+              >
+                × Effacer
+              </button>
+            )}
+          </>
+        )}
+
+        {/* ── Bouton imprimer ── */}
+        <button
+          onClick={() => window.print()}
+          style={{
+            marginLeft:'auto',
+            fontSize:10, padding:'4px 11px', borderRadius:20,
+            fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
+            letterSpacing:'.04em', cursor:'pointer',
+            border:'1.5px solid var(--border2)',
+            background:'transparent', color:'var(--text2)',
+            display:'inline-flex', alignItems:'center', gap:5,
+          }}
+        >
+          🖨 Imprimer
+        </button>
       </div>
 
       {/* ── Grille ── */}
@@ -142,6 +219,7 @@ export default function PlanningGrid({ monday, planningData, absences, isSecreta
                     <GridRow key={p.id} poste={p} days={days} todayIso={todayIso}
                       assigned={byPoste[p.id]?.medecins || []}
                       exclusions={exclusions} extras={extras} absences={absences}
+                      doctorFilter={doctorFilter}
                       isSecretary={isSecretary} onCellClick={onCellClick} />
                   ))}
                 </div>
@@ -157,7 +235,7 @@ export default function PlanningGrid({ monday, planningData, absences, isSecreta
 
 // ── Ligne de poste ──────────────────────────────────────────
 
-function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences, isSecretary, onCellClick }) {
+function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences, doctorFilter, isSecretary, onCellClick }) {
   return (
     <div className="grow">
       <div className="pname">
@@ -170,6 +248,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
         return (
           <Cell key={di} poste={poste} dayIso={di} isToday={di === todayIso}
             assigned={assigned} exclusions={exclusions} extras={extras} absences={absences}
+            doctorFilter={doctorFilter}
             isSecretary={isSecretary} onClick={() => onCellClick(poste, di)} />
         );
       })}
@@ -179,7 +258,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
 
 // ── Cellule ────────────────────────────────────────────────
 
-function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, isSecretary, onClick }) {
+function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, doctorFilter, isSecretary, onClick }) {
   const excl      = exclusions.filter(e => e.poste_id === poste.id && e.jour === dayIso).map(e => e.med_id);
   const dayExtras = extras.filter(e => e.poste_id === poste.id && e.jour === dayIso);
   const present   = assigned.filter(m => worksDay(m, dayIso, absences) && !excl.includes(m.id));
@@ -193,20 +272,45 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
       style={isOff ? { background:'var(--off-stripe)', cursor: isSecretary ? 'pointer' : 'default' } : {}}
       onClick={isSecretary ? onClick : undefined}
     >
-      {present.map(m => (
-        <div key={m.id} className="chip" style={{ background: poste.c + '18', borderColor: poste.c + '55' }}>
-          <span className="chip-nm" style={{ color: poste.c }}>{m.nom}</span>
-        </div>
-      ))}
-      {dayExtras.map(e => (
-        <div key={e.med_id} className="chip" style={{ background: poste.c + '28', borderColor: poste.c + '88' }}>
-          <span className="chip-nm" style={{ color: poste.c }}>{e.nom} <span style={{ fontSize:8, opacity:.7 }}>(remplac.)</span></span>
-        </div>
-      ))}
-      {absent.map(m => (
-        <div key={m.id} className="chip-abs">{m.nom} (absent)</div>
-      ))}
-      {isSecretary && <span className="add-lnk">+ affecter</span>}
+      {present.map(m => {
+        const highlighted = doctorFilter === m.id;
+        const dimmed      = doctorFilter && !highlighted;
+        return (
+          <div key={m.id} className="chip" style={{
+            background:  poste.c + (highlighted ? '33' : '18'),
+            borderColor: poste.c + (highlighted ? 'cc' : '55'),
+            opacity:     dimmed ? 0.22 : 1,
+            boxShadow:   highlighted ? `0 0 0 2px ${poste.c}55` : 'none',
+          }}>
+            <span className="chip-nm" style={{ color: poste.c }}>{m.nom}</span>
+          </div>
+        );
+      })}
+      {dayExtras.map(e => {
+        const highlighted = doctorFilter === e.med_id;
+        const dimmed      = doctorFilter && !highlighted;
+        return (
+          <div key={e.med_id} className="chip" style={{
+            background:  poste.c + (highlighted ? '44' : '28'),
+            borderColor: poste.c + (highlighted ? 'cc' : '88'),
+            opacity:     dimmed ? 0.22 : 1,
+            boxShadow:   highlighted ? `0 0 0 2px ${poste.c}55` : 'none',
+          }}>
+            <span className="chip-nm" style={{ color: poste.c }}>
+              {e.nom} <span style={{ fontSize:8, opacity:.7 }}>(remplac.)</span>
+            </span>
+          </div>
+        );
+      })}
+      {absent.map(m => {
+        const dimmed = doctorFilter && doctorFilter !== m.id;
+        return (
+          <div key={m.id} className="chip-abs" style={{ opacity: dimmed ? 0.22 : 1 }}>
+            {m.nom} (absent)
+          </div>
+        );
+      })}
+      {isSecretary && <span className="add-lnk print-hide">+ affecter</span>}
     </div>
   );
 }

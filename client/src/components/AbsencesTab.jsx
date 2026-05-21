@@ -756,6 +756,62 @@ function AbsenceCalendar({ absences, isSecretary, onDelete }) {
   );
 }
 
+// ── Capsule "absents cette semaine" avec dropdown ───────────
+function WeekAbsencesBadge({ weekAbsences }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  if (weekAbsences.length === 0) return null;
+
+  const n = weekAbsences.length;
+  return (
+    <div ref={ref} style={{ position:'relative', display:'inline-block', marginBottom:12 }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          display:'inline-flex', alignItems:'center', gap:6,
+          padding:'6px 13px 6px 11px',
+          background: open ? 'var(--accent)' : 'var(--accent-light)',
+          border:`1px solid ${open ? 'var(--accent)' : 'var(--accent-mid)'}`,
+          borderRadius:20, fontSize:11, fontFamily:'sans-serif',
+          color: open ? '#fff' : 'var(--accent)',
+          cursor:'pointer', fontWeight:700, transition:'all .12s',
+        }}
+      >
+        <span>👥</span>
+        <span>{n} personne{n > 1 ? 's' : ''} absente{n > 1 ? 's' : ''} cette semaine</span>
+        <span style={{ fontSize:9, opacity:.75 }}>{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div style={{
+          position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:400,
+          background:'var(--surface)', border:'1px solid var(--border2)',
+          borderRadius:'var(--rl)', boxShadow:'0 8px 24px rgba(0,0,0,.15)',
+          padding:'6px 0', minWidth:240,
+        }}>
+          {weekAbsences.map((a, i) => (
+            <div key={a.nom + i} style={{
+              padding:'7px 14px', fontSize:11, fontFamily:'sans-serif',
+              borderBottom: i < weekAbsences.length - 1 ? '1px solid var(--border)' : 'none',
+              display:'flex', flexDirection:'column', gap:2,
+            }}>
+              <span style={{ fontWeight:700, color:'var(--text)' }}>{a.nom}</span>
+              <span style={{ fontSize:10, color:'var(--text2)' }}>{a.type}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Composant principal ─────────────────────────────────────
 export default function AbsencesTab({ medecins, absences, isSecretary, onReload, onToast }) {
   const [medId,   setMedId]   = useState('');
@@ -763,7 +819,6 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
   const [dateF,   setDateF]   = useState(() => todayIso());
   const [typeAbs, setTypeAbs] = useState(TYPES_ABS[0]);
   const [saving,  setSaving]  = useState(false);
-  const [view,    setView]    = useState('list');
 
   const workDays = useMemo(() => {
     if (!dateD || !dateF || dateF < dateD) return null;
@@ -777,13 +832,15 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
     ) || null;
   }, [medId, dateD, dateF, absences]);
 
-  const thisWeekAbsent = useMemo(() => {
+  const thisWeekAbsences = useMemo(() => {
     const { mon, fri } = getCurrentWeekRange();
-    return absences
+    const seen = new Map();
+    absences
       .filter(a => a.date_debut <= fri && a.date_fin >= mon)
-      .map(a => a.med_nom)
-      .filter((v, i, arr) => arr.indexOf(v) === i)
-      .sort();
+      .forEach(a => {
+        if (!seen.has(a.med_id)) seen.set(a.med_id, { nom: a.med_nom, type: a.type_abs });
+      });
+    return [...seen.values()].sort((a, b) => a.nom.localeCompare(b.nom));
   }, [absences]);
 
   async function handleAdd() {
@@ -815,18 +872,8 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
     <div>
       <div className="sec-t" style={{ marginBottom:12 }}>Absences &amp; congés</div>
 
-      {/* ── Bannière absents cette semaine ── */}
-      {thisWeekAbsent.length > 0 && (
-        <div style={{
-          background:'var(--accent-light)', border:'1px solid var(--accent-mid)',
-          borderRadius:'var(--r)', padding:'7px 12px', marginBottom:12,
-          fontSize:11, fontFamily:'sans-serif', color:'var(--accent)',
-          display:'flex', alignItems:'center', gap:8,
-        }}>
-          <span style={{ fontWeight:700 }}>Cette semaine :</span>
-          {thisWeekAbsent.join(', ')} absent{thisWeekAbsent.length > 1 ? 's' : ''}
-        </div>
-      )}
+      {/* ── Capsule absents cette semaine ── */}
+      <WeekAbsencesBadge weekAbsences={thisWeekAbsences} />
 
       {/* ── Formulaire ajout + alerte (secrétaires seulement) ── */}
       {isSecretary && (
@@ -888,29 +935,7 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
       {/* ── Légende types de congé ── */}
       <TypeLegend />
 
-      {/* ── Toggle vue ── */}
-      <div style={{ display:'flex', gap:6, marginBottom:14, alignItems:'center' }}>
-        {[{ id:'list', label:'☰ Liste' }, { id:'cal', label:'📅 Calendrier' }].map(v => (
-          <button
-            key={v.id}
-            onClick={() => setView(v.id)}
-            style={{
-              padding:'4px 13px', borderRadius:20, fontSize:10,
-              fontFamily:'Trebuchet MS,sans-serif', fontWeight:700, letterSpacing:'.04em',
-              cursor:'pointer', transition:'background .12s, color .12s, border-color .12s',
-              background:  view === v.id ? 'var(--accent)' : 'transparent',
-              color:       view === v.id ? '#fff'          : 'var(--text2)',
-              border:`1.5px solid ${view === v.id ? 'var(--accent)' : 'var(--border2)'}`,
-              outline:'none',
-            }}
-          >
-            {v.label}
-          </button>
-        ))}
-      </div>
-
-      {view === 'list' && <AbsenceList absences={absences} isSecretary={isSecretary} onDelete={handleDelete} />}
-      {view === 'cal'  && <AbsenceCalendar absences={absences} isSecretary={isSecretary} onDelete={handleDelete} />}
+      <AbsenceCalendar absences={absences} isSecretary={isSecretary} onDelete={handleDelete} />
     </div>
   );
 }

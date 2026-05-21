@@ -237,13 +237,15 @@ export default function App() {
         {/* ── Planning ── */}
         {tab === 'planning' && (
           <>
-            <WeekNav
-              monday={monday}
-              onChange={setMonday}
-              onCopy={handleCopyWeek}
-              onGoToday={() => setMonday(getMonday(new Date()))}
-              isSecretary={isSecretary}
-            />
+            <div className="print-hide">
+              <WeekNav
+                monday={monday}
+                onChange={setMonday}
+                onCopy={handleCopyWeek}
+                onGoToday={() => setMonday(getMonday(new Date()))}
+                isSecretary={isSecretary}
+              />
+            </div>
             {planLoading && !planningData && (
               <div style={{ fontFamily:'sans-serif', fontSize:12, color:'var(--text2)', padding:'1rem 0' }}>
                 Chargement du planning…

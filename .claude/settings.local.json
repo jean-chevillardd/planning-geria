@@ -2,7 +2,10 @@
   "permissions": {
     "allow": [
       "Bash(npm run *)",
-      "Bash(node --check \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/index.js\")"
+      "Bash(node --check \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/index.js\")",
+      "Read(//tmp/**)",
+      "Bash(sleep 4 && cat /tmp/dev-server.log)",
+      "mcp__Claude_Preview__preview_start"
     ]
   },
   "hooks": {

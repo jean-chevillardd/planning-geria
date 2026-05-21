@@ -52,18 +52,36 @@ export default function MonthView({ medecins, absences }) {
 
   return (
     <div>
+      {/* ── Titre impression ── */}
+      <div className="print-only print-title">
+        Vue mensuelle — {new Date(y, mo, 1).toLocaleDateString('fr-FR', { month:'long', year:'numeric' })}
+      </div>
+
       {/* ── Navigation ── */}
-      <div className="wn">
+      <div className="wn print-hide">
         <button className="wn-btn" onClick={() => setMonthDate(new Date(y, mo-1, 1))}>‹</button>
         <button className="wn-btn" onClick={() => setMonthDate(new Date(y, mo+1, 1))}>›</button>
         <span className="wn-lbl">
           {new Date(y, mo, 1).toLocaleDateString('fr-FR', { month:'long', year:'numeric' })}
         </span>
         <button className="wn-chip" onClick={() => setMonthDate(new Date())}>Mois actuel</button>
+        <button
+          onClick={() => window.print()}
+          style={{
+            fontSize:10, padding:'4px 11px', borderRadius:20,
+            fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
+            letterSpacing:'.04em', cursor:'pointer',
+            border:'1.5px solid var(--border2)',
+            background:'transparent', color:'var(--text2)',
+            display:'inline-flex', alignItems:'center', gap:5,
+          }}
+        >
+          🖨 Imprimer
+        </button>
       </div>
 
       {/* ── Filtres (cliquer à nouveau pour tout réafficher) ── */}
-      <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:14, alignItems:'center' }}>
+      <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:14, alignItems:'center' }}>
         {FILTERS.map(f => {
           const active = filter === f.id;
           return (
