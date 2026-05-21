@@ -1,7 +1,19 @@
 // components/StatsTab.jsx
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { POSTES, TYPE_LBL, getMonday } from '../utils';
 import * as api from '../api';
+
+const TYPE_COLORS = {
+  'Congé annuel (CA)':              '#185FA5',
+  'Formation / DPC':                '#0F6E56',
+  'Congé maladie':                  '#C94A20',
+  'Temps non clinique':             '#7B3FA0',
+  'RTT':                            '#2D6EA0',
+  'Récupération de garde':          '#B54D00',
+  'Congé formation (CF)':           '#1A7E74',
+  'Activité externe (CM2R / MTG…)': '#8A5C0A',
+};
+function typeColor(t) { return TYPE_COLORS[t] ?? '#6A6A66'; }
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -208,7 +220,6 @@ export default function StatsTab({ medecins }) {
 function MedecinStats({ med, stats, totalWeeks, year }) {
   const { affectations, absences } = stats;
 
-  // Map poste_id → semaines
   const affMap = {};
   affectations.forEach(a => { affMap[a.poste_id] = Number(a.semaines); });
 
@@ -217,14 +228,32 @@ function MedecinStats({ med, stats, totalWeeks, year }) {
     affectations.map(a => POSTES.find(p => p.id === a.poste_id)?.grp).filter(Boolean)
   );
   const totalAbsDays = absences.reduce((n, a) => n + countWorkingDays(a.date_debut, a.date_fin), 0);
+  const barPct = s => Math.min(Math.round((s / Math.max(totalWeeks, 1)) * 100), 100);
 
-  // Pour les barres : base = totalWeeks, cap à 100 %
-  const barPct = (s) => Math.min(Math.round((s / Math.max(totalWeeks, 1)) * 100), 100);
+  // Regroupement des congés : mois → type → nb jours
+  const absencesByMonth = useMemo(() => {
+    const todayKey = new Date().toISOString().slice(0, 7);
+    const months = {};
+    absences.forEach(a => {
+      const key = a.date_debut.slice(0, 7);
+      if (!months[key]) months[key] = {};
+      const days = countWorkingDays(a.date_debut, a.date_fin);
+      months[key][a.type_abs] = (months[key][a.type_abs] || 0) + days;
+    });
+    return Object.entries(months)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, types]) => ({
+        key,
+        label: new Date(key + '-15').toLocaleDateString('fr-FR', { month:'long', year:'numeric' }),
+        isPast: key < todayKey,
+        types: Object.entries(types).map(([type, days]) => ({ type, days })).sort((a, b) => b.days - a.days),
+        total: Object.values(types).reduce((s, n) => s + n, 0),
+      }));
+  }, [absences]);
 
   return (
     <div>
-
-      {/* ── Carte d'en-tête ── */}
+      {/* ── Carte en-tête ── */}
       <div style={{
         background:'var(--surface)', border:'1px solid var(--border)',
         borderRadius:'var(--rl)', padding:'14px 18px', marginBottom:20,
@@ -237,67 +266,98 @@ function MedecinStats({ med, stats, totalWeeks, year }) {
           </div>
         </div>
         <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
-          <Kpi value={groupsCovered.size}  label="services couverts" />
-          <Kpi value={totalSemaines}        label="semaines affectées" />
-          <Kpi value={totalWeeks}           label={`semaines ${year}`}    color="var(--text3)" />
+          <Kpi value={groupsCovered.size} label="services couverts" />
+          <Kpi value={totalSemaines}       label="semaines affectées" />
+          <Kpi value={totalWeeks}          label={`semaines ${year}`} color="var(--text3)" />
           {totalAbsDays > 0 && <Kpi value={totalAbsDays} label="jours d'absence" color="var(--warn)" />}
         </div>
       </div>
 
-      {/* ── Rotation par service ── */}
-      <div className="sec-s" style={{ marginBottom:12 }}>Rotation par service — {year}</div>
+      {/* ── Mise en page 2 colonnes (responsive) ── */}
+      <div style={{ display:'flex', gap:20, flexWrap:'wrap', alignItems:'flex-start' }}>
 
-      {affectations.length === 0 && (
-        <p style={{ fontFamily:'sans-serif', fontSize:12, color:'var(--text3)', marginBottom:16 }}>
-          Aucune affectation enregistrée depuis le 01/01/{year}.
-        </p>
-      )}
-
-      <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:24 }}>
-        {POSTES_BY_GROUP.map(({ grp, postes }) => {
-          // N'afficher que les postes de ce groupe qui ont des données
-          const relevant = postes.filter(p => affMap[p.id]);
-          const uncovered = postes.filter(p => !affMap[p.id]);
-          if (relevant.length === 0 && uncovered.length === postes.length && affectations.length > 0) {
-            // Groupe non couvert → on l'affiche en gris pour signaler le manque
-          }
-          return (
-            <GroupBlock
-              key={grp}
-              grp={grp}
-              postes={postes}
-              relevant={relevant}
-              affMap={affMap}
-              barPct={barPct}
-            />
-          );
-        })}
-      </div>
-
-      {/* ── Absences ── */}
-      {absences.length > 0 && (
-        <>
-          <div className="sec-s" style={{ marginBottom:10 }}>
-            Absences {year} — {totalAbsDays} jour{totalAbsDays > 1 ? 's' : ''} ouvré{totalAbsDays > 1 ? 's' : ''}
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:16 }}>
-            {absences.map((a, i) => (
-              <div key={i} style={{
-                background:'var(--warn-bg)', border:'1px solid var(--warn-bd)',
-                borderRadius:'var(--r)', padding:'5px 10px',
-                fontSize:11, fontFamily:'sans-serif',
-                display:'flex', justifyContent:'space-between', alignItems:'center', gap:8,
-              }}>
-                <span style={{ color:'var(--warn)', fontWeight:600 }}>{a.type_abs}</span>
-                <span style={{ color:'var(--text2)' }}>
-                  {fmtDate(a.date_debut)} → {fmtDate(a.date_fin)}
-                  {' '}({countWorkingDays(a.date_debut, a.date_fin)} jour{countWorkingDays(a.date_debut, a.date_fin) > 1 ? 's' : ''})
-                </span>
-              </div>
+        {/* ── Colonne gauche : Rotation ── */}
+        <div style={{ flex:'1 1 300px', minWidth:0 }}>
+          <div className="sec-s" style={{ marginBottom:10 }}>Rotation par service — {year}</div>
+          {affectations.length === 0 && (
+            <p style={{ fontFamily:'sans-serif', fontSize:12, color:'var(--text3)' }}>
+              Aucune affectation enregistrée depuis le 01/01/{year}.
+            </p>
+          )}
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            {POSTES_BY_GROUP.map(({ grp, postes }) => (
+              <GroupBlock
+                key={grp} grp={grp} postes={postes}
+                relevant={postes.filter(p => affMap[p.id])}
+                affMap={affMap} barPct={barPct}
+              />
             ))}
           </div>
-        </>
-      )}
+        </div>
+
+        {/* ── Colonne droite : Absences par mois ── */}
+        {absences.length > 0 && (
+          <div style={{ flex:'1 1 240px', minWidth:0 }}>
+            <div className="sec-s" style={{ marginBottom:10 }}>
+              Absences {year}
+              <span style={{ fontWeight:400, color:'var(--text2)', marginLeft:6 }}>
+                — {totalAbsDays} j. ouvré{totalAbsDays > 1 ? 's' : ''}
+              </span>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              {absencesByMonth.map(mo => (
+                <div key={mo.key} style={{
+                  background:'var(--surface)', border:'1px solid var(--border)',
+                  borderRadius:'var(--r)', overflow:'hidden',
+                }}>
+                  {/* En-tête mois */}
+                  <div style={{
+                    background: mo.isPast ? 'var(--surface2)' : 'var(--accent-light)',
+                    padding:'5px 10px',
+                    display:'flex', justifyContent:'space-between', alignItems:'center',
+                    borderBottom:'1px solid var(--border)',
+                  }}>
+                    <span style={{
+                      fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
+                      letterSpacing:'.05em', textTransform:'uppercase',
+                      color: mo.isPast ? 'var(--text2)' : 'var(--accent)',
+                    }}>
+                      {mo.isPast ? '✓ ' : ''}{mo.label}
+                    </span>
+                    <span style={{
+                      fontSize:11, fontFamily:'sans-serif', fontWeight:700,
+                      color: mo.isPast ? 'var(--text3)' : 'var(--accent)',
+                    }}>
+                      {mo.total} j.
+                    </span>
+                  </div>
+                  {/* Lignes type → jours */}
+                  <div style={{ padding:'6px 10px', display:'flex', flexDirection:'column', gap:5 }}>
+                    {mo.types.map(({ type, days }) => (
+                      <div key={type} style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <span style={{
+                          width:9, height:9, borderRadius:2, flexShrink:0,
+                          background: typeColor(type) + '33',
+                          border:`1.5px solid ${typeColor(type)}99`,
+                        }} />
+                        <span style={{ flex:1, fontSize:10, fontFamily:'sans-serif', color:'var(--text2)' }}>
+                          {type}
+                        </span>
+                        <span style={{
+                          fontSize:11, fontFamily:'sans-serif', fontWeight:700,
+                          color: typeColor(type), whiteSpace:'nowrap',
+                        }}>
+                          {days} j.
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
