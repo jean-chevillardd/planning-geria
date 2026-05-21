@@ -1,0 +1,22 @@
+# ── Dépendances Node.js ──────────────────────────────────────
+node_modules/
+
+# ── Base de données (données locales, ne pas partager) ───────
+server/database.sqlite
+server/*.sqlite
+
+# ── Build du front-end ───────────────────────────────────────
+client/dist/
+
+# ── Fichiers système macOS ───────────────────────────────────
+.DS_Store
+**/.DS_Store
+
+# ── Variables d'environnement (mots de passe, clés API) ──────
+.env
+.env.local
+.env.*.local
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+npm-debug.log*

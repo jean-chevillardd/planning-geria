@@ -1,0 +1,212 @@
+// components/PlanningGrid.jsx
+import { useMemo, useState } from 'react';
+import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent } from '../utils';
+
+// ── Définition des filtres (correspondent à la légende) ────
+const FILTERS = [
+  { id: null,      label: 'Tout afficher',    color: null,      grps: null },
+  { id: 'cs',      label: 'Court séjour',     color: '#185FA5', grps: ['Court séjour 1', 'Court séjour 2'] },
+  { id: 'ssr',     label: 'SSR',              color: '#0F6E56', grps: ['SSR'] },
+  { id: 'hdj',     label: 'HDJ',              color: '#C94A20', grps: ['Hôpital de jour'] },
+  { id: 'ucc',     label: 'UCC/EMCC',         color: '#C44070', grps: ['UCC / EMCC'] },
+  { id: 'extra',   label: 'Extra-hosp.',      color: '#4A4A47', grps: ['Extra-hospitalier'] },
+  { id: 'tnc',     label: 'Tps non clin.',    color: '#7B3FA0', grps: ['Temps non clinique'] },
+  { id: 'ehpad',   label: 'EHPAD',            color: '#8A5C0A', grps: ['EHPAD'] },
+  { id: 'consult', label: 'Consultations',    color: '#6A6A66', grps: ['Consultations'] },
+];
+
+// ── Composant principal ────────────────────────────────────
+
+export default function PlanningGrid({ monday, planningData, absences, isSecretary, onCellClick }) {
+  const [filter, setFilter] = useState(null);
+
+  const days     = weekDays(monday);
+  const todayIso = toIso(new Date());
+
+  const byPoste    = planningData?.affectations || {};
+  const exclusions = planningData?.exclusions   || [];
+  const extras     = planningData?.extras       || [];
+
+  // ── Alertes (toujours sur l'ensemble des postes, filtre ignoré) ──
+  const alerts = useMemo(() => {
+    const warns = [];
+    days.forEach(d => {
+      const di = toIso(d);
+      POSTES.filter(p => p.min > 0).forEach(p => {
+        const assigned = byPoste[p.id]?.medecins || [];
+        const excl     = exclusions.filter(e => e.poste_id === p.id && e.jour === di).map(e => e.med_id);
+        const ext      = extras.filter(e => e.poste_id === p.id && e.jour === di).map(e => e.med_id);
+        const present  = [
+          ...assigned.filter(m => worksDay(m, di, absences) && !excl.includes(m.id)),
+          ...ext,
+        ];
+        if (present.length < p.min)
+          warns.push(`${p.lbl.split('—')[0].trim()} (${DAYS_FR[d.getDay() - 1]})`);
+      });
+    });
+    return warns;
+  }, [planningData, absences, monday]);
+
+  // ── Groupes de postes (ordre stable défini par POSTES) ──
+  const allGroups = useMemo(() => {
+    const map = {};
+    POSTES.forEach(p => { if (!map[p.grp]) map[p.grp] = []; map[p.grp].push(p); });
+    return map;
+  }, []);
+
+  const activeFilter  = FILTERS.find(f => f.id === filter);
+  const visibleGroups = filter === null
+    ? Object.entries(allGroups)
+    : Object.entries(allGroups).filter(([grp]) => activeFilter?.grps?.includes(grp));
+
+  return (
+    <div>
+      {/* ── Alerte couverture ── */}
+      <div className={`alert ${alerts.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom:10 }}>
+        {alerts.length === 0
+          ? '✓ Tous les postes obligatoires sont couverts.'
+          : `⚠ ${alerts.length} créneau(x) non couvert(s) : ${alerts.slice(0, 6).join(' · ')}${alerts.length > 6 ? ' …' : ''}`}
+      </div>
+
+      {/* ── Filtres / légende ── */}
+      <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:12, alignItems:'center' }}>
+        {FILTERS.map(f => {
+          const active = filter === f.id;
+          const col    = f.color || 'var(--accent)';
+          return (
+            <button
+              key={String(f.id)}
+              onClick={() => setFilter(f.id)}
+              style={{
+                display:'inline-flex', alignItems:'center', gap:5,
+                padding:'4px 11px',
+                border:`1.5px solid ${col}`,
+                borderRadius:20,
+                fontSize:10,
+                fontFamily:'Trebuchet MS,sans-serif',
+                fontWeight:700,
+                letterSpacing:'.04em',
+                cursor:'pointer',
+                transition:'background .12s, color .12s',
+                background: active ? col : 'transparent',
+                color:      active ? '#fff' : col,
+                outline:'none',
+              }}
+            >
+              {f.color && (
+                <span style={{
+                  width:7, height:7, borderRadius:'50%', flexShrink:0,
+                  background: active ? 'rgba(255,255,255,.75)' : f.color,
+                }} />
+              )}
+              {f.label}
+            </button>
+          );
+        })}
+
+        {/* Séparateur + légende "Jour non travaillé" (non cliquable) */}
+        <span style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }} />
+        <div className="li">
+          <div className="l-hatch" />
+          <span style={{ fontSize:10, fontFamily:'sans-serif', color:'var(--text2)' }}>Jour non travaillé</span>
+        </div>
+      </div>
+
+      {/* ── Grille ── */}
+      <div className="grid-wrap">
+        <div className="pgrid">
+
+          {/* En-tête colonnes */}
+          <div className="gh">
+            <div className="ghc" style={{ textAlign:'left', paddingLeft:10 }}>Poste</div>
+            {days.map((d, i) => (
+              <div key={i} className={`ghc${toIso(d) === todayIso ? ' today' : ''}`}>
+                {d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
+              </div>
+            ))}
+          </div>
+
+          {/* Lignes filtrées */}
+          <div>
+            {visibleGroups.length === 0 ? (
+              <div style={{ padding:'1.5rem', fontFamily:'sans-serif', fontSize:12, color:'var(--text3)', textAlign:'center' }}>
+                Aucun poste à afficher pour ce filtre.
+              </div>
+            ) : (
+              visibleGroups.map(([grp, postes]) => (
+                <div key={grp}>
+                  <div className="grp-hdr-row">
+                    <div className="grp-hdr">{grp}</div>
+                  </div>
+                  {postes.map(p => (
+                    <GridRow key={p.id} poste={p} days={days} todayIso={todayIso}
+                      assigned={byPoste[p.id]?.medecins || []}
+                      exclusions={exclusions} extras={extras} absences={absences}
+                      isSecretary={isSecretary} onCellClick={onCellClick} />
+                  ))}
+                </div>
+              ))
+            )}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Ligne de poste ──────────────────────────────────────────
+
+function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences, isSecretary, onCellClick }) {
+  return (
+    <div className="grow">
+      <div className="pname">
+        <div className="pdot" style={{ background: poste.c }} />
+        <span>{poste.lbl}</span>
+        {poste.min > 0 && <span className="pmin">min {poste.min}</span>}
+      </div>
+      {days.map(d => {
+        const di = toIso(d);
+        return (
+          <Cell key={di} poste={poste} dayIso={di} isToday={di === todayIso}
+            assigned={assigned} exclusions={exclusions} extras={extras} absences={absences}
+            isSecretary={isSecretary} onClick={() => onCellClick(poste, di)} />
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Cellule ────────────────────────────────────────────────
+
+function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, isSecretary, onClick }) {
+  const excl      = exclusions.filter(e => e.poste_id === poste.id && e.jour === dayIso).map(e => e.med_id);
+  const dayExtras = extras.filter(e => e.poste_id === poste.id && e.jour === dayIso);
+  const present   = assigned.filter(m => worksDay(m, dayIso, absences) && !excl.includes(m.id));
+  const absent    = assigned.filter(m => isAbsent(m.id, dayIso, absences) && !excl.includes(m.id));
+  const anyoneToday = present.length > 0 || dayExtras.length > 0;
+  const isOff     = assigned.length > 0 && !anyoneToday && absent.length === 0;
+
+  return (
+    <div
+      className={`cell${isSecretary ? ' avail' : ''}${isToday ? ' today' : ''}`}
+      style={isOff ? { background:'var(--off-stripe)', cursor: isSecretary ? 'pointer' : 'default' } : {}}
+      onClick={isSecretary ? onClick : undefined}
+    >
+      {present.map(m => (
+        <div key={m.id} className="chip" style={{ background: poste.c + '18', borderColor: poste.c + '55' }}>
+          <span className="chip-nm" style={{ color: poste.c }}>{m.nom}</span>
+        </div>
+      ))}
+      {dayExtras.map(e => (
+        <div key={e.med_id} className="chip" style={{ background: poste.c + '28', borderColor: poste.c + '88' }}>
+          <span className="chip-nm" style={{ color: poste.c }}>{e.nom} <span style={{ fontSize:8, opacity:.7 }}>(remplac.)</span></span>
+        </div>
+      ))}
+      {absent.map(m => (
+        <div key={m.id} className="chip-abs">{m.nom} (absent)</div>
+      ))}
+      {isSecretary && <span className="add-lnk">+ affecter</span>}
+    </div>
+  );
+}

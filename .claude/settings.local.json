@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(node --check \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/index.js\")"
+    ]
+  }
+}
