@@ -4,5 +4,17 @@
       "Bash(npm run *)",
       "Bash(node --check \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/index.js\")"
     ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie\" && git add -A && git diff --cached --quiet || git commit -m \"Auto-commit: session changes $(date '+%Y-%m-%d %H:%M')\" && git push 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
   }
 }
