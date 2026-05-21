@@ -264,14 +264,21 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
           style={{
             marginLeft:'auto',
             fontSize:10, padding:'4px 11px', borderRadius:20,
-            fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
+            fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:700,
             letterSpacing:'.04em', cursor:'pointer',
             border:'1.5px solid var(--border2)',
             background:'transparent', color:'var(--text2)',
             display:'inline-flex', alignItems:'center', gap:5,
           }}
         >
-          🖨 Imprimer
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"
+            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3.5 4V1.5h7V4"/>
+            <rect x="1" y="4" width="12" height="6" rx="1.5"/>
+            <path d="M3.5 10v2.5h7V10"/>
+            <path d="M3.5 7.5h1M10 7.5h.5"/>
+          </svg>
+          Imprimer
         </button>
       </div>
 
