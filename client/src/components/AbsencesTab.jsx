@@ -625,45 +625,8 @@ function AbsenceCalendar({ absences, isSecretary, onDelete }) {
         <button className="wn-chip" onClick={() => { const n = new Date(); setCalMonth(new Date(n.getFullYear(), n.getMonth(), 1)); }}>
           Mois actuel
         </button>
-        {monthMeds.length > 1 && (
-          <select
-            value={filterMed}
-            onChange={e => setFilterMed(e.target.value)}
-            style={{
-              marginLeft:'auto', border:'1px solid var(--border2)', borderRadius:'var(--r)',
-              padding:'3px 8px', fontSize:11, fontFamily:'sans-serif',
-              background:'var(--surface)', color:'var(--text)', cursor:'pointer',
-            }}
-          >
-            <option value="">Tous les praticiens</option>
-            {monthMeds.map(m => <option key={m.id} value={m.id}>{m.nom}</option>)}
-          </select>
-        )}
+        <AbsenceFilterBadge monthMeds={monthMeds} filterMed={filterMed} onFilter={setFilterMed} />
       </div>
-
-      {/* ── Légende praticiens (filtre cliquable) ── */}
-      {monthMeds.length > 0 && (
-        <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:12 }}>
-          {monthMeds.map(m => (
-            <div
-              key={m.id}
-              onClick={e => { e.stopPropagation(); setFilterMed(prev => prev === m.id ? '' : m.id); }}
-              style={{
-                display:'inline-flex', alignItems:'center', gap:5,
-                padding:'3px 10px', borderRadius:20, cursor:'pointer',
-                border:`1.5px solid ${medColor(m.id)}${filterMed === m.id ? 'ff' : '55'}`,
-                background: filterMed === m.id ? medColor(m.id) + '22' : 'transparent',
-                transition:'all .12s',
-              }}
-            >
-              <span style={{ width:7, height:7, borderRadius:'50%', background:medColor(m.id) }} />
-              <span style={{ fontSize:10, fontFamily:'sans-serif', fontWeight:600, color:medColor(m.id) }}>
-                {m.nom}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* ── En-têtes colonnes ── */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:2, marginBottom:4 }}>
@@ -773,54 +736,95 @@ function AbsenceCalendar({ absences, isSecretary, onDelete }) {
   );
 }
 
-// ── Capsule "absents cette semaine" avec dropdown ───────────
-function WeekAbsencesBadge({ weekAbsences }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+// ── Filtre praticien (badge + dropdown) dans nav calendrier ─
+function AbsenceFilterBadge({ monthMeds, filterMed, onFilter }) {
+  const [open,      setOpen]      = useState(false);
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const ref     = useRef(null);
+  const listRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
-    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setActiveIdx(-1); } }
     document.addEventListener('mousedown', h);
     return () => document.removeEventListener('mousedown', h);
   }, [open]);
 
-  if (weekAbsences.length === 0) return null;
+  useEffect(() => {
+    if (activeIdx < 0 || !listRef.current) return;
+    const item = listRef.current.children[activeIdx];
+    if (item) item.scrollIntoView({ block:'nearest' });
+  }, [activeIdx]);
 
-  const n = weekAbsences.length;
+  const options = [{ id:'', nom:'Tous les praticiens' }, ...monthMeds];
+  const selected = filterMed ? monthMeds.find(m => m.id === filterMed) : null;
+  const isFiltered = !!filterMed;
+  const n = monthMeds.length;
+
+  function select(id) { onFilter(id); setOpen(false); setActiveIdx(-1); }
+
+  function handleKeyDown(e) {
+    if (!open) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') { e.preventDefault(); setOpen(true); }
+      return;
+    }
+    if (e.key === 'ArrowDown')  { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, options.length - 1)); }
+    else if (e.key === 'ArrowUp')   { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); }
+    else if (e.key === 'Enter')     { e.preventDefault(); if (activeIdx >= 0) select(options[activeIdx].id); }
+    else if (e.key === 'Escape')    { setOpen(false); setActiveIdx(-1); }
+  }
+
+  if (n === 0) return null;
+
   return (
-    <div ref={ref} style={{ position:'relative', display:'inline-block', marginBottom:12 }}>
+    <div ref={ref} style={{ position:'relative' }}>
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={() => { setOpen(v => !v); setActiveIdx(-1); }}
+        onKeyDown={handleKeyDown}
         style={{
           display:'inline-flex', alignItems:'center', gap:6,
-          padding:'6px 13px 6px 11px',
-          background: open ? 'var(--accent)' : 'var(--accent-light)',
-          border:`1px solid ${open ? 'var(--accent)' : 'var(--accent-mid)'}`,
-          borderRadius:20, fontSize:11, fontFamily:'sans-serif',
-          color: open ? '#fff' : 'var(--accent)',
+          padding:'2px 10px 2px 9px',
+          background: isFiltered || open ? 'var(--accent)' : 'var(--accent-light)',
+          border:`1px solid ${isFiltered || open ? 'var(--accent)' : 'var(--accent-mid)'}`,
+          borderRadius:20, fontSize:10, fontFamily:'system-ui,sans-serif',
+          color: isFiltered || open ? '#fff' : 'var(--accent)',
           cursor:'pointer', fontWeight:700, transition:'all .12s',
         }}
       >
-        <span>👥</span>
-        <span>{n} personne{n > 1 ? 's' : ''} absente{n > 1 ? 's' : ''} cette semaine</span>
-        <span style={{ fontSize:9, opacity:.75 }}>{open ? '▴' : '▾'}</span>
+        <span style={{ fontSize:12 }}>👥</span>
+        <span>{selected ? selected.nom : `${n} personne${n > 1 ? 's' : ''} absente${n > 1 ? 's' : ''}`}</span>
+        {isFiltered
+          ? <span onMouseDown={e => { e.stopPropagation(); select(''); }} style={{ opacity:.8, fontSize:14, lineHeight:1, marginLeft:1 }}>×</span>
+          : <span style={{ fontSize:9, opacity:.7 }}>{open ? '▴' : '▾'}</span>
+        }
       </button>
+
       {open && (
-        <div style={{
+        <div ref={listRef} style={{
           position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:400,
           background:'var(--surface)', border:'1px solid var(--border2)',
           borderRadius:'var(--rl)', boxShadow:'0 8px 24px rgba(0,0,0,.15)',
-          padding:'6px 0', minWidth:240,
+          padding:'4px 0', minWidth:220, maxHeight:260, overflowY:'auto',
         }}>
-          {weekAbsences.map((a, i) => (
-            <div key={a.nom + i} style={{
-              padding:'7px 14px', fontSize:11, fontFamily:'sans-serif',
-              borderBottom: i < weekAbsences.length - 1 ? '1px solid var(--border)' : 'none',
-              display:'flex', flexDirection:'column', gap:2,
-            }}>
-              <span style={{ fontWeight:700, color:'var(--text)' }}>{a.nom}</span>
-              <span style={{ fontSize:10, color:'var(--text2)' }}>{a.type}</span>
+          {options.map((m, idx) => (
+            <div
+              key={m.id || 'all'}
+              onMouseDown={() => select(m.id)}
+              onMouseEnter={() => setActiveIdx(idx)}
+              onMouseLeave={() => setActiveIdx(-1)}
+              style={{
+                padding:'7px 14px', fontSize:11, fontFamily:'system-ui,sans-serif',
+                borderBottom: idx < options.length - 1 ? '1px solid var(--border)' : 'none',
+                display:'flex', alignItems:'center', gap:8, cursor:'pointer',
+                background: idx === activeIdx ? 'var(--accent-light)' : filterMed === m.id ? 'var(--surface2)' : 'transparent',
+              }}
+            >
+              {m.id
+                ? <span style={{ width:7, height:7, borderRadius:'50%', background:medColor(m.id), flexShrink:0 }} />
+                : <span style={{ width:7, flexShrink:0 }} />
+              }
+              <span style={{ fontWeight: m.id ? 600 : 400, color: m.id ? 'var(--text)' : 'var(--text2)' }}>{m.nom}</span>
+              {filterMed === m.id && <span style={{ marginLeft:'auto', color:'var(--accent)', fontSize:11 }}>✓</span>}
             </div>
           ))}
         </div>
@@ -848,17 +852,6 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
       a.med_id === medId && a.date_debut <= dateF && a.date_fin >= dateD
     ) || null;
   }, [medId, dateD, dateF, absences]);
-
-  const thisWeekAbsences = useMemo(() => {
-    const { mon, fri } = getCurrentWeekRange();
-    const seen = new Map();
-    absences
-      .filter(a => a.date_debut <= fri && a.date_fin >= mon)
-      .forEach(a => {
-        if (!seen.has(a.med_id)) seen.set(a.med_id, { nom: a.med_nom, type: a.type_abs });
-      });
-    return [...seen.values()].sort((a, b) => a.nom.localeCompare(b.nom));
-  }, [absences]);
 
   async function handleAdd() {
     if (!medId || !dateD || !dateF) { onToast('Renseignez tous les champs', 'err'); return; }
@@ -888,9 +881,6 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
   return (
     <div>
       <div className="sec-t" style={{ marginBottom:12 }}>Absences &amp; congés</div>
-
-      {/* ── Capsule absents cette semaine ── */}
-      <WeekAbsencesBadge weekAbsences={thisWeekAbsences} />
 
       {/* ── Formulaire ajout + alerte (secrétaires seulement) ── */}
       {isSecretary && (
