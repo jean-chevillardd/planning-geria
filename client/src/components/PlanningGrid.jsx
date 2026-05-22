@@ -28,6 +28,8 @@ function typeRank(type) {
 }
 function isSenior(type) { return type === 'ph'; }
 
+const TYPE_LABEL = { interne: 'Interne', externe: 'Externe', padhue: 'PADHUE', ipa: 'IPA' };
+
 // ── Définition des filtres (correspondent à la légende) ────
 const FILTERS = [
   { id: null,      label: 'Tout afficher',    color: null,      grps: null },
@@ -406,7 +408,7 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
               fontStyle:  senior ? 'normal' : 'italic',
             }}>
               {m.nom}
-              {!senior && <em style={{ fontStyle:'italic', opacity:.75 }}> — {poste.short}</em>}
+              {!senior && TYPE_LABEL[m.type] && <em style={{ fontStyle:'italic', opacity:.75 }}> — {TYPE_LABEL[m.type]}</em>}
             </span>
           </div>
         );
@@ -427,7 +429,7 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
               fontStyle:  senior ? 'normal' : 'italic',
             }}>
               {e.nom}
-              {!senior && <em style={{ fontStyle:'italic', opacity:.75 }}> — {poste.short}</em>}
+              {!senior && TYPE_LABEL[e.type] && <em style={{ fontStyle:'italic', opacity:.75 }}> — {TYPE_LABEL[e.type]}</em>}
               <span style={{ fontSize:8, opacity:.7 }}> (remplac.)</span>
             </span>
           </div>
@@ -438,7 +440,7 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
         return (
           <div key={m.id} className="chip-abs">
             {m.nom}
-            {!absSenior && <em style={{ fontStyle:'italic', opacity:.75 }}> — {poste.short}</em>}
+            {!absSenior && TYPE_LABEL[m.type] && <em style={{ fontStyle:'italic', opacity:.75 }}> — {TYPE_LABEL[m.type]}</em>}
             {' '}(absent)
           </div>
         );

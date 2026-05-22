@@ -69,6 +69,8 @@ function MonthPickerPopover({ current, onSelect, onClose }) {
   );
 }
 
+const TYPE_LABEL = { interne: 'Interne', externe: 'Externe', padhue: 'PADHUE', ipa: 'IPA' };
+
 const ABS_COLORS = {
   'Congé annuel (CA)':              '#2272f0',
   'Formation / DPC':                '#059669',
@@ -315,7 +317,7 @@ export default function MonthView({ medecins, absences }) {
                       <div key={ch.key} className="month-chip"
                         style={{ background: ch.c+'22', color: ch.c, border:`1px solid ${ch.c}44` }}>
                         {ch.nom
-                          ? <>{ch.nom}{ch.type !== 'ph' && ch.short && <em style={{ fontStyle:'italic', opacity:0.75 }}> — {ch.short}</em>}</>
+                          ? <>{ch.nom}{TYPE_LABEL[ch.type] && <em style={{ fontStyle:'italic', opacity:0.75 }}> — {TYPE_LABEL[ch.type]}</em>}</>
                           : <em style={{ fontStyle:'italic' }}>{ch.short}</em>
                         }
                       </div>
