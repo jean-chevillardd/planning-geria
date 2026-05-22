@@ -404,7 +404,10 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
               color:      color + (highlighted || senior ? '' : 'a0'),
               fontWeight: senior ? 700 : 400,
               fontStyle:  senior ? 'normal' : 'italic',
-            }}>{m.nom}</span>
+            }}>
+              {m.nom}
+              {!senior && <em style={{ fontStyle:'italic', opacity:.75 }}> — {poste.short}</em>}
+            </span>
           </div>
         );
       })}
@@ -423,14 +426,23 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
               fontWeight: senior ? 700 : 400,
               fontStyle:  senior ? 'normal' : 'italic',
             }}>
-              {e.nom} <span style={{ fontSize:8, opacity:.7 }}>(remplac.)</span>
+              {e.nom}
+              {!senior && <em style={{ fontStyle:'italic', opacity:.75 }}> — {poste.short}</em>}
+              <span style={{ fontSize:8, opacity:.7 }}> (remplac.)</span>
             </span>
           </div>
         );
       })}
-      {absent.map(m => (
-        <div key={m.id} className="chip-abs">{m.nom} (absent)</div>
-      ))}
+      {absent.map(m => {
+        const absSenior = isSenior(m.type);
+        return (
+          <div key={m.id} className="chip-abs">
+            {m.nom}
+            {!absSenior && <em style={{ fontStyle:'italic', opacity:.75 }}> — {poste.short}</em>}
+            {' '}(absent)
+          </div>
+        );
+      })}
       {isSecretary && <span className="add-lnk print-hide">+ affecter</span>}
     </div>
   );

@@ -275,11 +275,11 @@ export default function MonthView({ medecins, absences }) {
                       if (!worksDay(m, di, absences)) return;
                       if (excls.includes(m.id)) return;
                       if (doctorFilter && m.id !== doctorFilter) return;
-                      chips.push({ nom: m.nom, short: p.short, c: p.c, key: p.id + m.id });
+                      chips.push({ nom: m.nom, short: p.short, c: p.c, key: p.id + m.id, type: m.type });
                     });
                     extras.filter(e => e.poste_id === p.id).forEach(e => {
                       if (doctorFilter && e.med_id !== doctorFilter) return;
-                      chips.push({ nom: e.nom, short: p.short, c: p.c, key: p.id + e.med_id + 'x' });
+                      chips.push({ nom: e.nom, short: p.short, c: p.c, key: p.id + e.med_id + 'x', type: e.type });
                     });
                   });
                 }
@@ -315,7 +315,7 @@ export default function MonthView({ medecins, absences }) {
                       <div key={ch.key} className="month-chip"
                         style={{ background: ch.c+'22', color: ch.c, border:`1px solid ${ch.c}44` }}>
                         {ch.nom
-                          ? <>{ch.nom}{ch.short && <em style={{ fontStyle:'italic', opacity:0.75 }}> — {ch.short}</em>}</>
+                          ? <>{ch.nom}{ch.type !== 'ph' && ch.short && <em style={{ fontStyle:'italic', opacity:0.75 }}> — {ch.short}</em>}</>
                           : <em style={{ fontStyle:'italic' }}>{ch.short}</em>
                         }
                       </div>
