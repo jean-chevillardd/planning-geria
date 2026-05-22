@@ -4,6 +4,29 @@ import { POSTES, toIso, getMonday, addDays, weekDays, worksDay } from '../utils'
 import * as api from '../api';
 import DoctorSearch from './DoctorSearch';
 
+const ABS_SHORT = {
+  'Congé annuel (CA)':              'CA',
+  'Formation / DPC':                'DPC',
+  'Congé maladie':                  'Maladie',
+  'Temps non clinique':             'TNC',
+  'RTT':                            'RTT',
+  'Récupération de garde':          'Récup.',
+  'Congé formation (CF)':           'CF',
+  'Activité externe (CM2R / MTG…)': 'Ext.',
+};
+
+const ABS_COLORS = {
+  'Congé annuel (CA)':              '#2272f0',
+  'Formation / DPC':                '#059669',
+  'Congé maladie':                  '#e11d48',
+  'Temps non clinique':             '#9333ea',
+  'RTT':                            '#4f46e5',
+  'Récupération de garde':          '#ea580c',
+  'Congé formation (CF)':           '#0891b2',
+  'Activité externe (CM2R / MTG…)': '#d97706',
+};
+function absColor(type) { return ABS_COLORS[type] ?? '#6A6A66'; }
+
 // Même définition que PlanningGrid (sans "Tout afficher")
 const FILTERS = [
   { id: 'cs',      label: 'Court séjour',  color: '#2272f0', grps: ['Court séjour 1', 'Court séjour 2'] },
@@ -171,6 +194,22 @@ export default function MonthView({ medecins, absences }) {
                     chips.push({ nom: e.nom, short: p.short, c: p.c, key: p.id + e.med_id + 'x' });
                   });
                 });
+
+                // Congés — uniquement en vue par médecin
+                if (doctorFilter) {
+                  const med = medecins.find(m => m.id === doctorFilter);
+                  absences
+                    .filter(a => a.med_id === doctorFilter && a.date_debut <= di && a.date_fin >= di)
+                    .forEach(a => {
+                      const c = absColor(a.type_abs);
+                      chips.push({
+                        nom:   med?.nom ?? '',
+                        short: ABS_SHORT[a.type_abs] ?? a.type_abs,
+                        c,
+                        key:   'abs-' + a.id + '-' + di,
+                      });
+                    });
+                }
 
                 return (
                   <div key={di} className="month-day" style={!isThisMonth ? { opacity:.4 } : {}}>
