@@ -1,6 +1,7 @@
 // components/AbsencesTab.jsx
 import { useState, useEffect, useMemo, useRef } from 'react';
 import * as api from '../api';
+import { getFrenchHolidays } from '../utils';
 
 // ── Constantes ──────────────────────────────────────────────
 const TYPES_ABS = [
@@ -243,30 +244,32 @@ function DateRangePicker({ start, end, onChange }) {
           {/* Grille jours */}
           <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', gap:1 }}>
             {calDays.map((d, i) => {
-              const iso        = toIso(d);
-              const inCurMonth = d.getMonth() === month.getMonth();
-              const isWeekend  = d.getDay() === 0 || d.getDay() === 6;
-              const isToday    = iso === todayStr;
-              const isStart    = iso === start;
-              const isEnd      = !!effEnd && iso === effEnd;
-              const isInRange  = !!(start && effEnd && iso > start && iso < effEnd);
-              const isSelected = isStart || isEnd;
+              const iso         = toIso(d);
+              const inCurMonth  = d.getMonth() === month.getMonth();
+              const isWeekend   = d.getDay() === 0 || d.getDay() === 6;
+              const isToday     = iso === todayStr;
+              const isStart     = iso === start;
+              const isEnd       = !!effEnd && iso === effEnd;
+              const isInRange   = !!(start && effEnd && iso > start && iso < effEnd);
+              const isSelected  = isStart || isEnd;
+              const holidayName = inCurMonth && !isWeekend ? getFrenchHolidays(d.getFullYear()).get(iso) : null;
 
-              let bg     = 'transparent';
-              let color  = !inCurMonth ? 'var(--text3)' : isWeekend ? 'var(--text3)' : 'var(--text)';
+              let bg     = holidayName && !isSelected && !isInRange ? '#fffbeb' : 'transparent';
+              let color  = !inCurMonth ? 'var(--text3)' : isWeekend ? 'var(--text3)' : holidayName ? '#d97706' : 'var(--text)';
               let radius = 4;
               if (isSelected) { bg = 'var(--accent)'; color = '#fff'; radius = '50%'; }
-              else if (isInRange) { bg = 'var(--accent-light)'; radius = 0; }
+              else if (isInRange) { bg = 'var(--accent-light)'; color = 'var(--text)'; radius = 0; }
 
               return (
                 <div key={i}
                   onClick={() => inCurMonth && handleDayClick(iso)}
                   onMouseEnter={() => phase === 'end' && inCurMonth && setHover(iso)}
                   onMouseLeave={() => phase === 'end' && setHover(null)}
+                  title={holidayName || undefined}
                   style={{
                     height:30, display:'flex', alignItems:'center', justifyContent:'center',
                     borderRadius: radius, background: bg, color,
-                    fontWeight: isToday ? 700 : 400,
+                    fontWeight: isToday ? 700 : holidayName ? 600 : 400,
                     fontSize:12, fontFamily:'sans-serif',
                     cursor: inCurMonth ? 'pointer' : 'default',
                     outline: isToday && !isSelected ? '1.5px solid var(--accent)' : 'none',
@@ -651,23 +654,31 @@ function AbsenceCalendar({ absences, isSecretary, onDelete }) {
             }}>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)' }}>
                 {weekDays.map((d, di) => {
-                  const iso     = toIso(d);
-                  const isToday = iso === todayStr;
-                  const inMonth = d.getMonth() === curMonth;
+                  const iso         = toIso(d);
+                  const isToday     = iso === todayStr;
+                  const inMonth     = d.getMonth() === curMonth;
+                  const holidayName = getFrenchHolidays(d.getFullYear()).get(iso);
                   return (
-                    <div key={di} style={{
-                      height:DAY_H, display:'flex', alignItems:'center', justifyContent:'center',
+                    <div key={di} title={holidayName || undefined} style={{
+                      height: DAY_H + (holidayName ? 14 : 0),
+                      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
                       borderRight: di < 4 ? '1px solid var(--border)' : 'none',
+                      background: holidayName && !isToday ? '#fffbeb' : 'transparent',
                     }}>
                       <span style={{
                         display:'inline-flex', alignItems:'center', justifyContent:'center',
                         width:22, height:22, borderRadius:'50%', fontSize:11, fontFamily:'sans-serif',
                         fontWeight: isToday ? 700 : 400,
                         background: isToday ? 'var(--accent)' : 'transparent',
-                        color: isToday ? '#fff' : inMonth ? 'var(--text)' : 'var(--text3)',
+                        color: isToday ? '#fff' : holidayName ? '#d97706' : inMonth ? 'var(--text)' : 'var(--text3)',
                       }}>
                         {d.getDate()}
                       </span>
+                      {holidayName && (
+                        <span style={{ fontSize:7, fontStyle:'italic', color:'#d97706', lineHeight:1.2, textAlign:'center', maxWidth:'100%', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', padding:'0 2px' }}>
+                          {holidayName}
+                        </span>
+                      )}
                     </div>
                   );
                 })}

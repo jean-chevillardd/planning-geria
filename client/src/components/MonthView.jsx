@@ -1,6 +1,6 @@
 // components/MonthView.jsx
 import { useState, useEffect } from 'react';
-import { POSTES, toIso, getMonday, addDays, weekDays, worksDay } from '../utils';
+import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, getFrenchHolidays } from '../utils';
 import * as api from '../api';
 import DoctorSearch from './DoctorSearch';
 
@@ -199,10 +199,19 @@ export default function MonthView({ medecins, absences }) {
                     });
                 }
 
+                const holidayName = getFrenchHolidays(day.getFullYear()).get(di);
+
                 return (
-                  <div key={di} className="month-day" style={!isThisMonth ? { opacity:.4 } : {}}>
-                    <div className={`month-day-hdr${isToday ? ' today' : ''}`}>
+                  <div key={di} className="month-day"
+                    style={{ ...((!isThisMonth) ? { opacity:.4 } : {}), ...(holidayName ? { background:'#fffbeb' } : {}) }}>
+                    <div className={`month-day-hdr${isToday ? ' today' : ''}`}
+                      style={holidayName && !isToday ? { color:'#d97706', borderBottomColor:'#fcd34d' } : undefined}>
                       {day.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' })}
+                      {holidayName && (
+                        <span style={{ display:'block', fontSize:8, fontStyle:'italic', fontWeight:500, marginTop:1, color:'#d97706', lineHeight:1.2 }}>
+                          {holidayName}
+                        </span>
+                      )}
                     </div>
                     {chips.slice(0, 8).map(ch => (
                       <div key={ch.key} className="month-chip"

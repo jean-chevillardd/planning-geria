@@ -1,6 +1,6 @@
 // components/PlanningGrid.jsx
 import { useMemo, useState } from 'react';
-import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent } from '../utils';
+import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getFrenchHolidays } from '../utils';
 
 function fmtWeek(monday, days) {
   const opts = { day: 'numeric', month: 'long', year: 'numeric' };
@@ -27,6 +27,17 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
 
   const days     = weekDays(monday);
   const todayIso = toIso(new Date());
+
+  // Jours fériés de la semaine affichée
+  const holidays = useMemo(() => {
+    const map = new Map();
+    days.forEach(d => {
+      const iso  = toIso(d);
+      const name = getFrenchHolidays(d.getFullYear()).get(iso);
+      if (name) map.set(iso, name);
+    });
+    return map;
+  }, [monday]);
 
   const byPoste    = planningData?.affectations || {};
   const exclusions = planningData?.exclusions   || [];
@@ -173,11 +184,22 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
           {/* En-tête colonnes */}
           <div className="gh">
             <div className="ghc" style={{ textAlign:'left', paddingLeft:10 }}>Poste</div>
-            {days.map((d, i) => (
-              <div key={i} className={`ghc${toIso(d) === todayIso ? ' today' : ''}`}>
-                {d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
-              </div>
-            ))}
+            {days.map((d, i) => {
+              const di          = toIso(d);
+              const isToday     = di === todayIso;
+              const holidayName = holidays.get(di);
+              return (
+                <div key={i} className={`ghc${isToday ? ' today' : ''}`}
+                  style={!isToday && holidayName ? { background:'#fffbeb', color:'#d97706' } : undefined}>
+                  {d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
+                  {holidayName && (
+                    <div style={{ fontSize:8, fontStyle:'italic', fontWeight:500, marginTop:2, lineHeight:1.2, color: isToday ? 'inherit' : '#d97706', opacity:.9 }}>
+                      {holidayName}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           {/* Lignes filtrées */}
@@ -196,7 +218,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                     <GridRow key={p.id} poste={p} days={days} todayIso={todayIso}
                       assigned={byPoste[p.id]?.medecins || []}
                       exclusions={exclusions} extras={extras} absences={absences}
-                      doctorFilter={doctorFilter}
+                      doctorFilter={doctorFilter} holidays={holidays}
                       isSecretary={isSecretary} onCellClick={onCellClick} />
                   ))}
                 </div>
@@ -212,7 +234,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
 
 // ── Ligne de poste ──────────────────────────────────────────
 
-function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences, doctorFilter, isSecretary, onCellClick }) {
+function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences, doctorFilter, holidays, isSecretary, onCellClick }) {
   return (
     <div className="grow">
       <div className="pname">
@@ -225,7 +247,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
         return (
           <Cell key={di} poste={poste} dayIso={di} isToday={di === todayIso}
             assigned={assigned} exclusions={exclusions} extras={extras} absences={absences}
-            doctorFilter={doctorFilter}
+            doctorFilter={doctorFilter} isHoliday={holidays.has(di)}
             isSecretary={isSecretary} onClick={() => onCellClick(poste, di)} />
         );
       })}
@@ -235,7 +257,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
 
 // ── Cellule ────────────────────────────────────────────────
 
-function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, doctorFilter, isSecretary, onClick }) {
+function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, doctorFilter, isHoliday, isSecretary, onClick }) {
   const excl      = exclusions.filter(e => e.poste_id === poste.id && e.jour === dayIso).map(e => e.med_id);
   const dayExtras = extras.filter(e => e.poste_id === poste.id && e.jour === dayIso);
   const present   = assigned.filter(m => worksDay(m, dayIso, absences) && !excl.includes(m.id));
@@ -243,10 +265,16 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
   const anyoneToday = present.length > 0 || dayExtras.length > 0;
   const isOff     = assigned.length > 0 && !anyoneToday && absent.length === 0;
 
+  const cellBg = isOff
+    ? { background:'var(--off-stripe)', cursor: isSecretary ? 'pointer' : 'default' }
+    : isHoliday && !isToday
+      ? { background:'#fffbeb' }
+      : {};
+
   return (
     <div
       className={`cell${isSecretary ? ' avail' : ''}${isToday ? ' today' : ''}`}
-      style={isOff ? { background:'var(--off-stripe)', cursor: isSecretary ? 'pointer' : 'default' } : {}}
+      style={cellBg}
       onClick={isSecretary ? onClick : undefined}
     >
       {present.map(m => {
