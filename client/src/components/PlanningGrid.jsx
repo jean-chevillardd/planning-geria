@@ -297,12 +297,21 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
 
 function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences, doctorFilter, holidays, isSecretary, onCellClick }) {
   // Ordre stable calculé une fois sur la liste complète de la semaine :
-  // type rank puis alphabétique → même position quel que soit le jour.
+  // 1. type rank  2. jours présents sur la semaine (desc)  3. alphabétique
+  // → les praticiens les plus présents restent en tête ; un remplaçant
+  //   ponctuel apparaît toujours sous les titulaires habituels.
+  const daysPresent = {};
+  assigned.forEach(m => {
+    daysPresent[m.id] = days.filter(d => worksDay(m, toIso(d), absences)).length;
+  });
+
   const stableOrder = {};
   [...assigned]
     .sort((a, b) => {
       const ra = typeRank(a.type ?? ''), rb = typeRank(b.type ?? '');
       if (ra !== rb) return ra - rb;
+      const da = daysPresent[a.id] ?? 0, db = daysPresent[b.id] ?? 0;
+      if (da !== db) return db - da;          // plus de jours = rang plus haut
       return a.nom.localeCompare(b.nom, 'fr');
     })
     .forEach((m, i) => { stableOrder[m.id] = i; });
