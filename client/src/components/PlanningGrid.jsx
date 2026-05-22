@@ -296,6 +296,17 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
 // ── Ligne de poste ──────────────────────────────────────────
 
 function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences, doctorFilter, holidays, isSecretary, onCellClick }) {
+  // Ordre stable calculé une fois sur la liste complète de la semaine :
+  // type rank puis alphabétique → même position quel que soit le jour.
+  const stableOrder = {};
+  [...assigned]
+    .sort((a, b) => {
+      const ra = typeRank(a.type ?? ''), rb = typeRank(b.type ?? '');
+      if (ra !== rb) return ra - rb;
+      return a.nom.localeCompare(b.nom, 'fr');
+    })
+    .forEach((m, i) => { stableOrder[m.id] = i; });
+
   return (
     <div className="grow">
       <div className="pname">
@@ -307,7 +318,8 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
         const di = toIso(d);
         return (
           <Cell key={di} poste={poste} dayIso={di} isToday={di === todayIso}
-            assigned={assigned} exclusions={exclusions} extras={extras} absences={absences}
+            assigned={assigned} stableOrder={stableOrder}
+            exclusions={exclusions} extras={extras} absences={absences}
             doctorFilter={doctorFilter} isHoliday={holidays.has(di)}
             isSecretary={isSecretary} onClick={() => onCellClick(poste, di)} />
         );
@@ -318,7 +330,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
 
 // ── Cellule ────────────────────────────────────────────────
 
-function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, doctorFilter, isHoliday, isSecretary, onClick }) {
+function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, extras, absences, doctorFilter, isHoliday, isSecretary, onClick }) {
   // Jour férié : cellule vide, aucune vacation affichée, pas de clic possible
   if (isHoliday) {
     return (
@@ -350,9 +362,15 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
     ? { background:'var(--off-stripe)', cursor: isSecretary ? 'pointer' : 'default' }
     : {};
 
-  // Tri par rang de type puis alphabétique
-  const sorted = (arr, getId) => [...arr].sort((a, b) => {
-    const ra = typeRank(a.type), rb = typeRank(b.type);
+  // Présents : ordre stable de la semaine (calculé dans GridRow)
+  const sortedPresent = [...present].sort((a, b) => {
+    const ra = stableOrder[a.id] ?? 9999, rb = stableOrder[b.id] ?? 9999;
+    return ra - rb;
+  });
+
+  // Extras (ponctuels) : type rank puis alphabétique
+  const sortedExtras = [...dayExtras].sort((a, b) => {
+    const ra = typeRank(a.type ?? ''), rb = typeRank(b.type ?? '');
     if (ra !== rb) return ra - rb;
     return a.nom.localeCompare(b.nom, 'fr');
   });
@@ -363,7 +381,7 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
       style={cellBg}
       onClick={isSecretary ? onClick : undefined}
     >
-      {sorted(present).map(m => {
+      {sortedPresent.map(m => {
         const highlighted = doctorFilter === m.id;
         const color       = m._color || poste.c;
         const senior      = isSenior(m.type);
@@ -381,7 +399,7 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
           </div>
         );
       })}
-      {sorted(dayExtras, e => e.med_id).map(e => {
+      {sortedExtras.map(e => {
         const highlighted = doctorFilter === e.med_id;
         const color       = e._color || poste.c;
         const senior      = isSenior(e.type);
