@@ -169,20 +169,23 @@ export default function MonthView({ medecins, absences }) {
                 const excls       = (data?.exclusions  || []).map(e => e.med_id);
 
                 // Chips selon les postes visibles (filtrés + vue médecin)
+                // Aucune vacation affichée sur les jours fériés
                 const chips = [];
-                visiblePostes.forEach(p => {
-                  const assigned = byPoste[p.id]?.medecins || [];
-                  assigned.forEach(m => {
-                    if (!worksDay(m, di, absences)) return;
-                    if (excls.includes(m.id)) return;
-                    if (doctorFilter && m.id !== doctorFilter) return;
-                    chips.push({ nom: m.nom, short: p.short, c: p.c, key: p.id + m.id });
+                if (!holidayName) {
+                  visiblePostes.forEach(p => {
+                    const assigned = byPoste[p.id]?.medecins || [];
+                    assigned.forEach(m => {
+                      if (!worksDay(m, di, absences)) return;
+                      if (excls.includes(m.id)) return;
+                      if (doctorFilter && m.id !== doctorFilter) return;
+                      chips.push({ nom: m.nom, short: p.short, c: p.c, key: p.id + m.id });
+                    });
+                    extras.filter(e => e.poste_id === p.id).forEach(e => {
+                      if (doctorFilter && e.med_id !== doctorFilter) return;
+                      chips.push({ nom: e.nom, short: p.short, c: p.c, key: p.id + e.med_id + 'x' });
+                    });
                   });
-                  extras.filter(e => e.poste_id === p.id).forEach(e => {
-                    if (doctorFilter && e.med_id !== doctorFilter) return;
-                    chips.push({ nom: e.nom, short: p.short, c: p.c, key: p.id + e.med_id + 'x' });
-                  });
-                });
+                }
 
                 // Congés — uniquement en vue par médecin
                 if (doctorFilter) {

@@ -48,6 +48,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     const warns = [];
     days.forEach(d => {
       const di = toIso(d);
+      if (holidays.has(di)) return; // jour férié : pas d'alerte de couverture
       POSTES.filter(p => p.min > 0).forEach(p => {
         const assigned = byPoste[p.id]?.medecins || [];
         const excl     = exclusions.filter(e => e.poste_id === p.id && e.jour === di).map(e => e.med_id);
@@ -61,7 +62,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       });
     });
     return warns;
-  }, [planningData, absences, monday]);
+  }, [planningData, absences, monday, holidays]);
 
   // ── Groupes de postes (ordre stable défini par POSTES) ──
   const allGroups = useMemo(() => {
