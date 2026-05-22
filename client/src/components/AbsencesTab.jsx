@@ -844,13 +844,158 @@ function AbsenceFilterBadge({ monthMeds, filterMed, onFilter }) {
   );
 }
 
+// ── Vue semestre par praticien ──────────────────────────────
+function SemesterView({ absences, isSecretary, onDelete }) {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [sem,  setSem]  = useState(now.getMonth() < 6 ? 1 : 2);
+  const [popover, setPopover] = useState(null);
+
+  const semMonths  = sem === 1 ? [0,1,2,3,4,5] : [6,7,8,9,10,11];
+  const semStartIso = `${year}-${sem === 1 ? '01' : '07'}-01`;
+  const semEndIso   = sem === 1 ? `${year}-06-30` : `${year}-12-31`;
+
+  const semAbsences = useMemo(() =>
+    absences.filter(a => a.date_debut <= semEndIso && a.date_fin >= semStartIso),
+    [absences, semStartIso, semEndIso]
+  );
+
+  const rows = useMemo(() => {
+    const seen = new Map();
+    semAbsences.forEach(a => { if (!seen.has(a.med_id)) seen.set(a.med_id, a.med_nom); });
+    return [...seen.entries()].map(([id, nom]) => ({ id, nom })).sort((a, b) => a.nom.localeCompare(b.nom));
+  }, [semAbsences]);
+
+  function getMedMonthAbs(medId, mIdx) {
+    const mStart = `${year}-${String(mIdx + 1).padStart(2,'0')}-01`;
+    const mEnd   = toIso(new Date(year, mIdx + 1, 0));
+    return semAbsences.filter(a => a.med_id === medId && a.date_debut <= mEnd && a.date_fin >= mStart);
+  }
+
+  function prevSem() { if (sem === 1) { setSem(2); setYear(y => y - 1); } else setSem(1); }
+  function nextSem() { if (sem === 2) { setSem(1); setYear(y => y + 1); } else setSem(2); }
+
+  const thStyle = {
+    padding:'6px 6px', fontFamily:'Trebuchet MS,sans-serif', fontSize:9,
+    fontWeight:700, letterSpacing:'.07em', textTransform:'uppercase',
+    color:'var(--text2)', borderBottom:'2px solid var(--border2)', textAlign:'center',
+  };
+
+  return (
+    <div onClick={() => setPopover(null)}>
+      {/* Navigation semestre */}
+      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12, flexWrap:'wrap' }}>
+        <button className="wn-btn" onClick={prevSem}>‹</button>
+        <button className="wn-btn" onClick={nextSem}>›</button>
+        <span className="wn-lbl">S{sem} {year}</span>
+        <button className="wn-chip" onClick={() => {
+          const n = new Date();
+          setYear(n.getFullYear());
+          setSem(n.getMonth() < 6 ? 1 : 2);
+        }}>Semestre actuel</button>
+      </div>
+
+      {rows.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'2rem', fontFamily:'sans-serif', fontSize:12, color:'var(--text3)' }}>
+          Aucune absence ce semestre.
+        </div>
+      ) : (
+        <div style={{ overflowX:'auto', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--rl)', boxShadow:'var(--sh)' }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:11, fontFamily:'sans-serif' }}>
+            <thead>
+              <tr>
+                <th style={{ ...thStyle, textAlign:'left', padding:'6px 12px', minWidth:140 }}>Praticien</th>
+                {semMonths.map(mIdx => (
+                  <th key={mIdx} style={{ ...thStyle, minWidth:70 }}>{MONTHS_FR[mIdx].slice(0,3)}</th>
+                ))}
+                <th style={{ ...thStyle, minWidth:55 }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((med, ri) => {
+                const medSemAbs = semAbsences.filter(a => a.med_id === med.id);
+                const totalDays = medSemAbs.reduce((sum, a) => {
+                  const eff0 = a.date_debut > semStartIso ? a.date_debut : semStartIso;
+                  const eff1 = a.date_fin   < semEndIso   ? a.date_fin   : semEndIso;
+                  return sum + countWorkingDays(eff0, eff1);
+                }, 0);
+                return (
+                  <tr key={med.id} style={{ borderBottom:'1px solid var(--border)', background: ri % 2 === 0 ? 'transparent' : 'var(--surface2,#f9f9f8)' }}>
+                    <td style={{ padding:'6px 12px', fontWeight:600, color:'var(--text)' }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style={{ width:8, height:8, borderRadius:'50%', background:medColor(med.id), flexShrink:0, display:'inline-block' }} />
+                        {med.nom}
+                      </div>
+                    </td>
+                    {semMonths.map(mIdx => {
+                      const abs = getMedMonthAbs(med.id, mIdx);
+                      return (
+                        <td key={mIdx} style={{ padding:'4px 3px', textAlign:'center', verticalAlign:'middle' }}>
+                          {abs.length > 0 && (
+                            <div style={{ display:'flex', flexDirection:'column', gap:2, alignItems:'center' }}>
+                              {abs.map(a => {
+                                const mStart = `${year}-${String(mIdx+1).padStart(2,'0')}-01`;
+                                const mEnd   = toIso(new Date(year, mIdx+1, 0));
+                                const eff0   = a.date_debut > mStart ? a.date_debut : mStart;
+                                const eff1   = a.date_fin   < mEnd   ? a.date_fin   : mEnd;
+                                const days   = countWorkingDays(eff0, eff1);
+                                const col    = typeColor(a.type_abs);
+                                return (
+                                  <div
+                                    key={a.id}
+                                    onClick={e => { e.stopPropagation(); setPopover(prev => prev?.abs.id === a.id ? null : { abs:a, x:e.clientX, y:e.clientY }); }}
+                                    title={`${a.type_abs} — ${a.date_debut} → ${a.date_fin}`}
+                                    style={{
+                                      background:col+'22', border:`1.5px solid ${col}77`,
+                                      borderRadius:4, padding:'2px 6px',
+                                      fontSize:10, color:col, fontWeight:600,
+                                      cursor:'pointer', whiteSpace:'nowrap',
+                                      transition:'background .1s',
+                                    }}
+                                  >
+                                    {days}j
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td style={{ padding:'4px 8px', textAlign:'center', fontWeight:700, color:'var(--accent)', fontSize:12 }}>
+                      {totalDays}j
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {popover && (
+        <BarPopover
+          abs={popover.abs}
+          x={popover.x}
+          y={popover.y}
+          isSecretary={isSecretary}
+          onClose={() => setPopover(null)}
+          onDelete={onDelete}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Composant principal ─────────────────────────────────────
 export default function AbsencesTab({ medecins, absences, isSecretary, onReload, onToast }) {
-  const [medId,   setMedId]   = useState('');
-  const [dateD,   setDateD]   = useState(() => todayIso());
-  const [dateF,   setDateF]   = useState(() => todayIso());
-  const [typeAbs, setTypeAbs] = useState(TYPES_ABS[0]);
-  const [saving,  setSaving]  = useState(false);
+  const [medId,       setMedId]       = useState('');
+  const [dateD,       setDateD]       = useState(() => todayIso());
+  const [dateF,       setDateF]       = useState(() => todayIso());
+  const [typeAbs,     setTypeAbs]     = useState(TYPES_ABS[0]);
+  const [saving,      setSaving]      = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode,    setViewMode]    = useState('calendrier'); // 'calendrier' | 'semestre'
 
   const workDays = useMemo(() => {
     if (!dateD || !dateF || dateF < dateD) return null;
@@ -863,6 +1008,12 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
       a.med_id === medId && a.date_debut <= dateF && a.date_fin >= dateD
     ) || null;
   }, [medId, dateD, dateF, absences]);
+
+  const displayedAbsences = useMemo(() => {
+    if (!searchQuery.trim()) return absences;
+    const q = searchQuery.trim().toLowerCase();
+    return absences.filter(a => a.med_nom.toLowerCase().includes(q));
+  }, [absences, searchQuery]);
 
   async function handleAdd() {
     if (!medId || !dateD || !dateF) { onToast('Renseignez tous les champs', 'err'); return; }
@@ -897,6 +1048,16 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
       {isSecretary && (
         <>
           <form className="cgform" onSubmit={e => { e.preventDefault(); handleAdd(); }}>
+            {/* Titre encadré */}
+            <div style={{
+              width:'100%', fontSize:10, fontFamily:'Trebuchet MS,sans-serif',
+              fontWeight:700, letterSpacing:'.07em', textTransform:'uppercase',
+              color:'var(--accent)', borderBottom:'1px solid var(--border)',
+              paddingBottom:8, marginBottom:4,
+            }}>
+              Ajouter un congé
+            </div>
+
             {/* Praticien — champ cherchable */}
             <div className="cgf" style={{ position:'relative' }}>
               <label>Praticien</label>
@@ -950,10 +1111,78 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
         </>
       )}
 
+      {/* ── Recherche congé praticien ── */}
+      <div style={{
+        background:'var(--surface)', border:'1px solid var(--border)',
+        borderRadius:'var(--rl)', padding:'10px 14px', marginBottom:14, boxShadow:'var(--sh)',
+      }}>
+        <div style={{
+          fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
+          letterSpacing:'.07em', textTransform:'uppercase', color:'var(--text2)', marginBottom:7,
+        }}>
+          Rechercher congé prat
+        </div>
+        <div style={{ position:'relative', maxWidth:340 }}>
+          <input
+            type="text"
+            className="team-search"
+            placeholder="Nom du praticien…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ width:'100%' }}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{
+                position:'absolute', right:6, top:'50%', transform:'translateY(-50%)',
+                background:'none', border:'none', cursor:'pointer',
+                color:'var(--text3)', fontSize:15, lineHeight:1, padding:0,
+              }}
+            >×</button>
+          )}
+        </div>
+        {searchQuery.trim() && (
+          <div style={{ marginTop:10 }}>
+            <AbsenceList
+              absences={displayedAbsences}
+              isSecretary={isSecretary}
+              onDelete={handleDelete}
+            />
+          </div>
+        )}
+      </div>
+
       {/* ── Légende types de congé ── */}
       <TypeLegend />
 
-      <AbsenceCalendar absences={absences} isSecretary={isSecretary} onDelete={handleDelete} />
+      {/* ── Bascule vue Calendrier / Semestre ── */}
+      <div style={{ display:'flex', gap:6, marginBottom:12 }}>
+        {[
+          { key:'calendrier', label:'Calendrier' },
+          { key:'semestre',   label:'Par semestre' },
+        ].map(v => (
+          <button
+            key={v.key}
+            onClick={() => setViewMode(v.key)}
+            style={{
+              padding:'3px 14px', fontSize:10, borderRadius:20, cursor:'pointer',
+              fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
+              background: viewMode === v.key ? 'var(--accent)' : 'var(--accent-light)',
+              color:      viewMode === v.key ? '#fff'          : 'var(--accent)',
+              border:`1px solid ${viewMode === v.key ? 'var(--accent)' : 'var(--accent-mid)'}`,
+              transition:'all .12s',
+            }}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {viewMode === 'calendrier'
+        ? <AbsenceCalendar absences={displayedAbsences} isSecretary={isSecretary} onDelete={handleDelete} />
+        : <SemesterView   absences={displayedAbsences} isSecretary={isSecretary} onDelete={handleDelete} />
+      }
     </div>
   );
 }
