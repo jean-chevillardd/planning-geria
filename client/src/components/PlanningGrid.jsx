@@ -282,6 +282,16 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
 // ── Cellule ────────────────────────────────────────────────
 
 function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, doctorFilter, isHoliday, isSecretary, onClick }) {
+  // Jour férié : cellule vide, aucune vacation affichée, pas de clic possible
+  if (isHoliday) {
+    return (
+      <div
+        className={`cell${isToday ? ' today' : ''}`}
+        style={!isToday ? { background:'#fffbeb' } : undefined}
+      />
+    );
+  }
+
   const excl      = exclusions.filter(e => e.poste_id === poste.id && e.jour === dayIso).map(e => e.med_id);
   const dayExtras = extras.filter(e => e.poste_id === poste.id && e.jour === dayIso);
   const present   = assigned.filter(m => worksDay(m, dayIso, absences) && !excl.includes(m.id));
@@ -291,9 +301,7 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
 
   const cellBg = isOff
     ? { background:'var(--off-stripe)', cursor: isSecretary ? 'pointer' : 'default' }
-    : isHoliday && !isToday
-      ? { background:'#fffbeb' }
-      : {};
+    : {};
 
   return (
     <div
