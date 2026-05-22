@@ -16,7 +16,10 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(xargs kill -9)"
+      "Bash(xargs kill -9)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const db=require\\('./db'\\); const cols=db.prepare\\('PRAGMA table_info\\(medecins\\)'\\).all\\(\\); console.log\\(JSON.stringify\\(cols\\)\\); const s=db.prepare\\('SELECT * FROM medecins LIMIT 8'\\).all\\(\\); console.log\\(JSON.stringify\\(s,null,2\\)\\);\")",
+      "Bash(npx vite *)"
     ]
   },
   "hooks": {

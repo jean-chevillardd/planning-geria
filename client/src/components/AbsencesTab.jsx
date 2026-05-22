@@ -4,6 +4,16 @@ import * as api from '../api';
 import { getFrenchHolidays } from '../utils';
 
 // ── Constantes ──────────────────────────────────────────────
+// Ordre et libellés des catégories de personnel
+const TYPE_ORDER  = { ph:0, padhue:1, ipa:2, interne:3, externe:4 };
+const TYPE_LABELS = {
+  ph:      'Praticiens Hospitaliers (PH)',
+  padhue:  'PADHUE',
+  ipa:     'IPA',
+  interne: 'Internes',
+  externe: 'Externes',
+};
+
 const TYPES_ABS = [
   'Congé annuel (CA)', 'Formation / DPC', 'Congé maladie',
   'Temps non clinique', 'RTT', 'Récupération de garde',
@@ -861,7 +871,7 @@ function AbsenceFilterBadge({ monthMeds, filterMed, onFilter }) {
 }
 
 // ── Vue semestre par praticien ──────────────────────────────
-function SemesterView({ absences, isSecretary, onDelete }) {
+function SemesterView({ absences, medecins, isSecretary, onDelete }) {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [sem,  setSem]  = useState(now.getMonth() < 6 ? 1 : 2);
@@ -876,11 +886,21 @@ function SemesterView({ absences, isSecretary, onDelete }) {
     [absences, semStartIso, semEndIso]
   );
 
+  // Rows enrichis avec le type (catégorie) du praticien, triés par catégorie puis nom
   const rows = useMemo(() => {
     const seen = new Map();
-    semAbsences.forEach(a => { if (!seen.has(a.med_id)) seen.set(a.med_id, a.med_nom); });
-    return [...seen.entries()].map(([id, nom]) => ({ id, nom })).sort((a, b) => a.nom.localeCompare(b.nom));
-  }, [semAbsences]);
+    semAbsences.forEach(a => {
+      if (!seen.has(a.med_id)) {
+        const med = medecins.find(m => m.id === a.med_id);
+        seen.set(a.med_id, { id: a.med_id, nom: a.med_nom, type: med?.type || 'ph' });
+      }
+    });
+    return [...seen.values()].sort((a, b) => {
+      const ta = TYPE_ORDER[a.type] ?? 99;
+      const tb = TYPE_ORDER[b.type] ?? 99;
+      return ta !== tb ? ta - tb : a.nom.localeCompare(b.nom, 'fr');
+    });
+  }, [semAbsences, medecins]);
 
   function getMedMonthAbs(medId, mIdx) {
     const mStart = `${year}-${String(mIdx + 1).padStart(2,'0')}-01`;
@@ -928,20 +948,46 @@ function SemesterView({ absences, isSecretary, onDelete }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((med, ri) => {
-                const medSemAbs = semAbsences.filter(a => a.med_id === med.id);
-                const totalDays = medSemAbs.reduce((sum, a) => {
-                  const eff0 = a.date_debut > semStartIso ? a.date_debut : semStartIso;
-                  const eff1 = a.date_fin   < semEndIso   ? a.date_fin   : semEndIso;
-                  return sum + countWorkingDays(eff0, eff1);
-                }, 0);
-                return (
-                  <tr key={med.id} style={{ borderBottom:'1px solid var(--border)', background: ri % 2 === 0 ? 'transparent' : 'var(--surface2,#f9f9f8)' }}>
-                    <td style={{ padding:'6px 12px', fontWeight:600, color:'var(--text)' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <span style={{ width:8, height:8, borderRadius:'50%', background:medColor(med.id), flexShrink:0, display:'inline-block' }} />
-                        {med.nom}
-                      </div>
+              {(() => {
+                // Insérer des lignes d'en-tête de catégorie entre les groupes
+                const items = [];
+                let lastType = null;
+                rows.forEach(med => {
+                  if (med.type !== lastType) {
+                    items.push({ _header: true, type: med.type });
+                    lastType = med.type;
+                  }
+                  items.push(med);
+                });
+                return items.map(item => {
+                  if (item._header) {
+                    return (
+                      <tr key={`hdr-${item.type}`}>
+                        <td colSpan={semMonths.length + 2} style={{
+                          padding:'6px 12px 4px',
+                          fontSize:9, fontFamily:'Trebuchet MS,sans-serif',
+                          fontWeight:700, letterSpacing:'.07em', textTransform:'uppercase',
+                          color:'var(--text2)',
+                          background:'var(--surface2,#f3f3f1)',
+                          borderTop:'1px solid var(--border2)',
+                          borderBottom:'1px solid var(--border)',
+                        }}>
+                          {TYPE_LABELS[item.type] || item.type.toUpperCase()}
+                        </td>
+                      </tr>
+                    );
+                  }
+                  const med = item;
+                  const medSemAbs = semAbsences.filter(a => a.med_id === med.id);
+                  const totalDays = medSemAbs.reduce((sum, a) => {
+                    const eff0 = a.date_debut > semStartIso ? a.date_debut : semStartIso;
+                    const eff1 = a.date_fin   < semEndIso   ? a.date_fin   : semEndIso;
+                    return sum + countWorkingDays(eff0, eff1);
+                  }, 0);
+                  return (
+                  <tr key={med.id} style={{ borderBottom:'1px solid var(--border)' }}>
+                    <td style={{ padding:'6px 12px', fontWeight:500, color:'var(--text)', fontSize:11 }}>
+                      {med.nom}
                     </td>
                     {semMonths.map(mIdx => {
                       const abs = getMedMonthAbs(med.id, mIdx);
@@ -986,7 +1032,8 @@ function SemesterView({ absences, isSecretary, onDelete }) {
                     </td>
                   </tr>
                 );
-              })}
+              });
+            })()}
             </tbody>
           </table>
         </div>
@@ -1200,7 +1247,7 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
 
       {viewMode === 'calendrier'
         ? <AbsenceCalendar absences={displayedAbsences} isSecretary={isSecretary} onDelete={handleDelete} />
-        : <SemesterView   absences={displayedAbsences} isSecretary={isSecretary} onDelete={handleDelete} />
+        : <SemesterView   absences={displayedAbsences} medecins={medecins} isSecretary={isSecretary} onDelete={handleDelete} />
       }
     </div>
   );
