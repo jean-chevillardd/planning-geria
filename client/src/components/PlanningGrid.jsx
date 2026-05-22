@@ -487,14 +487,31 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
     ? { background:'var(--off-stripe)', cursor: isSecretary ? 'pointer' : 'default' }
     : {};
 
-  const sortedPresent = [...present].sort((a, b) => {
-    const ra = stableOrder[a.id] ?? 9999, rb = stableOrder[b.id] ?? 9999;
-    return ra - rb;
-  });
-
-  const sortedExtras = [...dayExtras].sort((a, b) => {
+  // Fusion présents + extras dans une liste unique triée :
+  // 1. typeRank  2. réguliers avant extras (même type)  3. stableOrder / alphabétique
+  const allChips = [
+    ...present.map(m => ({
+      key: m.id,
+      id: m.id, nom: m.nom, type: m.type,
+      isExtra: false,
+      color: m._color || poste.c,
+      srcPid: poste.id,
+    })),
+    ...dayExtras.map(e => ({
+      key: e.med_id + '-x',
+      id: e.med_id, nom: e.nom, type: e.type,
+      isExtra: true,
+      color: e._color || poste.c,
+      srcPid: e.poste_id,
+    })),
+  ].sort((a, b) => {
     const ra = typeRank(a.type ?? ''), rb = typeRank(b.type ?? '');
     if (ra !== rb) return ra - rb;
+    // Même type : régulier avant extra
+    if (a.isExtra !== b.isExtra) return a.isExtra ? 1 : -1;
+    // Réguliers : ordre stable calculé sur la semaine
+    if (!a.isExtra) return (stableOrder[a.id] ?? 9999) - (stableOrder[b.id] ?? 9999);
+    // Extras : alphabétique
     return a.nom.localeCompare(b.nom, 'fr');
   });
 
@@ -528,24 +545,24 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
       onDragLeave={isSecretary ? handleDragLeave : undefined}
       onDrop={isSecretary ? handleDrop : undefined}
     >
-      {sortedPresent.map(m => {
-        const highlighted = doctorFilter === m.id;
-        const color       = m._color || poste.c;
-        const senior      = isSenior(m.type);
-        const dragging    = dragInfo?.medId === m.id;
+      {allChips.map(chip => {
+        const highlighted = doctorFilter === chip.id;
+        const senior      = isSenior(chip.type);
+        const dragging    = dragInfo?.medId === chip.id;
+        const { color, isExtra } = chip;
         return (
           <div
-            key={m.id}
+            key={chip.key}
             className="chip"
             draggable={isSecretary ? true : undefined}
             onDragStart={isSecretary ? e => {
               e.stopPropagation();
-              onChipDragStart({ medId: m.id, medNom: m.nom, medType: m.type, sourcePid: poste.id, dayIso, isExtra: false });
+              onChipDragStart({ medId: chip.id, medNom: chip.nom, medType: chip.type, sourcePid: chip.srcPid, dayIso, isExtra });
             } : undefined}
             onDragEnd={isSecretary ? onChipDragEnd : undefined}
             style={{
-              background:  color + (highlighted ? '33' : senior ? '18' : '0d'),
-              borderColor: color + (highlighted ? 'cc' : senior ? '55' : '2e'),
+              background:  color + (highlighted ? '33' : isExtra ? (senior ? '28' : '14') : (senior ? '18' : '0d')),
+              borderColor: color + (highlighted ? 'cc' : isExtra ? (senior ? '88' : '44') : (senior ? '55' : '2e')),
               boxShadow:   highlighted ? `0 0 0 2px ${color}55` : 'none',
               opacity:     dragging ? 0.35 : 1,
               cursor:      isSecretary ? 'grab' : 'default',
@@ -557,45 +574,8 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
               fontWeight: senior ? 700 : 400,
               fontStyle:  senior ? 'normal' : 'italic',
             }}>
-              {m.nom}
-              {!senior && TYPE_LABEL[m.type] && <em style={{ fontStyle:'italic', opacity:.75 }}> — {TYPE_LABEL[m.type]}</em>}
-            </span>
-          </div>
-        );
-      })}
-
-      {sortedExtras.map(e => {
-        const highlighted = doctorFilter === e.med_id;
-        const color       = e._color || poste.c;
-        const senior      = isSenior(e.type);
-        const dragging    = dragInfo?.medId === e.med_id;
-        return (
-          <div
-            key={e.med_id + e.poste_id}
-            className="chip"
-            draggable={isSecretary ? true : undefined}
-            onDragStart={isSecretary ? ev => {
-              ev.stopPropagation();
-              onChipDragStart({ medId: e.med_id, medNom: e.nom, medType: e.type, sourcePid: e.poste_id, dayIso, isExtra: true });
-            } : undefined}
-            onDragEnd={isSecretary ? onChipDragEnd : undefined}
-            style={{
-              background:  color + (highlighted ? '44' : senior ? '28' : '14'),
-              borderColor: color + (highlighted ? 'cc' : senior ? '88' : '44'),
-              boxShadow:   highlighted ? `0 0 0 2px ${color}55` : 'none',
-              opacity:     dragging ? 0.35 : 1,
-              cursor:      isSecretary ? 'grab' : 'default',
-              transition:  'opacity .15s',
-            }}
-          >
-            <span className="chip-nm" style={{
-              color:      color + (highlighted || senior ? '' : 'a0'),
-              fontWeight: senior ? 700 : 400,
-              fontStyle:  senior ? 'normal' : 'italic',
-            }}>
-              {e.nom}
-              {!senior && TYPE_LABEL[e.type] && <em style={{ fontStyle:'italic', opacity:.75 }}> — {TYPE_LABEL[e.type]}</em>}
-              <span style={{ fontSize:8, opacity:.7 }}> (remplac.)</span>
+              {chip.nom}
+              {!senior && TYPE_LABEL[chip.type] && <em style={{ fontStyle:'italic', opacity:.75 }}> — {TYPE_LABEL[chip.type]}</em>}
             </span>
           </div>
         );
