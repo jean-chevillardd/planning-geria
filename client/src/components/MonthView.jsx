@@ -4,17 +4,6 @@ import { POSTES, toIso, getMonday, addDays, weekDays, worksDay } from '../utils'
 import * as api from '../api';
 import DoctorSearch from './DoctorSearch';
 
-const ABS_SHORT = {
-  'Congé annuel (CA)':              'CA',
-  'Formation / DPC':                'DPC',
-  'Congé maladie':                  'Maladie',
-  'Temps non clinique':             'TNC',
-  'RTT':                            'RTT',
-  'Récupération de garde':          'Récup.',
-  'Congé formation (CF)':           'CF',
-  'Activité externe (CM2R / MTG…)': 'Ext.',
-};
-
 const ABS_COLORS = {
   'Congé annuel (CA)':              '#2272f0',
   'Formation / DPC':                '#059669',
@@ -201,11 +190,10 @@ export default function MonthView({ medecins, absences }) {
                   absences
                     .filter(a => a.med_id === doctorFilter && a.date_debut <= di && a.date_fin >= di)
                     .forEach(a => {
-                      const c = absColor(a.type_abs);
                       chips.push({
-                        nom:   med?.nom ?? '',
-                        short: ABS_SHORT[a.type_abs] ?? a.type_abs,
-                        c,
+                        nom:   '',
+                        short: a.type_abs,
+                        c:     absColor(a.type_abs),
                         key:   'abs-' + a.id + '-' + di,
                       });
                     });
@@ -219,7 +207,10 @@ export default function MonthView({ medecins, absences }) {
                     {chips.slice(0, 8).map(ch => (
                       <div key={ch.key} className="month-chip"
                         style={{ background: ch.c+'22', color: ch.c, border:`1px solid ${ch.c}44` }}>
-                        {ch.nom}{ch.short && <em style={{ fontStyle:'italic', opacity:0.75 }}> — {ch.short}</em>}
+                        {ch.nom
+                          ? <>{ch.nom}{ch.short && <em style={{ fontStyle:'italic', opacity:0.75 }}> — {ch.short}</em>}</>
+                          : <em style={{ fontStyle:'italic' }}>{ch.short}</em>
+                        }
                       </div>
                     ))}
                     {chips.length > 8 && (
