@@ -70,7 +70,15 @@ const POSTES_BY_GROUP = SERVICE_GROUPS.map(grp => ({
 
 // ── Composant principal ────────────────────────────────────
 
-export default function StatsTab({ medecins }) {
+const MED_GROUPS = [
+  { key:'ph',      label:'Praticiens Hospitaliers' },
+  { key:'padhue',  label:'PADHUE' },
+  { key:'ipa',     label:'IPA' },
+  { key:'interne', label:'Internes' },
+  { key:'externe', label:'Externes' },
+];
+
+export default function StatsTab({ medecins, onGoToAbsences }) {
   const [search,    setSearch]    = useState('');
   const [selected,  setSelected]  = useState(null);
   const [stats,     setStats]     = useState(null);
@@ -189,14 +197,55 @@ export default function StatsTab({ medecins }) {
         )}
       </div>
 
-      {/* ── État vide ── */}
+      {/* ── Cards praticiens (état vide) ── */}
       {!selected && !loading && (
-        <div style={{
-          textAlign:'center', padding:'3rem 1rem',
-          fontFamily:'sans-serif', color:'var(--text3)', fontSize:13,
-        }}>
-          <div style={{ fontSize:32, marginBottom:8 }}>👤</div>
-          Recherchez un praticien pour afficher son récapitulatif de rotation depuis le début de l'année.
+        <div>
+          {MED_GROUPS.map(grp => {
+            const members = medecins
+              .filter(m => m.type === grp.key)
+              .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+            if (members.length === 0) return null;
+            return (
+              <div key={grp.key} style={{ marginBottom:20 }}>
+                <div className="sec-s" style={{ marginBottom:8 }}>{grp.label}</div>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                  {members.map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => selectMed(m)}
+                      style={{
+                        padding:'6px 14px',
+                        borderRadius:'var(--r)',
+                        border:'1px solid var(--border2)',
+                        background:'var(--surface)',
+                        cursor:'pointer',
+                        fontSize:11,
+                        fontFamily:'sans-serif',
+                        fontWeight: grp.key === 'ph' ? 700 : 400,
+                        fontStyle: (grp.key === 'interne' || grp.key === 'externe') ? 'italic' : 'normal',
+                        color:'var(--text)',
+                        boxShadow:'0 1px 3px rgba(0,0,0,.06)',
+                        whiteSpace:'nowrap',
+                        transition:'background .1s, border-color .1s, color .1s',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background    = 'var(--accent-light)';
+                        e.currentTarget.style.borderColor   = 'var(--accent)';
+                        e.currentTarget.style.color         = 'var(--accent)';
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background    = 'var(--surface)';
+                        e.currentTarget.style.borderColor   = 'var(--border2)';
+                        e.currentTarget.style.color         = 'var(--text)';
+                      }}
+                    >
+                      {m.nom}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -209,7 +258,7 @@ export default function StatsTab({ medecins }) {
 
       {/* ── Fiche praticien ── */}
       {selected && stats && (
-        <MedecinStats med={selected} stats={stats} totalWeeks={totalWeeks} year={year} />
+        <MedecinStats med={selected} stats={stats} totalWeeks={totalWeeks} year={year} onGoToAbsences={onGoToAbsences} />
       )}
     </div>
   );
@@ -217,7 +266,7 @@ export default function StatsTab({ medecins }) {
 
 // ── Fiche de synthèse ──────────────────────────────────────
 
-function MedecinStats({ med, stats, totalWeeks, year }) {
+function MedecinStats({ med, stats, totalWeeks, year, onGoToAbsences }) {
   const { affectations, absences } = stats;
 
   const affMap = {};
@@ -230,24 +279,25 @@ function MedecinStats({ med, stats, totalWeeks, year }) {
   const totalAbsDays = absences.reduce((n, a) => n + countWorkingDays(a.date_debut, a.date_fin), 0);
   const barPct = s => Math.min(Math.round((s / Math.max(totalWeeks, 1)) * 100), 100);
 
-  // Regroupement des congés : mois → type → nb jours
+  // Regroupement des congés : mois → liste des absences individuelles
   const absencesByMonth = useMemo(() => {
     const todayKey = new Date().toISOString().slice(0, 7);
     const months = {};
     absences.forEach(a => {
       const key = a.date_debut.slice(0, 7);
-      if (!months[key]) months[key] = {};
+      if (!months[key]) months[key] = { total: 0, items: [] };
       const days = countWorkingDays(a.date_debut, a.date_fin);
-      months[key][a.type_abs] = (months[key][a.type_abs] || 0) + days;
+      months[key].total += days;
+      months[key].items.push({ ...a, days });
     });
     return Object.entries(months)
       .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, types]) => ({
+      .map(([key, { total, items }]) => ({
         key,
         label: new Date(key + '-15').toLocaleDateString('fr-FR', { month:'long', year:'numeric' }),
         isPast: key < todayKey,
-        types: Object.entries(types).map(([type, days]) => ({ type, days })).sort((a, b) => b.days - a.days),
-        total: Object.values(types).reduce((s, n) => s + n, 0),
+        items: items.slice().sort((a, b) => a.date_debut.localeCompare(b.date_debut)),
+        total,
       }));
   }, [absences]);
 
@@ -310,19 +360,33 @@ function MedecinStats({ med, stats, totalWeeks, year }) {
                   background:'var(--surface)', border:'1px solid var(--border)',
                   borderRadius:'var(--r)', overflow:'hidden',
                 }}>
-                  {/* En-tête mois */}
-                  <div style={{
-                    background: mo.isPast ? 'var(--surface2)' : 'var(--accent-light)',
-                    padding:'5px 10px',
-                    display:'flex', justifyContent:'space-between', alignItems:'center',
-                    borderBottom:'1px solid var(--border)',
-                  }}>
+                  {/* En-tête mois — cliquable → onglet absences */}
+                  <div
+                    title={onGoToAbsences ? 'Voir dans le calendrier des absences' : undefined}
+                    onClick={() => onGoToAbsences && onGoToAbsences(med.id, mo.key)}
+                    style={{
+                      background: mo.isPast ? 'var(--surface2)' : 'var(--accent-light)',
+                      padding:'5px 10px',
+                      display:'flex', justifyContent:'space-between', alignItems:'center',
+                      borderBottom:'1px solid var(--border)',
+                      cursor: onGoToAbsences ? 'pointer' : 'default',
+                      userSelect:'none',
+                    }}
+                  >
                     <span style={{
                       fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
                       letterSpacing:'.05em', textTransform:'uppercase',
                       color: mo.isPast ? 'var(--text2)' : 'var(--accent)',
+                      display:'flex', alignItems:'center', gap:5,
                     }}>
                       {mo.isPast ? '✓ ' : ''}{mo.label}
+                      {onGoToAbsences && (
+                        <svg width="9" height="9" viewBox="0 0 10 10" fill="none"
+                          stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                          style={{ opacity:.45, flexShrink:0 }}>
+                          <path d="M2 8 8 2M4 2h4v4"/>
+                        </svg>
+                      )}
                     </span>
                     <span style={{
                       fontSize:11, fontFamily:'sans-serif', fontWeight:700,
@@ -331,23 +395,33 @@ function MedecinStats({ med, stats, totalWeeks, year }) {
                       {mo.total} j.
                     </span>
                   </div>
-                  {/* Lignes type → jours */}
+                  {/* Lignes individuelles (une par absence) */}
                   <div style={{ padding:'6px 10px', display:'flex', flexDirection:'column', gap:5 }}>
-                    {mo.types.map(({ type, days }) => (
-                      <div key={type} style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    {mo.items.map((item, idx) => (
+                      <div key={idx} style={{ display:'flex', alignItems:'center', gap:8 }}>
                         <span style={{
                           width:9, height:9, borderRadius:2, flexShrink:0,
-                          background: typeColor(type) + '33',
-                          border:`1.5px solid ${typeColor(type)}99`,
+                          background: typeColor(item.type_abs) + '33',
+                          border:`1.5px solid ${typeColor(item.type_abs)}99`,
                         }} />
-                        <span style={{ flex:1, fontSize:10, fontFamily:'sans-serif', color:'var(--text2)' }}>
-                          {type}
+                        <span style={{ flex:1, fontSize:10, fontFamily:'sans-serif', color:'var(--text2)', minWidth:0 }}>
+                          {item.type_abs}
+                          {(item.date_debut !== item.date_fin) && (
+                            <span style={{ color:'var(--text3)', marginLeft:5, whiteSpace:'nowrap' }}>
+                              {fmtDate(item.date_debut)} → {fmtDate(item.date_fin)}
+                            </span>
+                          )}
+                          {(item.date_debut === item.date_fin) && (
+                            <span style={{ color:'var(--text3)', marginLeft:5, whiteSpace:'nowrap' }}>
+                              {fmtDate(item.date_debut)}
+                            </span>
+                          )}
                         </span>
                         <span style={{
                           fontSize:11, fontFamily:'sans-serif', fontWeight:700,
-                          color: typeColor(type), whiteSpace:'nowrap',
+                          color: typeColor(item.type_abs), whiteSpace:'nowrap',
                         }}>
-                          {days} j.
+                          {item.days} j.
                         </span>
                       </div>
                     ))}

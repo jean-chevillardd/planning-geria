@@ -211,6 +211,7 @@ function AstreintesTab({ dayIso }) {
 // ── App principale ─────────────────────────────────────────
 export default function App() {
   const [tab,            setTab]        = useState('planning');
+  const [absencesInitNav, setAbsencesInitNav] = useState(null);
   const [monday,         setMonday]     = useState(() => getMonday(new Date()));
   const [modal,          setModal]      = useState(null);
   const [toasts,         setToasts]     = useState([]);
@@ -438,8 +439,11 @@ export default function App() {
         )}
         {tab === 'mois'     && <MonthView medecins={medecins} absences={absences} />}
         {tab === 'equipe'   && <TeamTab medecins={medecins} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
-        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
-        {tab === 'stats'      && <StatsTab medecins={medecins} />}
+        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} initNav={absencesInitNav} />}
+        {tab === 'stats'      && <StatsTab medecins={medecins} onGoToAbsences={(medId, monthKey) => {
+          setAbsencesInitNav({ medId, monthDate: new Date(monthKey + '-15'), nonce: Date.now() });
+          setTab('absences');
+        }} />}
         {tab === 'astreintes' && <AstreintesTab dayIso={astreintesDay} />}
 
         <div className="foot">Pôle Gériatrie — Planning interne · Base de données SQLite</div>

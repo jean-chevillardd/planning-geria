@@ -676,8 +676,9 @@ function MonthPickerPopover({ calMonth, onSelect, onClose }) {
 }
 
 // ── Calendrier mensuel ──────────────────────────────────────
-function AbsenceCalendar({ absences, isSecretary, onDelete }) {
+function AbsenceCalendar({ absences, isSecretary, onDelete, initialMonth }) {
   const [calMonth,  setCalMonth]  = useState(() => {
+    if (initialMonth) return new Date(initialMonth.getFullYear(), initialMonth.getMonth(), 1);
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
   });
@@ -1150,7 +1151,7 @@ function SemesterView({ absences, medecins, isSecretary, onDelete }) {
 }
 
 // ── Composant principal ─────────────────────────────────────
-export default function AbsencesTab({ medecins, absences, isSecretary, onReload, onToast, onPushUndo = () => {} }) {
+export default function AbsencesTab({ medecins, absences, isSecretary, onReload, onToast, onPushUndo = () => {}, initNav }) {
   const [medId,       setMedId]       = useState('');
   const [dateD,       setDateD]       = useState(() => todayIso());
   const [dateF,       setDateF]       = useState(() => todayIso());
@@ -1158,6 +1159,13 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
   const [saving,      setSaving]      = useState(false);
   const [searchMedId, setSearchMedId] = useState('');
   const [viewMode,    setViewMode]    = useState('calendrier'); // 'calendrier' | 'semestre'
+
+  // Navigation depuis l'onglet Synthèse → pré-sélectionne le médecin + mois
+  useEffect(() => {
+    if (!initNav) return;
+    setSearchMedId(initNav.medId);
+    setViewMode('calendrier');
+  }, [initNav?.nonce]);
 
   const workDays = useMemo(() => {
     if (!dateD || !dateF || dateF < dateD) return null;
@@ -1327,7 +1335,7 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
       </div>
 
       {viewMode === 'calendrier'
-        ? <AbsenceCalendar absences={displayedAbsences} isSecretary={isSecretary} onDelete={handleDelete} />
+        ? <AbsenceCalendar key={initNav?.nonce ?? 'default'} absences={displayedAbsences} isSecretary={isSecretary} onDelete={handleDelete} initialMonth={initNav?.monthDate} />
         : <SemesterView   absences={displayedAbsences} medecins={medecins} isSecretary={isSecretary} onDelete={handleDelete} />
       }
     </div>

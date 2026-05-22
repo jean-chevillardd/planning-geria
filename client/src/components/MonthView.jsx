@@ -69,7 +69,7 @@ function MonthPickerPopover({ current, onSelect, onClose }) {
   );
 }
 
-const TYPE_LABEL = { interne: 'Interne', externe: 'Externe', padhue: 'PADHUE', ipa: 'IPA' };
+const TYPE_RANK  = { ph:0, padhue:1, interne:2, externe:2, ipa:3 };
 
 const ABS_COLORS = {
   'Congé annuel (CA)':              '#2272f0',
@@ -286,6 +286,15 @@ export default function MonthView({ medecins, absences }) {
                   });
                 }
 
+                // Tri : typeRank → alphabétique (congés toujours en dernier, sans type)
+                chips.sort((a, b) => {
+                  if (!a.nom && b.nom) return 1;
+                  if (a.nom && !b.nom) return -1;
+                  const ra = TYPE_RANK[a.type] ?? 99, rb = TYPE_RANK[b.type] ?? 99;
+                  if (ra !== rb) return ra - rb;
+                  return a.nom.localeCompare(b.nom, 'fr');
+                });
+
                 // Congés — uniquement en vue par médecin
                 if (doctorFilter) {
                   const med = medecins.find(m => m.id === doctorFilter);
@@ -317,7 +326,10 @@ export default function MonthView({ medecins, absences }) {
                       <div key={ch.key} className="month-chip"
                         style={{ background: ch.c+'22', color: ch.c, border:`1px solid ${ch.c}44` }}>
                         {ch.nom
-                          ? <>{ch.nom}{TYPE_LABEL[ch.type] && <em style={{ fontStyle:'italic', opacity:0.75 }}> — {TYPE_LABEL[ch.type]}</em>}</>
+                          ? <span style={{ fontWeight: ch.type === 'ph' ? 700 : 400, fontStyle: ch.type === 'ph' ? 'normal' : 'italic' }}>
+                              {ch.nom}
+                              {ch.short && <em style={{ fontStyle:'italic', fontWeight:400, opacity:0.75 }}> — {ch.short}</em>}
+                            </span>
                           : <em style={{ fontStyle:'italic' }}>{ch.short}</em>
                         }
                       </div>
