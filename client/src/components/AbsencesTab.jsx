@@ -189,7 +189,7 @@ function DateRangePicker({ start, end, onChange }) {
         onClick={() => { if (!open) { setPhase('start'); setHover(null); } setOpen(v => !v); }}
         style={{
           display:'flex', alignItems:'center', gap:6, width:'100%',
-          padding:'5px 10px',
+          padding:'0 10px', height:30, boxSizing:'border-box',
           border:`1px solid ${open ? 'var(--accent-mid)' : 'var(--border2)'}`,
           borderRadius:'var(--r)',
           background: open ? 'var(--accent-light)' : 'var(--surface)',
@@ -198,7 +198,12 @@ function DateRangePicker({ start, end, onChange }) {
           textAlign:'left', transition:'border-color .1s, background .1s',
         }}
       >
-        <span style={{ fontSize:14 }}>📅</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0 }}>
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
         <span>{triggerLabel}</span>
       </button>
 
@@ -363,7 +368,7 @@ function MedSearchInput({ medecins, value, onChange }) {
       <input
         type="text"
         className="team-search"
-        placeholder="Rechercher un praticien…"
+        placeholder="Ajouter un congé pour…"
         value={search}
         autoComplete="off"
         onFocus={() => setOpen(true)}
@@ -378,7 +383,7 @@ function MedSearchInput({ medecins, value, onChange }) {
         }}
         style={{
           width:'100%',
-          padding:'5px 24px 5px 28px',
+          padding:'0 24px 0 28px', height:30, boxSizing:'border-box',
           border:'1px solid var(--border2)',
           borderRadius:'var(--r)',
           fontSize:12,
@@ -933,30 +938,33 @@ function SemesterView({ absences, isSecretary, onDelete }) {
                         <td key={mIdx} style={{ padding:'4px 3px', textAlign:'center', verticalAlign:'middle' }}>
                           {abs.length > 0 && (
                             <div style={{ display:'flex', flexDirection:'column', gap:2, alignItems:'center' }}>
-                              {abs.map(a => {
+                              {(() => {
                                 const mStart = `${year}-${String(mIdx+1).padStart(2,'0')}-01`;
                                 const mEnd   = toIso(new Date(year, mIdx+1, 0));
-                                const eff0   = a.date_debut > mStart ? a.date_debut : mStart;
-                                const eff1   = a.date_fin   < mEnd   ? a.date_fin   : mEnd;
-                                const days   = countWorkingDays(eff0, eff1);
-                                const col    = typeColor(a.type_abs);
-                                return (
-                                  <div
-                                    key={a.id}
-                                    onClick={e => { e.stopPropagation(); setPopover(prev => prev?.abs.id === a.id ? null : { abs:a, x:e.clientX, y:e.clientY }); }}
-                                    title={`${a.type_abs} — ${a.date_debut} → ${a.date_fin}`}
-                                    style={{
-                                      background:col+'22', border:`1.5px solid ${col}77`,
-                                      borderRadius:4, padding:'2px 6px',
-                                      fontSize:10, color:col, fontWeight:600,
-                                      cursor:'pointer', whiteSpace:'nowrap',
-                                      transition:'background .1s',
-                                    }}
-                                  >
-                                    {days}j
-                                  </div>
-                                );
-                              })}
+                                const byType = {};
+                                abs.forEach(a => {
+                                  const eff0 = a.date_debut > mStart ? a.date_debut : mStart;
+                                  const eff1 = a.date_fin   < mEnd   ? a.date_fin   : mEnd;
+                                  byType[a.type_abs] = (byType[a.type_abs] || 0) + countWorkingDays(eff0, eff1);
+                                });
+                                return Object.entries(byType).map(([type, days]) => {
+                                  const col = typeColor(type);
+                                  return (
+                                    <div
+                                      key={type}
+                                      title={type}
+                                      style={{
+                                        background:col+'22', border:`1.5px solid ${col}77`,
+                                        borderRadius:4, padding:'2px 6px',
+                                        fontSize:10, color:col, fontWeight:600,
+                                        whiteSpace:'nowrap',
+                                      }}
+                                    >
+                                      {days}j
+                                    </div>
+                                  );
+                                });
+                              })()}
                             </div>
                           )}
                         </td>
@@ -1060,7 +1068,6 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
 
             {/* Praticien — champ cherchable */}
             <div className="cgf" style={{ position:'relative' }}>
-              <label>Praticien</label>
               <MedSearchInput
                 medecins={medecins}
                 value={medId}
@@ -1070,7 +1077,6 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
 
             {/* Période — sélecteur calendrier */}
             <div className="cgf">
-              <label>Période</label>
               <DateRangePicker
                 start={dateD}
                 end={dateF}
@@ -1079,19 +1085,20 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
             </div>
 
             <div className="cgf">
-              <label>Type</label>
-              <select value={typeAbs} onChange={e => setTypeAbs(e.target.value)}>
+              <select value={typeAbs} onChange={e => setTypeAbs(e.target.value)}
+                style={{ height:30, boxSizing:'border-box' }}>
                 {TYPES_ABS.map(t => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             </div>
-            <div className="cgf" style={{ display:'flex', alignItems:'flex-end', gap:8 }}>
-              <button type="submit" className="btn-primary" disabled={saving}>
+            <div className="cgf" style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <button type="submit" className="btn-primary" disabled={saving}
+                style={{ height:30, boxSizing:'border-box' }}>
                 {saving ? '…' : '+ Ajouter'}
               </button>
               {workDays !== null && (
-                <span style={{ fontSize:10, fontFamily:'sans-serif', color:'var(--text2)', whiteSpace:'nowrap', paddingBottom:2 }}>
+                <span style={{ fontSize:10, fontFamily:'sans-serif', color:'var(--text2)', whiteSpace:'nowrap' }}>
                   = {workDays} j. ouvré{workDays > 1 ? 's' : ''}
                 </span>
               )}
@@ -1157,7 +1164,7 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
       <TypeLegend />
 
       {/* ── Bascule vue Calendrier / Semestre ── */}
-      <div style={{ display:'flex', gap:6, marginBottom:12 }}>
+      <div style={{ display:'flex', gap:8, marginBottom:14 }}>
         {[
           { key:'calendrier', label:'Calendrier' },
           { key:'semestre',   label:'Par semestre' },
@@ -1166,11 +1173,11 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
             key={v.key}
             onClick={() => setViewMode(v.key)}
             style={{
-              padding:'3px 14px', fontSize:10, borderRadius:20, cursor:'pointer',
-              fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
+              padding:'6px 20px', fontSize:12, borderRadius:20, cursor:'pointer',
+              fontFamily:'system-ui,sans-serif', fontWeight:700,
               background: viewMode === v.key ? 'var(--accent)' : 'var(--accent-light)',
               color:      viewMode === v.key ? '#fff'          : 'var(--accent)',
-              border:`1px solid ${viewMode === v.key ? 'var(--accent)' : 'var(--accent-mid)'}`,
+              border:`1.5px solid ${viewMode === v.key ? 'var(--accent)' : 'var(--accent-mid)'}`,
               transition:'all .12s',
             }}
           >
