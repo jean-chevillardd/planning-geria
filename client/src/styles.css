@@ -105,7 +105,10 @@ button, input, select { font-family:inherit; }
 .btn-xs.btn-ok      { background:var(--ok-bg);     color:var(--ok);     border-color:var(--ok-bd); }
 .btn-xs.btn-warn    { background:var(--warn-bg);   color:var(--warn);   border-color:var(--warn-bd); }
 .btn-xs.btn-danger  { background:var(--danger-bg); color:var(--danger); border-color:var(--danger-bd,#fda4af); }
-.btn-xs.btn-primary { background:var(--accent);    color:#fff;          border-color:var(--accent); }
+.btn-xs.btn-outline  { background:transparent; color:var(--accent); border-color:var(--accent); }
+.btn-xs.btn-outline:hover { background:var(--accent-light); }
+.btn-xs.btn-primary { background:var(--accent); color:#fff; border-color:var(--accent);
+  text-transform:none; letter-spacing:normal; font-weight:600; padding:2px 8px; font-size:10px; }
 .btn-xs.btn-primary:hover { background:var(--accent2); border-color:var(--accent2); }
 .btn-xs:disabled    { opacity:.38; cursor:not-allowed; pointer-events:none; }
 

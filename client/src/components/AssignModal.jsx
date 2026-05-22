@@ -179,12 +179,12 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                     </span>
                     <span style={{ display:'flex', gap:5, alignItems:'center', flexShrink:0 }}>
                       <button
-                        className="btn-xs btn-ok"
+                        className="btn-xs btn-outline"
                         disabled={!da.ok}
                         title={da.ok ? 'Remplacement ponctuel ce jour' : da.reason}
                         onClick={da.ok ? () => onAction('add_extra', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso }) : undefined}
                       >
-                        Affecter ce jour
+                        Ce jour
                       </button>
                       <button
                         className="btn-xs btn-primary"
@@ -192,7 +192,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                         title={wa.ok ? 'Affecter pour toute la semaine' : wa.reason}
                         onClick={wa.ok ? () => onAction('add_affectation', { week_key:weekKey, poste_id:poste.id, med_id:m.id }) : undefined}
                       >
-                        Affecter à la semaine
+                        À la semaine
                       </button>
                     </span>
                   </div>
