@@ -11,7 +11,11 @@
       "Bash(cp /tmp/planning_design/design_handoff_palette_refresh/patch/utils.js \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/client/src/utils.js\")",
       "Bash(unzip -o \"/Users/jeanchevillard/Downloads/Planning G_riatrie Design System\\(2\\).zip\" -d planning_design2)",
       "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js|css|html\\)$\")",
-      "Bash(find /Users/jeanchevillard -name \"repomix-output.xml\" 2>/dev/null)"
+      "Bash(find /Users/jeanchevillard -name \"repomix-output.xml\" 2>/dev/null)",
+      "Bash(mv /Users/jeanchevillard/repomix-output.xml \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)"
     ]
   },
   "hooks": {
