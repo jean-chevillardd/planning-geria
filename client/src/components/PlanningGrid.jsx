@@ -561,8 +561,8 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
             } : undefined}
             onDragEnd={isSecretary ? onChipDragEnd : undefined}
             style={{
-              background:  color + (highlighted ? '33' : isExtra ? (senior ? '28' : '14') : (senior ? '18' : '0d')),
-              borderColor: color + (highlighted ? 'cc' : isExtra ? (senior ? '88' : '44') : (senior ? '55' : '2e')),
+              background:  color + (highlighted ? '33' : senior ? '18' : '0d'),
+              borderColor: color + (highlighted ? 'cc' : senior ? '55' : '2e'),
               boxShadow:   highlighted ? `0 0 0 2px ${color}55` : 'none',
               opacity:     dragging ? 0.35 : 1,
               cursor:      isSecretary ? 'grab' : 'default',
@@ -576,6 +576,7 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
             }}>
               {chip.nom}
               {!senior && TYPE_LABEL[chip.type] && <em style={{ fontStyle:'italic', opacity:.75 }}> — {TYPE_LABEL[chip.type]}</em>}
+              {isExtra && <span style={{ fontSize:8, opacity:.7 }}> (remplac.)</span>}
             </span>
           </div>
         );
