@@ -1,8 +1,73 @@
 // components/MonthView.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, getFrenchHolidays } from '../utils';
 import * as api from '../api';
 import DoctorSearch from './DoctorSearch';
+
+const MONTHS_FR = [
+  'Janvier','Février','Mars','Avril','Mai','Juin',
+  'Juillet','Août','Septembre','Octobre','Novembre','Décembre',
+];
+
+// ── Popover sélection rapide de mois ────────────────────────
+function MonthPickerPopover({ current, onSelect, onClose }) {
+  const [year, setYear] = useState(current.getFullYear());
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) onClose(); }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [onClose]);
+
+  useEffect(() => {
+    function h(e) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  const curM = current.getMonth();
+  const curY = current.getFullYear();
+
+  return (
+    <div ref={ref} style={{
+      position:'absolute', top:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)',
+      zIndex:600, background:'var(--surface)', border:'1px solid var(--border2)',
+      borderRadius:'var(--rl)', boxShadow:'0 8px 28px rgba(0,0,0,.18)',
+      padding:'12px', width:220,
+    }}>
+      <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:10 }}>
+        <button className="wn-btn" onClick={() => setYear(y => y - 1)}>‹</button>
+        <span style={{ flex:1, textAlign:'center', fontSize:13, fontFamily:'system-ui,sans-serif', fontWeight:700 }}>
+          {year}
+        </span>
+        <button className="wn-btn" onClick={() => setYear(y => y + 1)}>›</button>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:4 }}>
+        {MONTHS_FR.map((m, i) => {
+          const isSel = i === curM && year === curY;
+          return (
+            <button key={i}
+              onClick={() => { onSelect(new Date(year, i, 1)); onClose(); }}
+              style={{
+                padding:'5px 2px', fontSize:11, fontFamily:'system-ui,sans-serif',
+                fontWeight: isSel ? 700 : 400, borderRadius:'var(--r)',
+                border: isSel ? '1.5px solid var(--accent)' : '1px solid transparent',
+                background: isSel ? 'var(--accent-light)' : 'transparent',
+                color: isSel ? 'var(--accent)' : 'var(--text)',
+                cursor:'pointer', textAlign:'center', transition:'background .08s',
+              }}
+              onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = 'var(--surface2)'; }}
+              onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}
+            >
+              {m.slice(0,3)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 const ABS_COLORS = {
   'Congé annuel (CA)':              '#2272f0',
@@ -33,6 +98,7 @@ export default function MonthView({ medecins, absences }) {
   const [weekData,     setWeekData]     = useState({});
   const [filter,       setFilter]       = useState(null);
   const [doctorFilter, setDoctorFilter] = useState('');
+  const [pickerOpen,   setPickerOpen]   = useState(false);
 
   const y  = monthDate.getFullYear();
   const mo = monthDate.getMonth();
@@ -73,32 +139,42 @@ export default function MonthView({ medecins, absences }) {
 
       {/* ── Navigation ── */}
       <div className="wn print-hide">
-        <button className="wn-btn" onClick={() => setMonthDate(new Date(y, mo-1, 1))}>‹</button>
-        <button className="wn-btn" onClick={() => setMonthDate(new Date(y, mo+1, 1))}>›</button>
-        <span className="wn-lbl">
-          {new Date(y, mo, 1).toLocaleDateString('fr-FR', { month:'long', year:'numeric' })}
-        </span>
+        <button className="wn-btn" title="Reculer de 6 mois"
+          onClick={() => setMonthDate(new Date(y, mo - 6, 1))}>«</button>
+        <button className="wn-btn" title="Mois précédent"
+          onClick={() => setMonthDate(new Date(y, mo - 1, 1))}>‹</button>
+
+        {/* Label cliquable → MonthPicker */}
+        <div style={{ position:'relative' }}>
+          <span
+            className="wn-lbl"
+            onClick={() => setPickerOpen(v => !v)}
+            title="Cliquer pour choisir un mois"
+            style={{ cursor:'pointer', userSelect:'none', display:'inline-flex', alignItems:'center', gap:5 }}
+          >
+            {new Date(y, mo, 1).toLocaleDateString('fr-FR', { month:'long', year:'numeric' })}
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ opacity:.45, flexShrink:0 }}>
+              <path d="M2 3.5 5 6.5 8 3.5"/>
+            </svg>
+          </span>
+          {pickerOpen && (
+            <MonthPickerPopover
+              current={monthDate}
+              onSelect={d => { setMonthDate(d); setPickerOpen(false); }}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
+        </div>
+
+        <button className="wn-btn" title="Mois suivant"
+          onClick={() => setMonthDate(new Date(y, mo + 1, 1))}>›</button>
+        <button className="wn-btn" title="Avancer de 6 mois"
+          onClick={() => setMonthDate(new Date(y, mo + 6, 1))}>»</button>
+
         <button className="wn-chip" onClick={() => setMonthDate(new Date())}>Mois actuel</button>
-        <button
-          onClick={() => window.print()}
-          style={{
-            fontSize:10, padding:'4px 11px', borderRadius:20,
-            fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:700,
-            letterSpacing:'.04em', cursor:'pointer',
-            border:'1.5px solid var(--border2)',
-            background:'transparent', color:'var(--text2)',
-            display:'inline-flex', alignItems:'center', gap:5,
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"
-            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3.5 4V1.5h7V4"/>
-            <rect x="1" y="4" width="12" height="6" rx="1.5"/>
-            <path d="M3.5 10v2.5h7V10"/>
-            <path d="M3.5 7.5h1M10 7.5h.5"/>
-          </svg>
-          Imprimer
-        </button>
+
         {medecins.length > 0 && (
           <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6 }}>
             <span style={{ fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700, color:'var(--text2)', letterSpacing:'.04em', whiteSpace:'nowrap' }}>
@@ -113,7 +189,7 @@ export default function MonthView({ medecins, absences }) {
         )}
       </div>
 
-      {/* ── Filtres (cliquer à nouveau pour tout réafficher) ── */}
+      {/* ── Filtres + bouton Imprimer ── */}
       <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:14, alignItems:'center' }}>
         {FILTERS.map(f => {
           const active = filter === f.id;
@@ -146,6 +222,26 @@ export default function MonthView({ medecins, absences }) {
             </button>
           );
         })}
+        {/* Bouton Imprimer aligné avec les pills */}
+        <button
+          onClick={() => window.print()}
+          style={{
+            marginLeft:'auto', fontSize:10, padding:'4px 11px',
+            borderRadius:20, fontFamily:'system-ui,-apple-system,sans-serif',
+            fontWeight:700, letterSpacing:'.04em', cursor:'pointer',
+            border:'1.5px solid var(--border2)', background:'transparent',
+            color:'var(--text2)', display:'inline-flex', alignItems:'center', gap:5,
+          }}
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"
+            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3.5 4V1.5h7V4"/>
+            <rect x="1" y="4" width="12" height="6" rx="1.5"/>
+            <path d="M3.5 10v2.5h7V10"/>
+            <path d="M3.5 7.5h1M10 7.5h.5"/>
+          </svg>
+          Imprimer
+        </button>
       </div>
 
       {/* ── Grille mensuelle ── */}
