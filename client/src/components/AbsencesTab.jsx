@@ -365,6 +365,17 @@ function MedSearchInput({ medecins, value, onChange }) {
 
   return (
     <div style={{ position:'relative', minWidth:180 }}>
+      {/* Loupe explicite (le CSS .cgf input écrase le background-image de .team-search) */}
+      <svg
+        width="13" height="13" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        style={{
+          position:'absolute', left:8, top:'50%', transform:'translateY(-50%)',
+          color:'var(--text3)', pointerEvents:'none', flexShrink:0,
+        }}
+      >
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
       <input
         type="text"
         className="team-search"
@@ -386,8 +397,8 @@ function MedSearchInput({ medecins, value, onChange }) {
           padding:'0 24px 0 28px', height:30, boxSizing:'border-box',
           border:'1px solid var(--border2)',
           borderRadius:'var(--r)',
-          fontSize:12,
-          background: selected ? 'var(--accent-light)' : undefined,
+          fontSize:12, textAlign:'left',
+          background: selected ? 'var(--accent-light)' : 'var(--surface)',
           borderColor: selected ? 'var(--accent-mid)' : undefined,
         }}
       />
@@ -1060,8 +1071,8 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
             <div style={{
               width:'100%', fontSize:10, fontFamily:'Trebuchet MS,sans-serif',
               fontWeight:700, letterSpacing:'.07em', textTransform:'uppercase',
-              color:'var(--accent)', borderBottom:'1px solid var(--border)',
-              paddingBottom:8, marginBottom:4,
+              color:'var(--text2)', borderBottom:'1px solid var(--border)',
+              paddingBottom:8, marginBottom:6,
             }}>
               Ajouter un congé
             </div>
@@ -1125,7 +1136,8 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
       }}>
         <div style={{
           fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
-          letterSpacing:'.07em', textTransform:'uppercase', color:'var(--text2)', marginBottom:7,
+          letterSpacing:'.07em', textTransform:'uppercase', color:'var(--text2)',
+          borderBottom:'1px solid var(--border)', paddingBottom:8, marginBottom:10,
         }}>
           Rechercher congé prat
         </div>
