@@ -59,14 +59,23 @@ const TAB_ICONS = {
       <path d="M1 12h12"/>
     </svg>
   ),
+  astreintes: (active) => (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+      stroke={active ? '#2272f0' : '#c8c5bc'} strokeWidth="1.5"
+      strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 1.5c.55 0 1 .45 1 1v.4a4 4 0 0 1 3 3.8V10l1 1.5H2L3 10V6.7a4 4 0 0 1 3-3.8V2.5c0-.55.45-1 1-1z"/>
+      <path d="M5.5 12a1.5 1.5 0 0 0 3 0"/>
+    </svg>
+  ),
 };
 
 const TABS = [
-  { id:'planning', label:'Planning' },
-  { id:'mois',     label:'Vue mensuelle' },
-  { id:'equipe',   label:'Équipe' },
-  { id:'absences', label:'Absences' },
-  { id:'stats',    label:'Synthèse' },
+  { id:'planning',   label:'Planning' },
+  { id:'mois',       label:'Vue mensuelle' },
+  { id:'equipe',     label:'Équipe' },
+  { id:'absences',   label:'Absences' },
+  { id:'stats',      label:'Synthèse' },
+  { id:'astreintes', label:'Astreintes' },
 ];
 
 const SESSION_KEY = 'secretary_key';
@@ -165,16 +174,56 @@ function LockButton({ isSecretary, onLock, onUnlock }) {
   );
 }
 
+// ── Onglet Astreintes (placeholder) ───────────────────────
+function AstreintesTab({ dayIso }) {
+  return (
+    <div style={{
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      padding:'4rem 2rem', textAlign:'center', gap:16,
+    }}>
+      <svg width="48" height="48" viewBox="0 0 14 14" fill="none"
+        stroke="var(--accent)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"
+        style={{ opacity:.35 }}>
+        <path d="M7 1.5c.55 0 1 .45 1 1v.4a4 4 0 0 1 3 3.8V10l1 1.5H2L3 10V6.7a4 4 0 0 1 3-3.8V2.5c0-.55.45-1 1-1z"/>
+        <path d="M5.5 12a1.5 1.5 0 0 0 3 0"/>
+      </svg>
+      <div>
+        <div style={{ fontFamily:'system-ui,-apple-system,sans-serif', fontSize:15, fontWeight:700,
+          color:'var(--text)', marginBottom:6 }}>
+          Astreintes
+        </div>
+        {dayIso && (
+          <div style={{ fontFamily:'system-ui,-apple-system,sans-serif', fontSize:11,
+            color:'var(--text2)', marginBottom:8 }}>
+            Jour sélectionné :{' '}
+            <strong>{new Date(dayIso + 'T12:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</strong>
+          </div>
+        )}
+        <div style={{ fontFamily:'system-ui,-apple-system,sans-serif', fontSize:11,
+          color:'var(--text3)', fontStyle:'italic' }}>
+          Cet onglet sera complété prochainement.
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── App principale ─────────────────────────────────────────
 export default function App() {
-  const [tab,          setTab]      = useState('planning');
-  const [monday,       setMonday]   = useState(() => getMonday(new Date()));
-  const [modal,        setModal]    = useState(null);
-  const [toasts,       setToasts]   = useState([]);
-  const [isSecretary,  setIsSecretary] = useState(false);
-  const [pwdModal,     setPwdModal] = useState(false);
-  const [doctorFilter, setDoctorFilter] = useState('');
+  const [tab,            setTab]        = useState('planning');
+  const [monday,         setMonday]     = useState(() => getMonday(new Date()));
+  const [modal,          setModal]      = useState(null);
+  const [toasts,         setToasts]     = useState([]);
+  const [isSecretary,    setIsSecretary] = useState(false);
+  const [pwdModal,       setPwdModal]   = useState(false);
+  const [doctorFilter,   setDoctorFilter] = useState('');
+  const [astreintesDay,  setAstreintesDay] = useState(null);
   const toastId = useRef(0);
+
+  function handleOpenAstreintes(dayIso) {
+    setAstreintesDay(dayIso);
+    setTab('astreintes');
+  }
   const weekKey = toIso(monday);
 
   useEffect(() => {
@@ -282,7 +331,8 @@ export default function App() {
               <div style={{ opacity: planLoading ? 0.55 : 1, transition:'opacity .15s', pointerEvents: planLoading ? 'none' : undefined }}>
                 <PlanningGrid monday={monday} planningData={planningData} absences={absences}
                   medecins={medecins} isSecretary={isSecretary} doctorFilter={doctorFilter}
-                  onCellClick={(poste, dayIso) => isSecretary && setModal({ poste, dayIso })} />
+                  onCellClick={(poste, dayIso) => isSecretary && setModal({ poste, dayIso })}
+                  onOpenAstreintes={handleOpenAstreintes} />
               </div>
             )}
           </>
@@ -290,7 +340,8 @@ export default function App() {
         {tab === 'mois'     && <MonthView medecins={medecins} absences={absences} />}
         {tab === 'equipe'   && <TeamTab medecins={medecins} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} />}
         {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} />}
-        {tab === 'stats'    && <StatsTab medecins={medecins} />}
+        {tab === 'stats'      && <StatsTab medecins={medecins} />}
+        {tab === 'astreintes' && <AstreintesTab dayIso={astreintesDay} />}
 
         <div className="foot">Pôle Gériatrie — Planning interne · Base de données SQLite</div>
       </div>

@@ -22,7 +22,7 @@ const FILTERS = [
 
 // ── Composant principal ────────────────────────────────────
 
-export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick, doctorFilter = '' }) {
+export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick, doctorFilter = '', onOpenAstreintes }) {
   const [filter, setFilter] = useState(null);
 
   const days     = weekDays(monday);
@@ -193,9 +193,33 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                   style={!isToday && holidayName ? { background:'#fffbeb', color:'#d97706' } : undefined}>
                   {d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
                   {holidayName && (
-                    <div style={{ fontSize:8, fontStyle:'italic', fontWeight:500, marginTop:2, lineHeight:1.2, color: isToday ? 'inherit' : '#d97706', opacity:.9 }}>
-                      {holidayName}
-                    </div>
+                    <>
+                      <div style={{ fontSize:8, fontStyle:'italic', fontWeight:500, marginTop:2, lineHeight:1.2, color: isToday ? 'inherit' : '#d97706', opacity:.9 }}>
+                        {holidayName}
+                      </div>
+                      {onOpenAstreintes && (
+                        <button
+                          title="Voir les astreintes du jour"
+                          onClick={e => { e.stopPropagation(); onOpenAstreintes(di); }}
+                          style={{
+                            marginTop:3, background:'none', border:'none', cursor:'pointer',
+                            padding:'1px 3px', borderRadius:3,
+                            color: isToday ? 'inherit' : '#d97706',
+                            opacity:.65, display:'inline-flex', alignItems:'center',
+                            transition:'opacity .1s',
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.opacity='1'}
+                          onMouseLeave={e => e.currentTarget.style.opacity='.65'}
+                        >
+                          <svg width="11" height="11" viewBox="0 0 14 14" fill="none"
+                            stroke="currentColor" strokeWidth="1.5"
+                            strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M7 1.5c.55 0 1 .45 1 1v.4a4 4 0 0 1 3 3.8V10l1 1.5H2L3 10V6.7a4 4 0 0 1 3-3.8V2.5c0-.55.45-1 1-1z"/>
+                            <path d="M5.5 12a1.5 1.5 0 0 0 3 0"/>
+                          </svg>
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               );
