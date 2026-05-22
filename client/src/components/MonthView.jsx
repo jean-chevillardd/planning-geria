@@ -167,6 +167,7 @@ export default function MonthView({ medecins, absences }) {
                 const byPoste     = data?.affectations || {};
                 const extras      = (data?.extras      || []).filter(e => e.jour === di);
                 const excls       = (data?.exclusions  || []).map(e => e.med_id);
+                const holidayName = getFrenchHolidays(day.getFullYear()).get(di);
 
                 // Chips selon les postes visibles (filtrés + vue médecin)
                 // Aucune vacation affichée sur les jours fériés
@@ -201,8 +202,6 @@ export default function MonthView({ medecins, absences }) {
                       });
                     });
                 }
-
-                const holidayName = getFrenchHolidays(day.getFullYear()).get(di);
 
                 return (
                   <div key={di} className="month-day"
