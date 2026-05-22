@@ -21,11 +21,12 @@ const POSTES_DISPLAY = POSTES.reduce((acc, p) => {
 
 // ── Helpers type de praticien ──────────────────────────────
 function typeRank(type) {
-  if (type === 'ph' || type === 'ipa') return 0;
-  if (type === 'padhue')               return 1;
-  return 2; // interne, externe
+  if (type === 'ph')     return 0;
+  if (type === 'padhue') return 1;
+  if (type === 'interne' || type === 'externe') return 2;
+  return 3; // ipa : en dernier
 }
-function isSenior(type) { return type === 'ph' || type === 'ipa'; }
+function isSenior(type) { return type === 'ph'; }
 
 // ── Définition des filtres (correspondent à la légende) ────
 const FILTERS = [
