@@ -28,7 +28,6 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   if (!poste || !dayIso) return null;
 
   const isExcluded = medId => exclusions.some(e => e.poste_id === poste.id && e.med_id === medId && e.jour === dayIso);
-  const isExtra    = medId => extras.some(e => e.poste_id === poste.id && e.med_id === medId && e.jour === dayIso);
 
   const dayLabel = new Date(dayIso + 'T12:00:00')
     .toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
@@ -36,10 +35,23 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   const excludedToday = assigned.filter(m => isExcluded(m.id));
   const extrasToday   = extras.filter(e => e.poste_id === poste.id && e.jour === dayIso);
 
+  // Présents à CE poste ce jour (affectés + non exclus + travaillent, ou extra ponctuel)
   const presentToday = new Set([
     ...assigned.filter(m => worksDay(m, dayIso, absences) && !isExcluded(m.id)).map(m => m.id),
     ...extrasToday.map(e => e.med_id),
   ]);
+
+  // En poste AILLEURS ce jour (autre poste, affecté, travaille ce jour, non exclu, non absent)
+  const takenToday = new Set();
+  Object.entries(byPoste).forEach(([pid, data]) => {
+    if (pid === poste.id) return;
+    data.medecins?.forEach(m => {
+      const excl = exclusions.some(e => e.poste_id === pid && e.med_id === m.id && e.jour === dayIso);
+      if (!excl && worksDay(m, dayIso, absences)) takenToday.add(m.id);
+    });
+  });
+  // Extras sur d'autres postes ce jour
+  extras.forEach(e => { if (e.poste_id !== poste.id && e.jour === dayIso) takenToday.add(e.med_id); });
 
   // ── Recherche ──────────────────────────────────────────────
   const q         = search.trim().toLowerCase();
@@ -48,19 +60,22 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   const candidates    = medecins.filter(m => poste.intern ? m.type === 'interne' : m.type !== 'interne');
   const searchResults = searching ? candidates.filter(m => m.nom.toLowerCase().includes(q)) : [];
 
-  // Disponibilité pour "Affecter à la semaine"
-  function weekAvail(m) {
-    if (assigned.find(a => a.id === m.id))   return { ok:false, reason:'Déjà affecté cette semaine' };
-    if (isExtra(m.id))                        return { ok:false, reason:'Remplaçant ponctuel ce jour' };
-    if (takenThisWeek.has(m.id))              return { ok:false, reason:'Déjà affecté ailleurs cette semaine' };
-    if (!worksWeekAny(m, monday, absences))   return { ok:false, reason:'Absent toute la semaine' };
+  // ── Disponibilité "Affecter ce jour" (remplacement ponctuel) ──
+  // Bloqué si : déjà présent ici aujourd'hui, en congé, ou en poste ailleurs ce jour
+  function dayAvail(m) {
+    if (presentToday.has(m.id))           return { ok:false, reason:'Déjà présent à ce poste aujourd\'hui' };
+    if (isAbsent(m.id, dayIso, absences)) return { ok:false, reason:'En congé ce jour' };
+    if (takenToday.has(m.id))             return { ok:false, reason:'Déjà en poste ailleurs ce jour' };
     return { ok:true };
   }
 
-  // Disponibilité pour "Affecter ce jour"
-  function dayAvail(m) {
-    if (presentToday.has(m.id))               return { ok:false, reason:'Déjà présent à ce poste' };
-    if (isAbsent(m.id, dayIso, absences))     return { ok:false, reason:'En congé ce jour' };
+  // ── Disponibilité "Affecter à la semaine" ──
+  // Bloqué si : déjà affecté à ce poste, affecté à un autre poste cette semaine,
+  // ou n'a aucun jour travaillé cette semaine
+  function weekAvail(m) {
+    if (assigned.find(a => a.id === m.id)) return { ok:false, reason:'Déjà affecté cette semaine' };
+    if (takenThisWeek.has(m.id))           return { ok:false, reason:'Déjà affecté ailleurs cette semaine' };
+    if (!worksWeekAny(m, monday, absences)) return { ok:false, reason:'Aucun jour disponible cette semaine' };
     return { ok:true };
   }
 
