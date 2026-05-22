@@ -320,7 +320,7 @@ function DateRangePicker({ start, end, onChange }) {
 }
 
 // ── Champ de recherche praticien ────────────────────────────
-function MedSearchInput({ medecins, value, onChange }) {
+function MedSearchInput({ medecins, value, onChange, placeholder = 'Ajouter un congé pour…' }) {
   const [search,    setSearch]    = useState('');
   const [open,      setOpen]      = useState(false);
   const [selected,  setSelected]  = useState(null);
@@ -389,7 +389,7 @@ function MedSearchInput({ medecins, value, onChange }) {
       <input
         type="text"
         className="team-search"
-        placeholder="Ajouter un congé pour…"
+        placeholder={placeholder}
         value={search}
         autoComplete="off"
         onFocus={() => setOpen(true)}
@@ -611,14 +611,79 @@ function BarPopover({ abs, x, y, isSecretary, onClose, onDelete }) {
   );
 }
 
+// ── Popover sélection rapide de mois ────────────────────────
+function MonthPickerPopover({ calMonth, onSelect, onClose }) {
+  const [year, setYear] = useState(calMonth.getFullYear());
+  const ref = useRef(null);
+
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) onClose(); }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [onClose]);
+
+  useEffect(() => {
+    function h(e) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  const curM = calMonth.getMonth();
+  const curY = calMonth.getFullYear();
+
+  return (
+    <div ref={ref} style={{
+      position:'absolute', top:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)',
+      zIndex:600, background:'var(--surface)', border:'1px solid var(--border2)',
+      borderRadius:'var(--rl)', boxShadow:'0 8px 28px rgba(0,0,0,.18)',
+      padding:'12px', width:220,
+    }}>
+      {/* Navigation année */}
+      <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:10 }}>
+        <button className="wn-btn" onClick={() => setYear(y => y - 1)}>‹</button>
+        <span style={{ flex:1, textAlign:'center', fontSize:13, fontFamily:'system-ui,sans-serif', fontWeight:700 }}>
+          {year}
+        </span>
+        <button className="wn-btn" onClick={() => setYear(y => y + 1)}>›</button>
+      </div>
+      {/* Grille 3×4 mois */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:4 }}>
+        {MONTHS_FR.map((m, i) => {
+          const isSel = i === curM && year === curY;
+          return (
+            <button
+              key={i}
+              onClick={() => { onSelect(new Date(year, i, 1)); onClose(); }}
+              style={{
+                padding:'5px 2px', fontSize:11, fontFamily:'system-ui,sans-serif',
+                fontWeight: isSel ? 700 : 400, borderRadius:'var(--r)',
+                border: isSel ? '1.5px solid var(--accent)' : '1px solid transparent',
+                background: isSel ? 'var(--accent-light)' : 'transparent',
+                color: isSel ? 'var(--accent)' : 'var(--text)',
+                cursor:'pointer', textAlign:'center',
+                transition:'background .08s',
+              }}
+              onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = 'var(--surface2)'; }}
+              onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}
+            >
+              {m.slice(0,3)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Calendrier mensuel ──────────────────────────────────────
 function AbsenceCalendar({ absences, isSecretary, onDelete }) {
   const [calMonth,  setCalMonth]  = useState(() => {
     const n = new Date();
     return new Date(n.getFullYear(), n.getMonth(), 1);
   });
-  const [filterMed, setFilterMed] = useState('');
-  const [popover,   setPopover]   = useState(null);
+  const [filterMed,   setFilterMed]   = useState('');
+  const [popover,     setPopover]     = useState(null);
+  const [pickerOpen,  setPickerOpen]  = useState(false);
 
   const todayStr = todayIso();
   const curMonth = calMonth.getMonth();
@@ -648,9 +713,40 @@ function AbsenceCalendar({ absences, isSecretary, onDelete }) {
     <div onClick={() => setPopover(null)}>
       {/* ── Navigation + filtre ── */}
       <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10, flexWrap:'wrap' }}>
-        <button className="wn-btn" onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}>‹</button>
-        <button className="wn-btn" onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}>›</button>
-        <span className="wn-lbl">{MONTHS_FR[curMonth]} {curYear}</span>
+        <button className="wn-btn" title="Reculer de 6 mois"
+          onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() - 6, 1))}>«</button>
+        <button className="wn-btn" title="Mois précédent"
+          onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))}>‹</button>
+
+        {/* Label cliquable → MonthPicker */}
+        <div style={{ position:'relative' }}>
+          <span
+            className="wn-lbl"
+            onClick={() => setPickerOpen(v => !v)}
+            title="Cliquer pour choisir un mois"
+            style={{ cursor:'pointer', userSelect:'none', display:'inline-flex', alignItems:'center', gap:5 }}
+          >
+            {MONTHS_FR[curMonth]} {curYear}
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ opacity:.45, flexShrink:0 }}>
+              <path d="M2 3.5 5 6.5 8 3.5"/>
+            </svg>
+          </span>
+          {pickerOpen && (
+            <MonthPickerPopover
+              calMonth={calMonth}
+              onSelect={m => { setCalMonth(m); setPickerOpen(false); }}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
+        </div>
+
+        <button className="wn-btn" title="Mois suivant"
+          onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))}>›</button>
+        <button className="wn-btn" title="Avancer de 6 mois"
+          onClick={() => setCalMonth(m => new Date(m.getFullYear(), m.getMonth() + 6, 1))}>»</button>
+
         <button className="wn-chip" onClick={() => { const n = new Date(); setCalMonth(new Date(n.getFullYear(), n.getMonth(), 1)); }}>
           Mois actuel
         </button>
@@ -1060,7 +1156,7 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
   const [dateF,       setDateF]       = useState(() => todayIso());
   const [typeAbs,     setTypeAbs]     = useState(TYPES_ABS[0]);
   const [saving,      setSaving]      = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMedId, setSearchMedId] = useState('');
   const [viewMode,    setViewMode]    = useState('calendrier'); // 'calendrier' | 'semestre'
 
   const workDays = useMemo(() => {
@@ -1076,10 +1172,9 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
   }, [medId, dateD, dateF, absences]);
 
   const displayedAbsences = useMemo(() => {
-    if (!searchQuery.trim()) return absences;
-    const q = searchQuery.trim().toLowerCase();
-    return absences.filter(a => a.med_nom.toLowerCase().includes(q));
-  }, [absences, searchQuery]);
+    if (!searchMedId) return absences;
+    return absences.filter(a => a.med_id === searchMedId);
+  }, [absences, searchMedId]);
 
   async function handleAdd() {
     if (!medId || !dateD || !dateF) { onToast('Renseignez tous les champs', 'err'); return; }
@@ -1176,7 +1271,7 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
         </>
       )}
 
-      {/* ── Recherche congé praticien ── */}
+      {/* ── Recherche congé ── */}
       <div style={{
         background:'var(--surface)', border:'1px solid var(--border)',
         borderRadius:'var(--rl)', padding:'10px 14px', marginBottom:14, boxShadow:'var(--sh)',
@@ -1186,37 +1281,14 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
           letterSpacing:'.07em', textTransform:'uppercase', color:'var(--text2)',
           borderBottom:'1px solid var(--border)', paddingBottom:8, marginBottom:10,
         }}>
-          Rechercher congé prat
+          Recherche congé
         </div>
-        <div style={{ position:'relative', maxWidth:340 }}>
-          <input
-            type="text"
-            className="team-search"
-            placeholder="Nom du praticien…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ width:'100%' }}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery('')}
-              style={{
-                position:'absolute', right:6, top:'50%', transform:'translateY(-50%)',
-                background:'none', border:'none', cursor:'pointer',
-                color:'var(--text3)', fontSize:15, lineHeight:1, padding:0,
-              }}
-            >×</button>
-          )}
-        </div>
-        {searchQuery.trim() && (
-          <div style={{ marginTop:10 }}>
-            <AbsenceList
-              absences={displayedAbsences}
-              isSecretary={isSecretary}
-              onDelete={handleDelete}
-            />
-          </div>
-        )}
+        <MedSearchInput
+          medecins={medecins}
+          value={searchMedId}
+          onChange={(id) => setSearchMedId(id)}
+          placeholder="Recherche un congé pour…"
+        />
       </div>
 
       {/* ── Légende types de congé ── */}
@@ -1225,7 +1297,7 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
       {/* ── Bascule vue Calendrier / Semestre ── */}
       <div style={{ display:'flex', gap:8, marginBottom:14 }}>
         {[
-          { key:'calendrier', label:'Calendrier' },
+          { key:'calendrier', label:'Par mois' },
           { key:'semestre',   label:'Par semestre' },
         ].map(v => (
           <button
