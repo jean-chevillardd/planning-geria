@@ -1,7 +1,7 @@
-// components/WeekNav.jsx
 import { fmtDay, addDays } from '../utils';
+import DoctorSearch from './DoctorSearch';
 
-export default function WeekNav({ monday, onChange, onCopy, onGoToday, isSecretary }) {
+export default function WeekNav({ monday, onChange, onCopy, onGoToday, isSecretary, medecins = [], doctorFilter = '', onDoctorFilterChange }) {
   const days = Array.from({ length: 5 }, (_, i) => addDays(monday, i));
 
   return (
@@ -16,6 +16,18 @@ export default function WeekNav({ monday, onChange, onCopy, onGoToday, isSecreta
         <button className="wn-copy" onClick={onCopy} title="Recopier les affectations de la semaine précédente">
           ⎘ Copier sem. précédente
         </button>
+      )}
+      {medecins.length > 0 && onDoctorFilterChange && (
+        <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+          <span style={{ fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700, color:'var(--text2)', letterSpacing:'.04em', whiteSpace:'nowrap' }}>
+            Vue médecin :
+          </span>
+          <DoctorSearch
+            medecins={medecins}
+            value={doctorFilter}
+            onChange={onDoctorFilterChange}
+          />
+        </div>
       )}
     </div>
   );

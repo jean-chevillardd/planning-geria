@@ -159,7 +159,7 @@ function LockButton({ isSecretary, onLock, onUnlock }) {
     >
       <LockIcon open={isSecretary} />
       <span style={{ opacity: isSecretary ? 1 : 0.65 }}>
-        {isSecretary ? 'Secrétariat' : 'Lecture seule'}
+        {isSecretary ? 'Accès total' : 'Lecture seule'}
       </span>
     </button>
   );
@@ -167,12 +167,13 @@ function LockButton({ isSecretary, onLock, onUnlock }) {
 
 // ── App principale ─────────────────────────────────────────
 export default function App() {
-  const [tab,         setTab]      = useState('planning');
-  const [monday,      setMonday]   = useState(() => getMonday(new Date()));
-  const [modal,       setModal]    = useState(null);
-  const [toasts,      setToasts]   = useState([]);
-  const [isSecretary, setIsSecretary] = useState(false);
-  const [pwdModal,    setPwdModal] = useState(false);
+  const [tab,          setTab]      = useState('planning');
+  const [monday,       setMonday]   = useState(() => getMonday(new Date()));
+  const [modal,        setModal]    = useState(null);
+  const [toasts,       setToasts]   = useState([]);
+  const [isSecretary,  setIsSecretary] = useState(false);
+  const [pwdModal,     setPwdModal] = useState(false);
+  const [doctorFilter, setDoctorFilter] = useState('');
   const toastId = useRef(0);
   const weekKey = toIso(monday);
 
@@ -269,7 +270,8 @@ export default function App() {
           <>
             <div className="print-hide">
               <WeekNav monday={monday} onChange={setMonday} onCopy={handleCopyWeek}
-                onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isSecretary} />
+                onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isSecretary}
+                medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
             </div>
             {planLoading && !planningData && (
               <div style={{ fontFamily:'system-ui,sans-serif', fontSize:12, color:'var(--text2)', padding:'1rem 0' }}>
@@ -279,7 +281,7 @@ export default function App() {
             {planningData && (
               <div style={{ opacity: planLoading ? 0.55 : 1, transition:'opacity .15s', pointerEvents: planLoading ? 'none' : undefined }}>
                 <PlanningGrid monday={monday} planningData={planningData} absences={absences}
-                  medecins={medecins} isSecretary={isSecretary}
+                  medecins={medecins} isSecretary={isSecretary} doctorFilter={doctorFilter}
                   onCellClick={(poste, dayIso) => isSecretary && setModal({ poste, dayIso })} />
               </div>
             )}

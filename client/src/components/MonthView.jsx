@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { POSTES, toIso, getMonday, addDays, weekDays, worksDay } from '../utils';
 import * as api from '../api';
+import DoctorSearch from './DoctorSearch';
 
 // Même définition que PlanningGrid (sans "Tout afficher")
 const FILTERS = [
@@ -16,9 +17,10 @@ const FILTERS = [
 ];
 
 export default function MonthView({ medecins, absences }) {
-  const [monthDate, setMonthDate] = useState(new Date());
-  const [weekData,  setWeekData]  = useState({});
-  const [filter,    setFilter]    = useState(null); // id du filtre actif, ou null = tout
+  const [monthDate,    setMonthDate]    = useState(new Date());
+  const [weekData,     setWeekData]     = useState({});
+  const [filter,       setFilter]       = useState(null);
+  const [doctorFilter, setDoctorFilter] = useState('');
 
   const y  = monthDate.getFullYear();
   const mo = monthDate.getMonth();
@@ -85,6 +87,18 @@ export default function MonthView({ medecins, absences }) {
           </svg>
           Imprimer
         </button>
+        {medecins.length > 0 && (
+          <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6 }}>
+            <span style={{ fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700, color:'var(--text2)', letterSpacing:'.04em', whiteSpace:'nowrap' }}>
+              Vue médecin :
+            </span>
+            <DoctorSearch
+              medecins={medecins}
+              value={doctorFilter}
+              onChange={setDoctorFilter}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── Filtres (cliquer à nouveau pour tout réafficher) ── */}
@@ -142,16 +156,18 @@ export default function MonthView({ medecins, absences }) {
                 const extras      = (data?.extras      || []).filter(e => e.jour === di);
                 const excls       = (data?.exclusions  || []).map(e => e.med_id);
 
-                // Chips selon les postes visibles (filtrés)
+                // Chips selon les postes visibles (filtrés + vue médecin)
                 const chips = [];
                 visiblePostes.forEach(p => {
                   const assigned = byPoste[p.id]?.medecins || [];
                   assigned.forEach(m => {
                     if (!worksDay(m, di, absences)) return;
                     if (excls.includes(m.id)) return;
+                    if (doctorFilter && m.id !== doctorFilter) return;
                     chips.push({ nom: m.nom, c: p.c, key: p.id + m.id });
                   });
                   extras.filter(e => e.poste_id === p.id).forEach(e => {
+                    if (doctorFilter && e.med_id !== doctorFilter) return;
                     chips.push({ nom: e.nom, c: p.c, key: p.id + e.med_id + 'x' });
                   });
                 });
