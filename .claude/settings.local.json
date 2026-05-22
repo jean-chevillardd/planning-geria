@@ -15,7 +15,8 @@
       "Bash(mv /Users/jeanchevillard/repomix-output.xml \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/\")",
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(xargs kill -9)"
     ]
   },
   "hooks": {
