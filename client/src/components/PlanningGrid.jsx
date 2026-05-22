@@ -1,5 +1,5 @@
 // components/PlanningGrid.jsx
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getFrenchHolidays } from '../utils';
 
 function fmtWeek(monday, days) {
@@ -8,29 +8,25 @@ function fmtWeek(monday, days) {
 }
 
 // ── Fusion CSG 1 (Sénior + Interne) et CSG 2 pour l'affichage ──
-// csg1i1 et csg2i1 sont masqués en tant que lignes séparées ;
-// leurs médecins sont affichés dans la ligne csg1a / csg2a.
 const POSTES_MAP = Object.fromEntries(POSTES.map(p => [p.id, p]));
 
 const POSTES_DISPLAY = POSTES.reduce((acc, p) => {
-  if (p.id === 'csg1i1' || p.id === 'csg2i1') return acc; // absorbés
+  if (p.id === 'csg1i1' || p.id === 'csg2i1') return acc;
   if (p.id === 'csg1a') return [...acc, { ...p, lbl: 'CSG 1', short: 'CSG 1', combineWith: 'csg1i1' }];
   if (p.id === 'csg2a') return [...acc, { ...p, lbl: 'CSG 2', short: 'CSG 2', combineWith: 'csg2i1' }];
   return [...acc, p];
 }, []);
 
-// ── Helpers type de praticien ──────────────────────────────
 function typeRank(type) {
   if (type === 'ph')     return 0;
   if (type === 'padhue') return 1;
   if (type === 'interne' || type === 'externe') return 2;
-  return 3; // ipa : en dernier
+  return 3;
 }
 function isSenior(type) { return type === 'ph'; }
 
 const TYPE_LABEL = { interne: 'Interne', externe: 'Externe', padhue: 'PADHUE', ipa: 'IPA' };
 
-// ── Définition des filtres (correspondent à la légende) ────
 const FILTERS = [
   { id: null,      label: 'Tout afficher',    color: null,      grps: null },
   { id: 'cs',      label: 'Court séjour',     color: '#2272f0', grps: ['Court séjour 1', 'Court séjour 2'] },
@@ -45,13 +41,15 @@ const FILTERS = [
 
 // ── Composant principal ────────────────────────────────────
 
-export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick, doctorFilter = '', onOpenAstreintes }) {
-  const [filter, setFilter] = useState(null);
+export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick, doctorFilter = '', onOpenAstreintes, onMove }) {
+  const [filter,      setFilter]      = useState(null);
+  const [dragInfo,    setDragInfo]    = useState(null);   // chip en cours de drag
+  const [pendingMove, setPendingMove] = useState(null);   // en attente de confirmation
 
   const days     = weekDays(monday);
   const todayIso = toIso(new Date());
+  const weekKey  = toIso(monday);
 
-  // Jours fériés de la semaine affichée
   const holidays = useMemo(() => {
     const map = new Map();
     days.forEach(d => {
@@ -66,12 +64,12 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
   const exclusions = planningData?.exclusions   || [];
   const extras     = planningData?.extras       || [];
 
-  // ── Alertes (toujours sur l'ensemble des postes, filtre ignoré) ──
+  // ── Alertes ──────────────────────────────────────────────
   const alerts = useMemo(() => {
     const warns = [];
     days.forEach(d => {
       const di = toIso(d);
-      if (holidays.has(di)) return; // jour férié : pas d'alerte de couverture
+      if (holidays.has(di)) return;
       POSTES_DISPLAY.filter(p => p.min > 0).forEach(p => {
         const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
         const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
@@ -88,7 +86,6 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     return warns;
   }, [planningData, absences, monday, holidays]);
 
-  // ── Groupes de postes (ordre stable défini par POSTES_DISPLAY) ──
   const allGroups = useMemo(() => {
     const map = {};
     POSTES_DISPLAY.forEach(p => { if (!map[p.grp]) map[p.grp] = []; map[p.grp].push(p); });
@@ -97,7 +94,6 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
 
   const activeFilter = FILTERS.find(f => f.id === filter);
 
-  // Postes où le médecin filtré apparaît (assigné ou extra) au moins un jour
   const doctorPostes = useMemo(() => {
     if (!doctorFilter) return null;
     const ids = new Set();
@@ -112,7 +108,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     return ids;
   }, [doctorFilter, byPoste, extras, days]);
 
-  const baseGroups   = filter === null
+  const baseGroups = filter === null
     ? Object.entries(allGroups)
     : Object.entries(allGroups).filter(([grp]) => activeFilter?.grps?.includes(grp));
 
@@ -121,6 +117,49 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         .map(([grp, postes]) => [grp, postes.filter(p => doctorPostes.has(p.id))])
         .filter(([, postes]) => postes.length > 0)
     : baseGroups;
+
+  // ── Drag & Drop handlers ──────────────────────────────────
+
+  function handleChipDragStart(info) {
+    setDragInfo(info);
+  }
+
+  function handleChipDragEnd() {
+    setDragInfo(null);
+  }
+
+  function handleCellDrop(targetPoste) {
+    if (!dragInfo) return;
+    // Même poste : annuler
+    if (targetPoste.id === dragInfo.sourcePid) { setDragInfo(null); return; }
+    // Incompatibilité interne/non-interne
+    if (targetPoste.intern && dragInfo.medType !== 'interne') { setDragInfo(null); return; }
+    if (!targetPoste.intern && dragInfo.medType === 'interne') { setDragInfo(null); return; }
+    setPendingMove({ ...dragInfo, targetPoste });
+    setDragInfo(null);
+  }
+
+  async function confirmMove(mode) {
+    if (!pendingMove || !onMove) return;
+    await onMove({
+      mode,
+      weekKey,
+      sourcePid: pendingMove.sourcePid,
+      targetPid: pendingMove.targetPoste.id,
+      medId:     pendingMove.medId,
+      dayIso:    pendingMove.dayIso,
+      isExtra:   pendingMove.isExtra,
+    });
+    setPendingMove(null);
+  }
+
+  // Labels pour la dialog
+  const moveDayLabel = pendingMove
+    ? new Date(pendingMove.dayIso + 'T12:00:00')
+        .toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })
+    : '';
+  const moveSrcName = pendingMove ? (POSTES_MAP[pendingMove.sourcePid]?.lbl ?? pendingMove.sourcePid) : '';
+  const moveTgtName = pendingMove ? pendingMove.targetPoste.lbl : '';
 
   return (
     <div>
@@ -136,9 +175,8 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
           : `⚠ ${alerts.length} créneau(x) non couvert(s) : ${alerts.slice(0, 6).join(' · ')}${alerts.length > 6 ? ' …' : ''}`}
       </div>
 
-      {/* ── Filtres / légende + vue médecin + imprimer ── */}
+      {/* ── Filtres / légende ── */}
       <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:12, alignItems:'center' }}>
-        {/* Filtres par groupe */}
         {FILTERS.map(f => {
           const active = filter === f.id;
           const col    = f.color || 'var(--accent)';
@@ -148,48 +186,46 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
               onClick={() => setFilter(f.id)}
               style={{
                 display:'inline-flex', alignItems:'center', gap:5,
-                padding:'4px 11px',
-                border:`1.5px solid ${col}`,
-                borderRadius:20,
-                fontSize:10,
-                fontFamily:'system-ui,-apple-system,sans-serif',
-                fontWeight:700,
-                letterSpacing:'.04em',
-                cursor:'pointer',
+                padding:'4px 11px', border:`1.5px solid ${col}`, borderRadius:20,
+                fontSize:10, fontFamily:'system-ui,-apple-system,sans-serif',
+                fontWeight:700, letterSpacing:'.04em', cursor:'pointer',
                 transition:'background .12s, color .12s',
                 background: active ? col : 'transparent',
-                color:      active ? '#fff' : col,
-                outline:'none',
+                color:      active ? '#fff' : col, outline:'none',
               }}
             >
               {f.color && (
-                <span style={{
-                  width:7, height:7, borderRadius:'50%', flexShrink:0,
-                  background: active ? 'rgba(255,255,255,.75)' : f.color,
-                }} />
+                <span style={{ width:7, height:7, borderRadius:'50%', flexShrink:0,
+                  background: active ? 'rgba(255,255,255,.75)' : f.color }} />
               )}
               {f.label}
             </button>
           );
         })}
-
-        {/* Séparateur + légende "Jour non travaillé" */}
         <span style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }} />
         <div className="li">
           <div className="l-hatch" />
           <span style={{ fontSize:10, fontFamily:'sans-serif', color:'var(--text2)' }}>Jour non travaillé</span>
         </div>
-
-        {/* ── Bouton imprimer ── */}
+        {isSecretary && (
+          <>
+            <span style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }} />
+            <div className="li">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ opacity:.5 }}>
+                <circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" strokeWidth="1.2"/>
+                <path d="M3.5 5.5h4M5.5 3.5v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              </svg>
+              <span style={{ fontSize:10, fontFamily:'sans-serif', color:'var(--text2)' }}>Glisser pour déplacer</span>
+            </div>
+          </>
+        )}
         <button
           onClick={() => window.print()}
           style={{
-            marginLeft:'auto',
-            fontSize:10, padding:'4px 11px', borderRadius:20,
+            marginLeft:'auto', fontSize:10, padding:'4px 11px', borderRadius:20,
             fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:700,
             letterSpacing:'.04em', cursor:'pointer',
-            border:'1.5px solid var(--border2)',
-            background:'transparent', color:'var(--text2)',
+            border:'1.5px solid var(--border2)', background:'transparent', color:'var(--text2)',
             display:'inline-flex', alignItems:'center', gap:5,
           }}
         >
@@ -207,7 +243,6 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       {/* ── Grille ── */}
       <div className="grid-wrap">
         <div className="pgrid">
-
           {/* En-tête colonnes */}
           <div className="gh">
             <div className="ghc" style={{ textAlign:'left', paddingLeft:10 }}>Poste</div>
@@ -228,23 +263,16 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                         <button
                           onClick={e => { e.stopPropagation(); onOpenAstreintes(di); }}
                           style={{
-                            marginTop:4, cursor:'pointer',
-                            padding:'2px 7px', borderRadius:20,
-                            fontSize:9,
-                            fontFamily:'system-ui,-apple-system,sans-serif',
+                            marginTop:4, cursor:'pointer', padding:'2px 7px', borderRadius:20,
+                            fontSize:9, fontFamily:'system-ui,-apple-system,sans-serif',
                             fontWeight:700, letterSpacing:'.03em',
                             border: isToday ? '1.5px solid rgba(255,255,255,.55)' : '1.5px solid #f6c05c',
                             background: isToday ? 'rgba(255,255,255,.15)' : '#fffbeb',
                             color: isToday ? 'inherit' : '#b45309',
-                            display:'inline-block',
-                            transition:'background .1s, color .1s',
+                            display:'inline-block', transition:'background .1s, color .1s',
                           }}
-                          onMouseEnter={e => {
-                            e.currentTarget.style.background = isToday ? 'rgba(255,255,255,.28)' : '#fef3c7';
-                          }}
-                          onMouseLeave={e => {
-                            e.currentTarget.style.background = isToday ? 'rgba(255,255,255,.15)' : '#fffbeb';
-                          }}
+                          onMouseEnter={e => { e.currentTarget.style.background = isToday ? 'rgba(255,255,255,.28)' : '#fef3c7'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = isToday ? 'rgba(255,255,255,.15)' : '#fffbeb'; }}
                         >
                           Astreintes
                         </button>
@@ -281,27 +309,107 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                         assigned={assigned}
                         exclusions={exclusions} extras={extras} absences={absences}
                         doctorFilter={doctorFilter} holidays={holidays}
-                        isSecretary={isSecretary} onCellClick={onCellClick} />
+                        isSecretary={isSecretary} onCellClick={onCellClick}
+                        dragInfo={dragInfo}
+                        onChipDragStart={handleChipDragStart}
+                        onChipDragEnd={handleChipDragEnd}
+                        onCellDrop={handleCellDrop}
+                      />
                     );
                   })}
                 </div>
               ))
             )}
           </div>
-
         </div>
       </div>
+
+      {/* ── Dialog confirmation déplacement ── */}
+      {pendingMove && (
+        <div
+          style={{
+            position:'fixed', inset:0, background:'rgba(0,0,0,.38)',
+            zIndex:700, display:'flex', alignItems:'center', justifyContent:'center',
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setPendingMove(null); }}
+        >
+          <div style={{
+            background:'var(--surface)', borderRadius:'var(--rl)',
+            border:'1px solid var(--border2)', padding:'1.5rem',
+            width:400, boxShadow:'0 8px 32px rgba(0,0,0,.18)',
+            fontFamily:'system-ui,-apple-system,sans-serif',
+          }}>
+            {/* Titre */}
+            <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>
+              Déplacer {pendingMove.medNom}
+            </div>
+            <div style={{ fontSize:12, color:'var(--text2)', marginBottom:18, display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ fontWeight:600 }}>{moveSrcName}</span>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, opacity:.5 }}>
+                <path d="M2 7h10M8 3l4 4-4 4"/>
+              </svg>
+              <span style={{ fontWeight:600 }}>{moveTgtName}</span>
+            </div>
+
+            {/* Options */}
+            <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
+              <button
+                onClick={() => confirmMove('day')}
+                style={{
+                  textAlign:'left', padding:'10px 14px',
+                  borderRadius:'var(--r)', cursor:'pointer',
+                  border:'1.5px solid var(--border2)',
+                  background:'var(--surface2)', color:'var(--text)',
+                  fontSize:12, fontFamily:'inherit',
+                  transition:'border-color .1s, background .1s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; }}
+              >
+                <div style={{ fontWeight:700, marginBottom:2 }}>Ce jour uniquement</div>
+                <div style={{ fontSize:10, color:'var(--text2)', textTransform:'capitalize' }}>{moveDayLabel}</div>
+              </button>
+
+              <button
+                onClick={() => confirmMove('week')}
+                style={{
+                  textAlign:'left', padding:'10px 14px',
+                  borderRadius:'var(--r)', cursor:'pointer',
+                  border:'1.5px solid var(--border2)',
+                  background:'var(--surface2)', color:'var(--text)',
+                  fontSize:12, fontFamily:'inherit',
+                  transition:'border-color .1s, background .1s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; }}
+              >
+                <div style={{ fontWeight:700, marginBottom:2 }}>Toute la semaine</div>
+                <div style={{ fontSize:10, color:'var(--text2)' }}>
+                  {pendingMove.isExtra ? 'Remplace l\'affectation ponctuelle par une affectation semaine' : 'Toutes les vacations sont déplacées'}
+                </div>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setPendingMove(null)}
+              style={{
+                width:'100%', padding:'6px', border:'1px solid var(--border2)',
+                borderRadius:'var(--r)', background:'transparent', cursor:'pointer',
+                fontSize:11, color:'var(--text3)', fontFamily:'inherit',
+              }}
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Ligne de poste ──────────────────────────────────────────
 
-function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences, doctorFilter, holidays, isSecretary, onCellClick }) {
-  // Ordre stable calculé une fois sur la liste complète de la semaine :
-  // 1. type rank  2. jours présents sur la semaine (desc)  3. alphabétique
-  // → les praticiens les plus présents restent en tête ; un remplaçant
-  //   ponctuel apparaît toujours sous les titulaires habituels.
+function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences, doctorFilter, holidays, isSecretary, onCellClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop }) {
   const daysPresent = {};
   assigned.forEach(m => {
     daysPresent[m.id] = days.filter(d => worksDay(m, toIso(d), absences)).length;
@@ -313,7 +421,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
       const ra = typeRank(a.type ?? ''), rb = typeRank(b.type ?? '');
       if (ra !== rb) return ra - rb;
       const da = daysPresent[a.id] ?? 0, db = daysPresent[b.id] ?? 0;
-      if (da !== db) return db - da;          // plus de jours = rang plus haut
+      if (da !== db) return db - da;
       return a.nom.localeCompare(b.nom, 'fr');
     })
     .forEach((m, i) => { stableOrder[m.id] = i; });
@@ -332,7 +440,12 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
             assigned={assigned} stableOrder={stableOrder}
             exclusions={exclusions} extras={extras} absences={absences}
             doctorFilter={doctorFilter} isHoliday={holidays.has(di)}
-            isSecretary={isSecretary} onClick={() => onCellClick(poste, di)} />
+            isSecretary={isSecretary} onClick={() => onCellClick(poste, di)}
+            dragInfo={dragInfo}
+            onChipDragStart={onChipDragStart}
+            onChipDragEnd={onChipDragEnd}
+            onCellDrop={onCellDrop}
+          />
         );
       })}
     </div>
@@ -341,8 +454,10 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
 
 // ── Cellule ────────────────────────────────────────────────
 
-function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, extras, absences, doctorFilter, isHoliday, isSecretary, onClick }) {
-  // Jour férié : cellule vide, aucune vacation affichée, pas de clic possible
+function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, extras, absences, doctorFilter, isHoliday, isSecretary, onClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop }) {
+  const [isOver,  setIsOver]  = useState(false);
+  const dragCounter           = useRef(0);
+
   if (isHoliday) {
     return (
       <div
@@ -352,7 +467,6 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
     );
   }
 
-  // Prend en compte le poste combiné (ex: csg1a inclut csg1i1)
   const allPosteIds = [poste.id, ...(poste.combineWith ? [poste.combineWith] : [])];
 
   const excl = exclusions
@@ -373,35 +487,71 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
     ? { background:'var(--off-stripe)', cursor: isSecretary ? 'pointer' : 'default' }
     : {};
 
-  // Présents : ordre stable de la semaine (calculé dans GridRow)
   const sortedPresent = [...present].sort((a, b) => {
     const ra = stableOrder[a.id] ?? 9999, rb = stableOrder[b.id] ?? 9999;
     return ra - rb;
   });
 
-  // Extras (ponctuels) : type rank puis alphabétique
   const sortedExtras = [...dayExtras].sort((a, b) => {
     const ra = typeRank(a.type ?? ''), rb = typeRank(b.type ?? '');
     if (ra !== rb) return ra - rb;
     return a.nom.localeCompare(b.nom, 'fr');
   });
 
+  // ── Drop handlers ──────────────────────────────────────
+  function handleDragEnter(e) {
+    e.preventDefault();
+    dragCounter.current++;
+    setIsOver(true);
+  }
+  function handleDragLeave() {
+    dragCounter.current--;
+    if (dragCounter.current <= 0) { dragCounter.current = 0; setIsOver(false); }
+  }
+  function handleDrop(e) {
+    e.preventDefault();
+    dragCounter.current = 0;
+    setIsOver(false);
+    onCellDrop(poste);
+  }
+
+  // Est-ce que le drag en cours vient de cette cellule ?
+  const isDragSource = dragInfo && dragInfo.sourcePid === poste.id && dragInfo.dayIso === dayIso;
+
   return (
     <div
-      className={`cell${isSecretary ? ' avail' : ''}${isToday ? ' today' : ''}`}
+      className={`cell${isSecretary ? ' avail' : ''}${isToday ? ' today' : ''}${isOver && dragInfo ? ' drop-target' : ''}`}
       style={cellBg}
       onClick={isSecretary ? onClick : undefined}
+      onDragOver={isSecretary ? e => e.preventDefault() : undefined}
+      onDragEnter={isSecretary ? handleDragEnter : undefined}
+      onDragLeave={isSecretary ? handleDragLeave : undefined}
+      onDrop={isSecretary ? handleDrop : undefined}
     >
       {sortedPresent.map(m => {
         const highlighted = doctorFilter === m.id;
         const color       = m._color || poste.c;
         const senior      = isSenior(m.type);
+        const dragging    = dragInfo?.medId === m.id;
         return (
-          <div key={m.id} className="chip" style={{
-            background:  color + (highlighted ? '33' : senior ? '18' : '0d'),
-            borderColor: color + (highlighted ? 'cc' : senior ? '55' : '2e'),
-            boxShadow:   highlighted ? `0 0 0 2px ${color}55` : 'none',
-          }}>
+          <div
+            key={m.id}
+            className="chip"
+            draggable={isSecretary ? true : undefined}
+            onDragStart={isSecretary ? e => {
+              e.stopPropagation();
+              onChipDragStart({ medId: m.id, medNom: m.nom, medType: m.type, sourcePid: poste.id, dayIso, isExtra: false });
+            } : undefined}
+            onDragEnd={isSecretary ? onChipDragEnd : undefined}
+            style={{
+              background:  color + (highlighted ? '33' : senior ? '18' : '0d'),
+              borderColor: color + (highlighted ? 'cc' : senior ? '55' : '2e'),
+              boxShadow:   highlighted ? `0 0 0 2px ${color}55` : 'none',
+              opacity:     dragging ? 0.35 : 1,
+              cursor:      isSecretary ? 'grab' : 'default',
+              transition:  'opacity .15s',
+            }}
+          >
             <span className="chip-nm" style={{
               color:      color + (highlighted || senior ? '' : 'a0'),
               fontWeight: senior ? 700 : 400,
@@ -413,16 +563,31 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
           </div>
         );
       })}
+
       {sortedExtras.map(e => {
         const highlighted = doctorFilter === e.med_id;
         const color       = e._color || poste.c;
         const senior      = isSenior(e.type);
+        const dragging    = dragInfo?.medId === e.med_id;
         return (
-          <div key={e.med_id + e.poste_id} className="chip" style={{
-            background:  color + (highlighted ? '44' : senior ? '28' : '14'),
-            borderColor: color + (highlighted ? 'cc' : senior ? '88' : '44'),
-            boxShadow:   highlighted ? `0 0 0 2px ${color}55` : 'none',
-          }}>
+          <div
+            key={e.med_id + e.poste_id}
+            className="chip"
+            draggable={isSecretary ? true : undefined}
+            onDragStart={isSecretary ? ev => {
+              ev.stopPropagation();
+              onChipDragStart({ medId: e.med_id, medNom: e.nom, medType: e.type, sourcePid: e.poste_id, dayIso, isExtra: true });
+            } : undefined}
+            onDragEnd={isSecretary ? onChipDragEnd : undefined}
+            style={{
+              background:  color + (highlighted ? '44' : senior ? '28' : '14'),
+              borderColor: color + (highlighted ? 'cc' : senior ? '88' : '44'),
+              boxShadow:   highlighted ? `0 0 0 2px ${color}55` : 'none',
+              opacity:     dragging ? 0.35 : 1,
+              cursor:      isSecretary ? 'grab' : 'default',
+              transition:  'opacity .15s',
+            }}
+          >
             <span className="chip-nm" style={{
               color:      color + (highlighted || senior ? '' : 'a0'),
               fontWeight: senior ? 700 : 400,
@@ -435,6 +600,7 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
           </div>
         );
       })}
+
       {absent.map(m => {
         const absSenior = isSenior(m.type);
         return (
@@ -445,6 +611,7 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
           </div>
         );
       })}
+
       {isSecretary && <span className="add-lnk print-hide">+ affecter</span>}
     </div>
   );

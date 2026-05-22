@@ -269,6 +269,27 @@ export default function App() {
     } catch(e) { showToast(e.message || "Erreur lors de l'enregistrement", 'err'); }
   }
 
+  // ── Drag & Drop : déplacement d'un praticien vers un autre poste ──
+  async function handleMove({ mode, weekKey, sourcePid, targetPid, medId, dayIso, isExtra }) {
+    try {
+      if (mode === 'day') {
+        // Retrait du poste source ce jour
+        if (isExtra) await api.deleteExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
+        else         await api.addExclusion({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
+        // Ajout au poste cible ce jour
+        await api.addExtra({ week_key:weekKey, poste_id:targetPid, med_id:medId, jour:dayIso });
+      } else {
+        // Retrait du poste source pour toute la semaine
+        if (isExtra) await api.deleteExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
+        else         await api.deleteAffectation({ week_key:weekKey, poste_id:sourcePid, med_id:medId });
+        // Affectation au poste cible pour toute la semaine
+        await api.addAffectation({ week_key:weekKey, poste_id:targetPid, med_id:medId });
+      }
+      reloadPlan();
+      showToast('Déplacement enregistré');
+    } catch(e) { showToast(e.message || 'Erreur lors du déplacement', 'err'); }
+  }
+
   async function handleCopyWeek() {
     const prevKey = toIso(addDays(monday, -7));
     if (!confirm('Copier les affectations de la semaine précédente ? Les affectations actuelles seront écrasées.')) return;
@@ -332,7 +353,8 @@ export default function App() {
                 <PlanningGrid monday={monday} planningData={planningData} absences={absences}
                   medecins={medecins} isSecretary={isSecretary} doctorFilter={doctorFilter}
                   onCellClick={(poste, dayIso) => isSecretary && setModal({ poste, dayIso })}
-                  onOpenAstreintes={handleOpenAstreintes} />
+                  onOpenAstreintes={handleOpenAstreintes}
+                  onMove={handleMove} />
               </div>
             )}
           </>

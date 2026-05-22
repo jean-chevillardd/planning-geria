@@ -75,7 +75,9 @@ button, input, select { font-family:inherit; }
 .cell.today { background:rgba(34,114,240,.03); }
 .cell.avail { cursor:pointer; }
 .cell.avail:hover { background:var(--accent-light); }
-.chip { border-radius:4px; padding:2px 5px; font-size:10px; font-family:system-ui,sans-serif; margin-bottom:2px; display:flex; align-items:center; gap:3px; border:1px solid transparent; }
+.chip { border-radius:4px; padding:2px 5px; font-size:10px; font-family:system-ui,sans-serif; margin-bottom:2px; display:flex; align-items:center; gap:3px; border:1px solid transparent; user-select:none; }
+.chip[draggable=true]:active { cursor:grabbing; }
+.cell.drop-target { outline:2px dashed var(--accent); outline-offset:-2px; background:var(--accent-light) !important; }
 .chip-nm { font-weight:600; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .chip-rm { cursor:pointer; opacity:.4; font-size:13px; flex-shrink:0; line-height:1; background:none; border:none; padding:0; color:inherit; }
 .chip-rm:hover { opacity:1; }
