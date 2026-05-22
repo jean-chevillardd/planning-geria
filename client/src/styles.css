@@ -102,9 +102,12 @@ button, input, select { font-family:inherit; }
 
 /* Small action buttons inside modal */
 .btn-xs { font-size:10px; font-family:system-ui,sans-serif; padding:1px 7px; border-radius:4px; cursor:pointer; border:1px solid; white-space:nowrap; }
-.btn-xs.btn-ok     { background:var(--ok-bg);     color:var(--ok);     border-color:var(--ok-bd); }
-.btn-xs.btn-warn   { background:var(--warn-bg);   color:var(--warn);   border-color:var(--warn-bd); }
-.btn-xs.btn-danger { background:var(--danger-bg); color:var(--danger); border-color:var(--danger-bd,#fda4af); }
+.btn-xs.btn-ok      { background:var(--ok-bg);     color:var(--ok);     border-color:var(--ok-bd); }
+.btn-xs.btn-warn    { background:var(--warn-bg);   color:var(--warn);   border-color:var(--warn-bd); }
+.btn-xs.btn-danger  { background:var(--danger-bg); color:var(--danger); border-color:var(--danger-bd,#fda4af); }
+.btn-xs.btn-primary { background:var(--accent);    color:#fff;          border-color:var(--accent); }
+.btn-xs.btn-primary:hover { background:var(--accent2); border-color:var(--accent2); }
+.btn-xs:disabled    { opacity:.38; cursor:not-allowed; pointer-events:none; }
 
 /* Team tab */
 .sec-t { font-size:15px; font-weight:bold; }
