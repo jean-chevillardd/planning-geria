@@ -173,13 +173,13 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                 const wa = weekAvail(m);
                 const da = dayAvail(m);
                 return (
-                  <div key={m.id} className="mitem" style={{ cursor:'default' }}>
-                    <span style={{ fontSize:12 }}>
+                  <div key={m.id} className="mitem" style={{ cursor:'default', flexWrap:'nowrap' }}>
+                    <span style={{ fontSize:12, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', minWidth:0, flex:'1 1 0' }}>
                       {m.nom} <span className="mtag">{TYPE_LBL[m.type]}</span>
                     </span>
                     <span style={{ display:'flex', gap:5, alignItems:'center', flexShrink:0 }}>
                       <button
-                        className="btn-xs btn-outline"
+                        className="btn-xs btn-primary"
                         disabled={!da.ok}
                         title={da.ok ? 'Remplacement ponctuel ce jour' : da.reason}
                         onClick={da.ok ? () => onAction('add_extra', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso }) : undefined}
