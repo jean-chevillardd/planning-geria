@@ -11,7 +11,7 @@ const GROUPS = [
   { key:'padhue',  label:'PADHUE',                  color:'#d97706' },
 ];
 
-export default function TeamTab({ medecins, isSecretary, onReload, onToast }) {
+export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPushUndo = () => {} }) {
   const [modal,      setModal]      = useState(null); // null | { mode:'add'|'edit', med?:object }
   const [search,     setSearch]     = useState('');
   const [typeFilter, setTypeFilter] = useState(null); // null = tous, ou clé de groupe
@@ -24,10 +24,13 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast }) {
 
   // ── Actions ───────────────────────────────────────────
   async function handleSched(med, idx, val) {
+    const oldSched = [...med.sched];
     const newSched = [...med.sched];
     newSched[idx] = val ? 1 : 0;
     try {
       await api.updateMedecin(med.id, { sched: newSched });
+      const medId = med.id;
+      onPushUndo('Mise à jour présences', async () => { await api.updateMedecin(medId, { sched: oldSched }); onReload(); });
       onReload();
       onToast('Planning mis à jour');
     } catch(e) {
@@ -157,8 +160,15 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast }) {
           onToast={onToast}
           onSave={async (data) => {
             try {
-              if (modal.mode === 'add') await api.addMedecin(data);
-              else await api.updateMedecin(modal.med.id, data);
+              if (modal.mode === 'add') {
+                const newMed = await api.addMedecin(data);
+                onPushUndo('Ajout personnel', async () => { await api.deleteMedecin(newMed.id); onReload(); });
+              } else {
+                const oldData = { nom: modal.med.nom, type: modal.med.type, sched: [...modal.med.sched] };
+                const medId = modal.med.id;
+                await api.updateMedecin(medId, data);
+                onPushUndo('Modification personnel', async () => { await api.updateMedecin(medId, oldData); onReload(); });
+              }
               setModal(null);
               onReload();
               onToast(modal.mode === 'add' ? 'Personnel ajouté' : 'Modifications enregistrées');

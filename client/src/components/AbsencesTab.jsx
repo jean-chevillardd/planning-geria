@@ -1150,7 +1150,7 @@ function SemesterView({ absences, medecins, isSecretary, onDelete }) {
 }
 
 // ── Composant principal ─────────────────────────────────────
-export default function AbsencesTab({ medecins, absences, isSecretary, onReload, onToast }) {
+export default function AbsencesTab({ medecins, absences, isSecretary, onReload, onToast, onPushUndo = () => {} }) {
   const [medId,       setMedId]       = useState('');
   const [dateD,       setDateD]       = useState(() => todayIso());
   const [dateF,       setDateF]       = useState(() => todayIso());
@@ -1181,7 +1181,9 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
     if (dateF < dateD) { onToast('La date de fin doit être après le début', 'err'); return; }
     setSaving(true);
     try {
-      await api.addAbsence({ med_id:medId, date_debut:dateD, date_fin:dateF, type_abs:typeAbs });
+      const result = await api.addAbsence({ med_id:medId, date_debut:dateD, date_fin:dateF, type_abs:typeAbs });
+      const absId = result.id;
+      onPushUndo('Ajout congé', async () => { await api.deleteAbsence(absId); onReload(); });
       setMedId('');
       setDateD(todayIso()); setDateF(todayIso());
       onReload();
@@ -1192,8 +1194,15 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
   }
 
   async function handleDelete(id) {
+    const absToDelete = absences.find(a => a.id === id);
     try {
       await api.deleteAbsence(id);
+      if (absToDelete) {
+        onPushUndo('Suppression congé', async () => {
+          await api.addAbsence({ med_id: absToDelete.med_id, date_debut: absToDelete.date_debut, date_fin: absToDelete.date_fin, type_abs: absToDelete.type_abs });
+          onReload();
+        });
+      }
       onReload();
       onToast('Absence supprimée');
     } catch(e) {

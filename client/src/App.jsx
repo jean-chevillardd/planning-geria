@@ -218,7 +218,9 @@ export default function App() {
   const [pwdModal,       setPwdModal]   = useState(false);
   const [doctorFilter,   setDoctorFilter] = useState('');
   const [astreintesDay,  setAstreintesDay] = useState(null);
-  const toastId = useRef(0);
+  const toastId       = useRef(0);
+  const undoStackRef  = useRef([]);
+  const handleUndoRef = useRef(null);
 
   function handleOpenAstreintes(dayIso) {
     setAstreintesDay(dayIso);
@@ -241,6 +243,35 @@ export default function App() {
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 2800);
   }
 
+  // ── Undo global ────────────────────────────────────────
+  function pushUndo(label, undoFn) {
+    undoStackRef.current = [...undoStackRef.current.slice(-29), { label, undo: undoFn }];
+  }
+
+  function handleUndo() {
+    const stack = undoStackRef.current;
+    if (stack.length === 0) return;
+    const entry = stack[stack.length - 1];
+    undoStackRef.current = stack.slice(0, -1);
+    entry.undo()
+      .then(() => showToast(`Annulé : ${entry.label}`))
+      .catch(e => showToast(e.message || "Erreur lors de l'annulation", 'err'));
+  }
+  handleUndoRef.current = handleUndo;
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        const tag = document.activeElement?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        handleUndoRef.current?.();
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, []);
+
   function handleUnlock(password) {
     api.setSecretaryKey(password);
     sessionStorage.setItem(SESSION_KEY, password);
@@ -251,20 +282,56 @@ export default function App() {
   function handleLock() {
     api.setSecretaryKey(''); sessionStorage.removeItem(SESSION_KEY);
     setIsSecretary(false); setModal(null);
+    undoStackRef.current = [];
     showToast('Planning verrouillé');
   }
 
   async function handleAction(type, payload) {
     try {
+      let undoFn = null;
+      let undoLabel = '';
       switch (type) {
-        case 'add_affectation':  await api.addAffectation(payload);   break;
-        case 'del_affectation':  await api.deleteAffectation(payload); break;
-        case 'add_exclusion':    await api.addExclusion(payload);     break;
-        case 'del_exclusion':    await api.deleteExclusion(payload);  break;
-        case 'add_extra':        await api.addExtra(payload);         break;
-        case 'del_extra':        await api.deleteExtra(payload);      break;
+        case 'add_affectation':
+          await api.addAffectation(payload);
+          undoLabel = 'Ajout affectation';
+          undoFn = async () => { await api.deleteAffectation(payload); reloadPlan(); };
+          break;
+        case 'del_affectation': {
+          const excls = (planningData?.exclusions || [])
+            .filter(e => e.poste_id === payload.poste_id && e.med_id === payload.med_id);
+          await api.deleteAffectation(payload);
+          undoLabel = 'Suppression affectation';
+          undoFn = async () => {
+            await api.addAffectation(payload);
+            for (const ex of excls)
+              await api.addExclusion({ week_key: payload.week_key, poste_id: ex.poste_id, med_id: ex.med_id, jour: ex.jour });
+            reloadPlan();
+          };
+          break;
+        }
+        case 'add_exclusion':
+          await api.addExclusion(payload);
+          undoLabel = 'Ajout exclusion';
+          undoFn = async () => { await api.deleteExclusion(payload); reloadPlan(); };
+          break;
+        case 'del_exclusion':
+          await api.deleteExclusion(payload);
+          undoLabel = 'Suppression exclusion';
+          undoFn = async () => { await api.addExclusion(payload); reloadPlan(); };
+          break;
+        case 'add_extra':
+          await api.addExtra(payload);
+          undoLabel = 'Ajout extra';
+          undoFn = async () => { await api.deleteExtra(payload); reloadPlan(); };
+          break;
+        case 'del_extra':
+          await api.deleteExtra(payload);
+          undoLabel = 'Suppression extra';
+          undoFn = async () => { await api.addExtra(payload); reloadPlan(); };
+          break;
         default: console.warn('Action inconnue:', type);
       }
+      if (undoFn) pushUndo(undoLabel, undoFn);
       setModal(null); reloadPlan(); showToast('Enregistré');
     } catch(e) { showToast(e.message || "Erreur lors de l'enregistrement", 'err'); }
   }
@@ -272,19 +339,29 @@ export default function App() {
   // ── Drag & Drop : déplacement d'un praticien vers un autre poste ──
   async function handleMove({ mode, weekKey, sourcePid, targetPid, medId, dayIso, isExtra }) {
     try {
+      let undoFn;
       if (mode === 'day') {
-        // Retrait du poste source ce jour
         if (isExtra) await api.deleteExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
         else         await api.addExclusion({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
-        // Ajout au poste cible ce jour
         await api.addExtra({ week_key:weekKey, poste_id:targetPid, med_id:medId, jour:dayIso });
+        undoFn = async () => {
+          await api.deleteExtra({ week_key:weekKey, poste_id:targetPid, med_id:medId, jour:dayIso });
+          if (isExtra) await api.addExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
+          else         await api.deleteExclusion({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
+          reloadPlan();
+        };
       } else {
-        // Retrait du poste source pour toute la semaine
         if (isExtra) await api.deleteExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
         else         await api.deleteAffectation({ week_key:weekKey, poste_id:sourcePid, med_id:medId });
-        // Affectation au poste cible pour toute la semaine
         await api.addAffectation({ week_key:weekKey, poste_id:targetPid, med_id:medId });
+        undoFn = async () => {
+          await api.deleteAffectation({ week_key:weekKey, poste_id:targetPid, med_id:medId });
+          if (isExtra) await api.addExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
+          else         await api.addAffectation({ week_key:weekKey, poste_id:sourcePid, med_id:medId });
+          reloadPlan();
+        };
       }
+      pushUndo('Déplacement', undoFn);
       reloadPlan();
       showToast('Déplacement enregistré');
     } catch(e) { showToast(e.message || 'Erreur lors du déplacement', 'err'); }
@@ -360,8 +437,8 @@ export default function App() {
           </>
         )}
         {tab === 'mois'     && <MonthView medecins={medecins} absences={absences} />}
-        {tab === 'equipe'   && <TeamTab medecins={medecins} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} />}
-        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} />}
+        {tab === 'equipe'   && <TeamTab medecins={medecins} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
+        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
         {tab === 'stats'      && <StatsTab medecins={medecins} />}
         {tab === 'astreintes' && <AstreintesTab dayIso={astreintesDay} />}
 
