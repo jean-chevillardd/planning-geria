@@ -254,7 +254,7 @@ function DateRangePicker({ start, end, onChange }) {
               const isSelected  = isStart || isEnd;
               const holidayName = inCurMonth && !isWeekend ? getFrenchHolidays(d.getFullYear()).get(iso) : null;
 
-              let bg     = holidayName && !isSelected && !isInRange ? '#fffbeb' : 'transparent';
+              let bg     = holidayName && !isSelected && !isInRange ? 'var(--holiday-stripe)' : 'transparent';
               let color  = !inCurMonth ? 'var(--text3)' : isWeekend ? 'var(--text3)' : holidayName ? '#d97706' : 'var(--text)';
               let radius = 4;
               if (isSelected) { bg = 'var(--accent)'; color = '#fff'; radius = '50%'; }
@@ -663,7 +663,7 @@ function AbsenceCalendar({ absences, isSecretary, onDelete }) {
                       height: DAY_H + (holidayName ? 14 : 0),
                       display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
                       borderRight: di < 4 ? '1px solid var(--border)' : 'none',
-                      background: holidayName && !isToday ? '#fffbeb' : 'transparent',
+                      background: holidayName && !isToday ? 'var(--holiday-stripe)' : 'transparent',
                     }}>
                       <span style={{
                         display:'inline-flex', alignItems:'center', justifyContent:'center',

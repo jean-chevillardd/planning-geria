@@ -206,7 +206,7 @@ export default function MonthView({ medecins, absences }) {
 
                 return (
                   <div key={di} className="month-day"
-                    style={{ ...((!isThisMonth) ? { opacity:.4 } : {}), ...(holidayName ? { background:'#fffbeb' } : {}) }}>
+                    style={{ ...((!isThisMonth) ? { opacity:.4 } : {}), ...(holidayName ? { background:'var(--holiday-stripe)' } : {}) }}>
                     <div className={`month-day-hdr${isToday ? ' today' : ''}`}
                       style={holidayName && !isToday ? { color:'#d97706', borderBottomColor:'#fcd34d' } : undefined}>
                       {day.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' })}

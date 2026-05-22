@@ -215,7 +215,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
               const holidayName = holidays.get(di);
               return (
                 <div key={i} className={`ghc${isToday ? ' today' : ''}`}
-                  style={!isToday && holidayName ? { background:'#fffbeb', color:'#d97706' } : undefined}>
+                  style={!isToday && holidayName ? { background:'var(--holiday-stripe)', color:'#d97706' } : undefined}>
                   {d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
                   {holidayName && (
                     <>
@@ -345,7 +345,7 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
     return (
       <div
         className={`cell${isToday ? ' today' : ''}`}
-        style={!isToday ? { background:'#fffbeb' } : undefined}
+        style={!isToday ? { background:'var(--holiday-stripe)' } : undefined}
       />
     );
   }
