@@ -7,6 +7,26 @@ function fmtWeek(monday, days) {
   return `${days[0].toLocaleDateString('fr-FR', { day:'numeric', month:'long' })} au ${days[4].toLocaleDateString('fr-FR', opts)}`;
 }
 
+// ── Fusion CSG 1 (Sénior + Interne) et CSG 2 pour l'affichage ──
+// csg1i1 et csg2i1 sont masqués en tant que lignes séparées ;
+// leurs médecins sont affichés dans la ligne csg1a / csg2a.
+const POSTES_MAP = Object.fromEntries(POSTES.map(p => [p.id, p]));
+
+const POSTES_DISPLAY = POSTES.reduce((acc, p) => {
+  if (p.id === 'csg1i1' || p.id === 'csg2i1') return acc; // absorbés
+  if (p.id === 'csg1a') return [...acc, { ...p, lbl: 'CSG 1', short: 'CSG 1', combineWith: 'csg1i1' }];
+  if (p.id === 'csg2a') return [...acc, { ...p, lbl: 'CSG 2', short: 'CSG 2', combineWith: 'csg2i1' }];
+  return [...acc, p];
+}, []);
+
+// ── Helpers type de praticien ──────────────────────────────
+function typeRank(type) {
+  if (type === 'ph' || type === 'ipa') return 0;
+  if (type === 'padhue')               return 1;
+  return 2; // interne, externe
+}
+function isSenior(type) { return type === 'ph' || type === 'ipa'; }
+
 // ── Définition des filtres (correspondent à la légende) ────
 const FILTERS = [
   { id: null,      label: 'Tout afficher',    color: null,      grps: null },
@@ -49,39 +69,42 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     days.forEach(d => {
       const di = toIso(d);
       if (holidays.has(di)) return; // jour férié : pas d'alerte de couverture
-      POSTES.filter(p => p.min > 0).forEach(p => {
-        const assigned = byPoste[p.id]?.medecins || [];
-        const excl     = exclusions.filter(e => e.poste_id === p.id && e.jour === di).map(e => e.med_id);
-        const ext      = extras.filter(e => e.poste_id === p.id && e.jour === di).map(e => e.med_id);
+      POSTES_DISPLAY.filter(p => p.min > 0).forEach(p => {
+        const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
+        const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
+        const excl     = exclusions.filter(e => allIds.includes(e.poste_id) && e.jour === di).map(e => e.med_id);
+        const ext      = extras.filter(e => allIds.includes(e.poste_id) && e.jour === di);
         const present  = [
           ...assigned.filter(m => worksDay(m, di, absences) && !excl.includes(m.id)),
           ...ext,
         ];
         if (present.length < p.min)
-          warns.push(`${p.lbl.split('—')[0].trim()} (${DAYS_FR[d.getDay() - 1]})`);
+          warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
       });
     });
     return warns;
   }, [planningData, absences, monday, holidays]);
 
-  // ── Groupes de postes (ordre stable défini par POSTES) ──
+  // ── Groupes de postes (ordre stable défini par POSTES_DISPLAY) ──
   const allGroups = useMemo(() => {
     const map = {};
-    POSTES.forEach(p => { if (!map[p.grp]) map[p.grp] = []; map[p.grp].push(p); });
+    POSTES_DISPLAY.forEach(p => { if (!map[p.grp]) map[p.grp] = []; map[p.grp].push(p); });
     return map;
   }, []);
 
-  const activeFilter  = FILTERS.find(f => f.id === filter);
+  const activeFilter = FILTERS.find(f => f.id === filter);
 
   // Postes où le médecin filtré apparaît (assigné ou extra) au moins un jour
   const doctorPostes = useMemo(() => {
     if (!doctorFilter) return null;
     const ids = new Set();
-    POSTES.forEach(p => {
-      const assigned = byPoste[p.id]?.medecins || [];
+    POSTES_DISPLAY.forEach(p => {
+      const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
+      const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
       if (assigned.some(m => m.id === doctorFilter)) { ids.add(p.id); return; }
-      if (days.some(d => extras.some(e => e.poste_id === p.id && e.jour === toIso(d) && e.med_id === doctorFilter)))
-        ids.add(p.id);
+      if (allIds.some(pid => days.some(d =>
+        extras.some(e => e.poste_id === pid && e.jour === toIso(d) && e.med_id === doctorFilter)
+      ))) ids.add(p.id);
     });
     return ids;
   }, [doctorFilter, byPoste, extras, days]);
@@ -242,13 +265,22 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                   <div className="grp-hdr-row">
                     <div className="grp-hdr">{grp}</div>
                   </div>
-                  {postes.map(p => (
-                    <GridRow key={p.id} poste={p} days={days} todayIso={todayIso}
-                      assigned={byPoste[p.id]?.medecins || []}
-                      exclusions={exclusions} extras={extras} absences={absences}
-                      doctorFilter={doctorFilter} holidays={holidays}
-                      isSecretary={isSecretary} onCellClick={onCellClick} />
-                  ))}
+                  {postes.map(p => {
+                    const combinedColor = p.combineWith ? POSTES_MAP[p.combineWith]?.c : null;
+                    const assigned = [
+                      ...(byPoste[p.id]?.medecins || []),
+                      ...(p.combineWith
+                        ? (byPoste[p.combineWith]?.medecins || []).map(m => ({ ...m, _color: combinedColor }))
+                        : []),
+                    ];
+                    return (
+                      <GridRow key={p.id} poste={p} days={days} todayIso={todayIso}
+                        assigned={assigned}
+                        exclusions={exclusions} extras={extras} absences={absences}
+                        doctorFilter={doctorFilter} holidays={holidays}
+                        isSecretary={isSecretary} onCellClick={onCellClick} />
+                    );
+                  })}
                 </div>
               ))
             )}
@@ -296,16 +328,33 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
     );
   }
 
-  const excl      = exclusions.filter(e => e.poste_id === poste.id && e.jour === dayIso).map(e => e.med_id);
-  const dayExtras = extras.filter(e => e.poste_id === poste.id && e.jour === dayIso);
-  const present   = assigned.filter(m => worksDay(m, dayIso, absences) && !excl.includes(m.id));
-  const absent    = assigned.filter(m => isAbsent(m.id, dayIso, absences) && !excl.includes(m.id));
+  // Prend en compte le poste combiné (ex: csg1a inclut csg1i1)
+  const allPosteIds = [poste.id, ...(poste.combineWith ? [poste.combineWith] : [])];
+
+  const excl = exclusions
+    .filter(e => allPosteIds.includes(e.poste_id) && e.jour === dayIso)
+    .map(e => e.med_id);
+
+  const dayExtras = extras
+    .filter(e => allPosteIds.includes(e.poste_id) && e.jour === dayIso)
+    .map(e => ({ ...e, _color: e.poste_id !== poste.id ? (POSTES_MAP[e.poste_id]?.c || poste.c) : null }));
+
+  const present = assigned.filter(m => worksDay(m, dayIso, absences) && !excl.includes(m.id));
+  const absent  = assigned.filter(m => isAbsent(m.id, dayIso, absences) && !excl.includes(m.id));
+
   const anyoneToday = present.length > 0 || dayExtras.length > 0;
-  const isOff     = assigned.length > 0 && !anyoneToday && absent.length === 0;
+  const isOff = assigned.length > 0 && !anyoneToday && absent.length === 0;
 
   const cellBg = isOff
     ? { background:'var(--off-stripe)', cursor: isSecretary ? 'pointer' : 'default' }
     : {};
+
+  // Tri par rang de type puis alphabétique
+  const sorted = (arr, getId) => [...arr].sort((a, b) => {
+    const ra = typeRank(a.type), rb = typeRank(b.type);
+    if (ra !== rb) return ra - rb;
+    return a.nom.localeCompare(b.nom, 'fr');
+  });
 
   return (
     <div
@@ -313,27 +362,39 @@ function Cell({ poste, dayIso, isToday, assigned, exclusions, extras, absences, 
       style={cellBg}
       onClick={isSecretary ? onClick : undefined}
     >
-      {present.map(m => {
+      {sorted(present).map(m => {
         const highlighted = doctorFilter === m.id;
+        const color       = m._color || poste.c;
+        const senior      = isSenior(m.type);
         return (
           <div key={m.id} className="chip" style={{
-            background:  poste.c + (highlighted ? '33' : '18'),
-            borderColor: poste.c + (highlighted ? 'cc' : '55'),
-            boxShadow:   highlighted ? `0 0 0 2px ${poste.c}55` : 'none',
+            background:  color + (highlighted ? '33' : senior ? '18' : '0d'),
+            borderColor: color + (highlighted ? 'cc' : senior ? '55' : '2e'),
+            boxShadow:   highlighted ? `0 0 0 2px ${color}55` : 'none',
           }}>
-            <span className="chip-nm" style={{ color: poste.c }}>{m.nom}</span>
+            <span className="chip-nm" style={{
+              color:      color + (highlighted || senior ? '' : 'a0'),
+              fontWeight: senior ? 700 : 400,
+              fontStyle:  senior ? 'normal' : 'italic',
+            }}>{m.nom}</span>
           </div>
         );
       })}
-      {dayExtras.map(e => {
+      {sorted(dayExtras, e => e.med_id).map(e => {
         const highlighted = doctorFilter === e.med_id;
+        const color       = e._color || poste.c;
+        const senior      = isSenior(e.type);
         return (
-          <div key={e.med_id} className="chip" style={{
-            background:  poste.c + (highlighted ? '44' : '28'),
-            borderColor: poste.c + (highlighted ? 'cc' : '88'),
-            boxShadow:   highlighted ? `0 0 0 2px ${poste.c}55` : 'none',
+          <div key={e.med_id + e.poste_id} className="chip" style={{
+            background:  color + (highlighted ? '44' : senior ? '28' : '14'),
+            borderColor: color + (highlighted ? 'cc' : senior ? '88' : '44'),
+            boxShadow:   highlighted ? `0 0 0 2px ${color}55` : 'none',
           }}>
-            <span className="chip-nm" style={{ color: poste.c }}>
+            <span className="chip-nm" style={{
+              color:      color + (highlighted || senior ? '' : 'a0'),
+              fontWeight: senior ? 700 : 400,
+              fontStyle:  senior ? 'normal' : 'italic',
+            }}>
               {e.nom} <span style={{ fontSize:8, opacity:.7 }}>(remplac.)</span>
             </span>
           </div>
