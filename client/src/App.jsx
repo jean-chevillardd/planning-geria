@@ -147,7 +147,7 @@ function LockButton({ isSecretary, onLock, onUnlock }) {
       title={isSecretary ? 'Mode édition actif — cliquer pour verrouiller' : 'Activer le mode édition'}
       style={{
         display:'flex', alignItems:'center', gap:7,
-        padding:'7px 14px', borderRadius:9, marginLeft:'auto',
+        padding:'6px 14px', borderRadius:9, marginLeft:'auto', margin:'5px 0 7px auto',
         border: isSecretary
           ? '1.5px solid #f43f5e'
           : '1.5px solid var(--border)',
