@@ -139,7 +139,7 @@ function PasswordModal({ onClose, onSuccess }) {
   );
 }
 
-// ── Bouton mode édition header ─────────────────────────────
+// ── Bouton mode édition (tab bar) ─────────────────────────
 function LockButton({ isSecretary, onLock, onUnlock }) {
   return (
     <button
@@ -147,14 +147,14 @@ function LockButton({ isSecretary, onLock, onUnlock }) {
       title={isSecretary ? 'Mode édition actif — cliquer pour verrouiller' : 'Activer le mode édition'}
       style={{
         display:'flex', alignItems:'center', gap:7,
-        padding:'7px 14px', borderRadius:9,
+        padding:'7px 14px', borderRadius:9, marginLeft:'auto',
         border: isSecretary
-          ? '1.5px solid rgba(244,63,94,.65)'
-          : '1.5px solid rgba(255,255,255,.25)',
-        background: isSecretary ? 'rgba(244,63,94,.18)' : 'transparent',
-        cursor:'pointer', color:'#fff',
+          ? '1.5px solid #f43f5e'
+          : '1.5px solid var(--border)',
+        background: isSecretary ? 'rgba(244,63,94,.06)' : 'transparent',
+        cursor:'pointer',
+        color: isSecretary ? '#f43f5e' : 'var(--text2)',
         fontSize:12, fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:700,
-        opacity: isSecretary ? 1 : 0.75,
         transition:'all .15s',
       }}
     >
@@ -361,19 +361,19 @@ export default function App() {
         </div>
         <div className="hdr-r">
           <span>{planLoading ? 'Chargement…' : `Semaine ${weekKey}`}</span>
-          <LockButton isSecretary={isSecretary} onLock={handleLock} onUnlock={() => setPwdModal(true)} />
         </div>
       </div>
 
       <div className="main">
         {/* ── Tabs ── */}
-        <div className="tabs">
+        <div className="tabs" style={{ alignItems:'center' }}>
           {TABS.map(t => (
             <button key={t.id} className={`tab${tab===t.id?' active':''}`} onClick={() => setTab(t.id)}>
               {TAB_ICONS[t.id](tab === t.id)}
               {t.label}
             </button>
           ))}
+          <LockButton isSecretary={isSecretary} onLock={handleLock} onUnlock={() => setPwdModal(true)} />
         </div>
 
         {/* ── Planning ── */}
