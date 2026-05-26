@@ -320,15 +320,15 @@ export default function MonthView({ medecins, absences }) {
                   });
                 }
 
-                // Tri : service → séniorité → régulier avant remplaçant → ordre d'arrivée (congés en dernier)
+                // Tri : service → poste → séniorité → régulier avant remplaçant → ordre d'arrivée (congés en dernier)
                 chips.sort((a, b) => {
                   if (!a.nom && b.nom) return 1;
                   if (a.nom && !b.nom) return -1;
-                  if (a.grpRank !== b.grpRank) return a.grpRank - b.grpRank;
+                  if (a.grpRank   !== b.grpRank)   return a.grpRank   - b.grpRank;
+                  if (a.posteIdx  !== b.posteIdx)   return a.posteIdx  - b.posteIdx;
                   const ra = TYPE_RANK[a.type] ?? 99, rb = TYPE_RANK[b.type] ?? 99;
                   if (ra !== rb) return ra - rb;
                   if (a.isExtra !== b.isExtra) return a.isExtra ? 1 : -1;
-                  if (a.posteIdx !== b.posteIdx) return a.posteIdx - b.posteIdx;
                   return a.assignIdx - b.assignIdx;
                 });
 
