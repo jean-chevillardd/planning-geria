@@ -9,7 +9,7 @@
   --ok-bg:#ecfdf5; --ok:#059669; --ok-bd:#6ee7b7;
   --danger-bg:#fff1f2; --danger:#e11d48;
   --off-stripe: repeating-linear-gradient(135deg,#eeecea,#eeecea 4px,#f4f3ef 4px,#f4f3ef 10px);
-  --holiday-stripe: repeating-linear-gradient(135deg,#fef3c7,#fef3c7 4px,#fffbeb 4px,#fffbeb 10px);
+  --holiday-stripe: repeating-linear-gradient(-45deg,rgba(254,243,199,.75) 0px,rgba(254,243,199,.75) 3px,transparent 3px,transparent 10px);
   --r:8px; --rl:12px; --sh:0 1px 3px rgba(0,0,0,.07);
 }
 *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }

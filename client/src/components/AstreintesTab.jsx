@@ -314,7 +314,7 @@ function DayCard({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
       {hol && (
         <div style={{
           position:'absolute', inset:0, pointerEvents:'none', borderRadius:'inherit',
-          backgroundImage:'repeating-linear-gradient(-45deg,rgba(254,243,199,.75) 0,rgba(254,243,199,.75) 3px,transparent 3px,transparent 10px)',
+          backgroundImage:'var(--holiday-stripe)',
         }}/>
       )}
       <div style={{position:'relative', zIndex:1}}>
