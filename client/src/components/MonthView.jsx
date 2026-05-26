@@ -256,6 +256,30 @@ export default function MonthView({ medecins, absences }) {
         const data = weekData[wk];
         const days = weekDays(monday);
 
+        // ── Ordre stable par poste pour la semaine ──────────────
+        // Pour chaque poste, on détermine le rang de chaque praticien
+        // en fonction du 1er jour de la semaine où il travaille réellement.
+        // Si Dr A est seul lundi et Dr B arrive mardi, A garde le rang 0
+        // même si B précède A alphabétiquement ou en base.
+        const stableOrderByPoste = {};
+        if (data) {
+          const byPosteAll = data.affectations || {};
+          visiblePostes.forEach(p => {
+            const assigned = byPosteAll[p.id]?.medecins || [];
+            const order    = {};
+            let   rank     = 0;
+            days.forEach(d => {
+              const dIso = toIso(d);
+              assigned.forEach(m => {
+                if (order[m.id] !== undefined) return; // déjà classé
+                if (worksDay(m, dIso, absences)) order[m.id] = rank++;
+              });
+            });
+            stableOrderByPoste[p.id] = order;
+          });
+        }
+        // ────────────────────────────────────────────────────────
+
         return (
           <div key={wk}>
             <div className="month-week-lbl">
@@ -276,19 +300,22 @@ export default function MonthView({ medecins, absences }) {
                 const chips = [];
                 if (!holidayName) {
                   visiblePostes.forEach((p, pi) => {
-                    const assigned = byPoste[p.id]?.medecins || [];
-                    const grpRank  = GRP_ORDER[p.grp] ?? 99;
-                    assigned.forEach((m, mi) => {
+                    const assigned   = byPoste[p.id]?.medecins || [];
+                    const grpRank    = GRP_ORDER[p.grp] ?? 99;
+                    const posteOrder = stableOrderByPoste[p.id] ?? {};
+                    assigned.forEach(m => {
                       if (!worksDay(m, di, absences)) return;
                       if (excls.includes(m.id)) return;
                       if (doctorFilter && m.id !== doctorFilter) return;
                       chips.push({ nom: m.nom, short: p.short, c: p.c, key: p.id + m.id,
-                                   type: m.type, grpRank, posteIdx: pi, assignIdx: mi, isExtra: false });
+                                   type: m.type, grpRank, posteIdx: pi,
+                                   assignIdx: posteOrder[m.id] ?? 9999, isExtra: false });
                     });
                     extras.filter(e => e.poste_id === p.id).forEach((e, ei) => {
                       if (doctorFilter && e.med_id !== doctorFilter) return;
                       chips.push({ nom: e.nom, short: p.short, c: p.c, key: p.id + e.med_id + 'x',
-                                   type: e.type, grpRank, posteIdx: pi, assignIdx: 9999 + ei, isExtra: true });
+                                   type: e.type, grpRank, posteIdx: pi,
+                                   assignIdx: 9999 + ei, isExtra: true });
                     });
                   });
                 }
