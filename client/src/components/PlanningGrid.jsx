@@ -256,7 +256,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                   {d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
                   {holidayName && (
                     <>
-                      <div style={{ fontSize:8, fontStyle:'italic', fontWeight:500, marginTop:2, lineHeight:1.2, color: isToday ? 'inherit' : '#d97706', opacity:.9 }}>
+                      <div style={{ fontSize:8, fontWeight:600, marginTop:2, lineHeight:1.2, color: isToday ? 'inherit' : '#b45309' }}>
                         {holidayName}
                       </div>
                       {onOpenAstreintes && (

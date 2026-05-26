@@ -425,12 +425,15 @@ export default function MonthView({ medecins, absences }) {
 
                 return (
                   <div key={di} className="month-day"
-                    style={{ ...((!isThisMonth) ? { opacity:.4 } : {}), ...(holidayName ? { background:'var(--holiday-stripe)' } : {}) }}>
+                    style={{ ...((!isThisMonth) ? { opacity:.4 } : {}), position:'relative', overflow:'hidden' }}>
+                    {holidayName && (
+                      <div style={{position:'absolute', inset:0, pointerEvents:'none', borderRadius:'inherit', backgroundImage:'var(--holiday-stripe)'}}/>
+                    )}
                     <div className={`month-day-hdr${isToday ? ' today' : ''}`}
-                      style={holidayName && !isToday ? { color:'#d97706', borderBottomColor:'#fcd34d' } : undefined}>
+                      style={{position:'relative', ...(holidayName && !isToday ? { color:'#d97706', borderBottomColor:'#fcd34d' } : {})}}>
                       {day.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' })}
                       {holidayName && (
-                        <span style={{ display:'block', fontSize:8, fontStyle:'italic', fontWeight:500, marginTop:1, color:'#d97706', lineHeight:1.2 }}>
+                        <span style={{ display:'block', fontSize:8, fontWeight:600, marginTop:1, color:'#b45309', lineHeight:1.2 }}>
                           {holidayName}
                         </span>
                       )}

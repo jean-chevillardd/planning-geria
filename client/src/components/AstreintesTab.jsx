@@ -327,17 +327,19 @@ function DayCard({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
           }}>
             {JOURS_COURTS[dowN]}
           </div>
-          <div style={{
-            fontSize:22, fontWeight:800, lineHeight:1,
-            color: isToday ? 'var(--accent)' : wknd ? '#e11d48' : 'var(--text)',
-          }}>
-            {date.getDate()}
-          </div>
-          {hol && (
-            <div style={{fontSize:9, color:'#92400e', fontWeight:600, marginTop:3, lineHeight:1.3, fontFamily:'sans-serif'}}>
-              {hol}
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:4}}>
+            <div style={{
+              fontSize:22, fontWeight:800, lineHeight:1,
+              color: isToday ? 'var(--accent)' : wknd ? '#e11d48' : 'var(--text)',
+            }}>
+              {date.getDate()}
             </div>
-          )}
+            {hol && (
+              <div style={{fontSize:9, color:'#b45309', fontWeight:600, lineHeight:1.3, fontFamily:'sans-serif', textAlign:'right', maxWidth:'65%'}}>
+                {hol}
+              </div>
+            )}
+          </div>
         </div>
         <div style={{display:'flex', flexDirection:'column', gap:3}}>
           <EPill slotType={SLOT_TYPES[0]} entry={d.astreinte}  dateIso={iso} isSecretary={isSecretary} sel={sel} onSel={onSel} onEdit={onEdit} />
@@ -558,21 +560,26 @@ function CalCell({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
       position:'relative', overflow:'hidden',
       border: isToday ? '2px solid var(--accent)' : '1px solid var(--border)',
       borderRadius:'var(--r)',
-      background: hol ? 'var(--holiday-stripe)' : isToday ? 'var(--accent-light)' : wknd ? 'rgba(225,29,72,.03)' : 'var(--surface)',
+      background: isToday ? 'var(--accent-light)' : wknd ? 'rgba(225,29,72,.03)' : 'var(--surface)',
       padding:'8px 8px 7px',
       minHeight: isWEH ? 88 : 50,
       opacity: fade ? 0.25 : 1, transition:'opacity .2s',
     }}>
+      {hol && (
+        <div style={{position:'absolute', inset:0, pointerEvents:'none', borderRadius:'inherit', backgroundImage:'var(--holiday-stripe)'}}/>
+      )}
       <div style={{position:'relative', zIndex:1}}>
-        <div style={{
-          fontSize:11, fontWeight: isToday ? 800 : 600, fontFamily:'sans-serif',
-          color: isToday ? 'var(--accent)' : wknd ? '#e11d48' : 'var(--text)',
-          marginBottom:4,
-        }}>
-          {date.getDate()}
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:4, marginBottom:4}}>
+          <span style={{
+            fontSize:11, fontWeight: isToday ? 800 : 600, fontFamily:'sans-serif',
+            color: isToday ? 'var(--accent)' : wknd ? '#e11d48' : 'var(--text)',
+          }}>
+            {date.getDate()}
+          </span>
           {hol && (
-            <span style={{display:'block', fontSize:8, fontStyle:'italic', color:'#d97706',
-              fontWeight:500, lineHeight:1.2}}>{hol}</span>
+            <span style={{fontSize:8, color:'#b45309', fontWeight:600, textAlign:'right', lineHeight:1.3, fontFamily:'sans-serif'}}>
+              {hol}
+            </span>
           )}
         </div>
         {visible.map(st => (
