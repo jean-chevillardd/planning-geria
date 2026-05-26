@@ -103,6 +103,7 @@ export default function MonthView({ medecins, absences }) {
   const [monthDate,    setMonthDate]    = useState(new Date());
   const [weekData,     setWeekData]     = useState({});
   const [filter,       setFilter]       = useState(null);
+  const [subFilter,    setSubFilter]    = useState(null); // p.short du sous-service actif
   const [doctorFilter, setDoctorFilter] = useState('');
   const [pickerOpen,   setPickerOpen]   = useState(false);
 
@@ -131,9 +132,9 @@ export default function MonthView({ medecins, absences }) {
   }, [y, mo]);
 
   const activeFilter  = FILTERS.find(f => f.id === filter) ?? null;
-  // Postes visibles selon le filtre (null = tous)
+  // Postes visibles selon le filtre principal + sous-filtre éventuel
   const visiblePostes = activeFilter
-    ? POSTES.filter(p => activeFilter.grps.includes(p.grp))
+    ? POSTES.filter(p => activeFilter.grps.includes(p.grp) && (!subFilter || p.short === subFilter))
     : POSTES;
 
   return (
@@ -196,36 +197,89 @@ export default function MonthView({ medecins, absences }) {
       </div>
 
       {/* ── Filtres + bouton Imprimer ── */}
-      <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:14, alignItems:'center' }}>
+      <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:14, alignItems:'flex-start' }}>
         {FILTERS.map(f => {
-          const active = filter === f.id;
+          const active     = filter === f.id;
+          // Libellés distincts des sous-services (p.short) pour ce filtre
+          const subShorts  = [...new Set(
+            POSTES.filter(p => f.grps.includes(p.grp)).map(p => p.short).filter(Boolean)
+          )];
+          const hasSubPills = subShorts.length > 1;
+
           return (
-            <button
-              key={f.id}
-              onClick={() => setFilter(active ? null : f.id)}
-              title={active ? 'Cliquer pour tout réafficher' : ''}
-              style={{
-                display:'inline-flex', alignItems:'center', gap:5,
-                padding:'4px 11px',
-                border:`1.5px solid ${f.color}`,
-                borderRadius:20,
-                fontSize:10,
-                fontFamily:'system-ui,-apple-system,sans-serif',
-                fontWeight:700,
-                letterSpacing:'.04em',
-                cursor:'pointer',
-                transition:'background .12s, color .12s',
-                background: active ? f.color : 'transparent',
-                color:      active ? '#fff'   : f.color,
-                outline:'none',
-              }}
-            >
-              <span style={{
-                width:7, height:7, borderRadius:'50%', flexShrink:0,
-                background: active ? 'rgba(255,255,255,.75)' : f.color,
-              }} />
-              {f.label}
-            </button>
+            <div key={f.id} style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', gap:4 }}>
+              {/* ── Pill principale ── */}
+              <button
+                onClick={() => { setFilter(active ? null : f.id); setSubFilter(null); }}
+                title={active ? 'Cliquer pour tout réafficher' : ''}
+                style={{
+                  display:'inline-flex', alignItems:'center', gap:5,
+                  padding:'4px 11px',
+                  border:`1.5px solid ${f.color}`,
+                  borderRadius:20,
+                  fontSize:10,
+                  fontFamily:'system-ui,-apple-system,sans-serif',
+                  fontWeight:700,
+                  letterSpacing:'.04em',
+                  cursor:'pointer',
+                  transition:'background .12s, color .12s',
+                  background: active ? f.color : 'transparent',
+                  color:      active ? '#fff'  : f.color,
+                  outline:'none',
+                }}
+              >
+                <span style={{
+                  width:7, height:7, borderRadius:'50%', flexShrink:0,
+                  background: active ? 'rgba(255,255,255,.75)' : f.color,
+                }} />
+                {f.label}
+                {/* Chevron discret si des sub-pills existent */}
+                {hasSubPills && (
+                  <svg width="8" height="8" viewBox="0 0 10 10" fill="none"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ opacity: active ? .85 : .5, marginLeft:1, flexShrink:0,
+                             transform: active ? 'rotate(180deg)' : 'none', transition:'transform .15s' }}>
+                    <path d="M2 3.5 5 6.5 8 3.5"/>
+                  </svg>
+                )}
+              </button>
+
+              {/* ── Sub-pills (visibles seulement quand la pill principale est active) ── */}
+              {active && hasSubPills && (
+                <div style={{
+                  display:'flex', flexWrap:'wrap', gap:3,
+                  paddingLeft:10,
+                  borderLeft:`2px solid ${f.color}55`,
+                  marginLeft:7,
+                }}>
+                  {subShorts.map(short => {
+                    const isSub = subFilter === short;
+                    return (
+                      <button
+                        key={short}
+                        onClick={() => setSubFilter(isSub ? null : short)}
+                        style={{
+                          padding:'2px 9px',
+                          borderRadius:14,
+                          fontSize:9,
+                          fontFamily:'system-ui,-apple-system,sans-serif',
+                          fontWeight: isSub ? 700 : 500,
+                          letterSpacing:'.03em',
+                          cursor:'pointer',
+                          outline:'none',
+                          transition:'background .1s, color .1s',
+                          border:`1.5px solid ${f.color}${isSub ? 'cc' : '66'}`,
+                          background: isSub ? f.color + '22' : 'transparent',
+                          color: f.color,
+                        }}
+                      >
+                        {short}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           );
         })}
         {/* Bouton Imprimer aligné avec les pills */}
