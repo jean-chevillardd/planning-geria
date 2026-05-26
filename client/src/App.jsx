@@ -81,19 +81,6 @@ const TABS = [
 
 const SESSION_KEY = 'secretary_key';
 
-// ── Lock/Unlock SVG icon ───────────────────────────────────
-function LockIcon({ open }) {
-  return (
-    <svg width="12" height="12" viewBox="0 0 14 14" fill="none"
-      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="6" width="10" height="7" rx="2"/>
-      {open
-        ? <path d="M4.5 6V4a2.5 2.5 0 0 1 4.5-1.5"/>
-        : <path d="M4.5 6V4.5a2.5 2.5 0 0 1 5 0V6"/>}
-    </svg>
-  );
-}
-
 // ── Modal saisie mot de passe ──────────────────────────────
 function PasswordModal({ onClose, onSuccess }) {
   const [pwd,   setPwd]   = useState('');
@@ -152,25 +139,34 @@ function PasswordModal({ onClose, onSuccess }) {
   );
 }
 
-// ── Bouton cadenas header ──────────────────────────────────
+// ── Bouton mode édition header ─────────────────────────────
 function LockButton({ isSecretary, onLock, onUnlock }) {
   return (
     <button
       onClick={isSecretary ? onLock : onUnlock}
-      title={isSecretary ? 'Mode secrétariat actif — cliquer pour verrouiller' : 'Accès secrétariat'}
+      title={isSecretary ? 'Mode édition actif — cliquer pour verrouiller' : 'Activer le mode édition'}
       style={{
-        display:'flex', alignItems:'center', gap:6,
-        background: isSecretary ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.1)',
-        border: isSecretary ? '1px solid rgba(255,255,255,.4)' : '1px solid rgba(255,255,255,.2)',
-        borderRadius:20, padding:'4px 12px 4px 10px', cursor:'pointer', color:'#fff',
-        fontSize:10, fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:600,
-        letterSpacing:'.02em', transition:'all .15s',
+        display:'flex', alignItems:'center', gap:7,
+        padding:'7px 14px', borderRadius:9,
+        border: isSecretary
+          ? '1.5px solid rgba(244,63,94,.65)'
+          : '1.5px solid rgba(255,255,255,.25)',
+        background: isSecretary ? 'rgba(244,63,94,.18)' : 'transparent',
+        cursor:'pointer', color:'#fff',
+        fontSize:12, fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:700,
+        opacity: isSecretary ? 1 : 0.75,
+        transition:'all .15s',
       }}
     >
-      <LockIcon open={isSecretary} />
-      <span style={{ opacity: isSecretary ? 1 : 0.65 }}>
-        {isSecretary ? 'Accès total' : 'Lecture seule'}
-      </span>
+      <span style={{ fontSize:13 }}>✎</span>
+      <span>Mode édition</span>
+      {isSecretary && (
+        <span style={{
+          background:'#f43f5e', color:'#fff',
+          fontSize:9, fontWeight:700,
+          padding:'1px 6px', borderRadius:8, letterSpacing:'0.04em',
+        }}>ACTIF</span>
+      )}
     </button>
   );
 }
