@@ -54,6 +54,7 @@ export const copyWeek = (from_week, to_week) =>
 
 // ── Statistiques médecin ────────────────────────────────
 export const getStatsMedecin = (medId) => req('GET', `/stats/medecin/${medId}`);
+export const getAllStats      = ()      => req('GET', '/stats/all');
 
 // ── Astreintes ──────────────────────────────────────────
 export const getAstreintes   = (month) => req('GET', `/astreintes?month=${month}`);

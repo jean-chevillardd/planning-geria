@@ -1,9 +1,19 @@
-// components/StatsTab.jsx
-import { useState, useRef, useEffect, useMemo } from 'react';
-import { POSTES, TYPE_LBL, getMonday } from '../utils';
+// components/StatsTab.jsx — Synthèse: cards + heatmap with slide-in side panel
+import { useState, useEffect, useMemo } from 'react';
+import { POSTES, TYPE_LBL } from '../utils';
 import * as api from '../api';
 
-const TYPE_COLORS = {
+/* ── Categories ───────────────────────────────────────── */
+const CATS = [
+  { id:'ph',      label:'Praticiens hospitaliers', italic:false },
+  { id:'padhue',  label:'PADHUE',                  italic:false },
+  { id:'ipa',     label:'IPA',                     italic:false },
+  { id:'interne', label:'Internes',                italic:true  },
+  { id:'externe', label:'Externes',                italic:true  },
+];
+
+/* ── Congé colors & labels ────────────────────────────── */
+const CONGE_COLORS = {
   'Congé annuel (CA)':     '#2272f0',
   'Congé maladie':         '#e11d48',
   'Congé maternité':       '#db2777',
@@ -12,28 +22,21 @@ const TYPE_COLORS = {
   'Formation':             '#059669',
   'Activité hors site':    '#d97706',
 };
-function typeColor(t) { return TYPE_COLORS[t] ?? '#6A6A66'; }
-
-// ── Helpers ────────────────────────────────────────────────
-
-/** Nombre total de semaines de travail dans l'année (premier lundi → dernier lundi) */
-function getTotalWeeksYear() {
-  const year  = new Date().getFullYear();
-  const jan1  = new Date(year, 0, 1);
-  const dec31 = new Date(year, 11, 31);
-
-  // Premier lundi >= 1er janvier
-  let start = getMonday(jan1);
-  if (start < jan1) start.setDate(start.getDate() + 7);
-
-  // Dernier lundi de l'année
-  const lastMon = getMonday(dec31);
-  if (lastMon < start) return 1;
-
-  return Math.round((lastMon - start) / (7 * 864e5)) + 1;
+function congeColor(t) { return CONGE_COLORS[t] ?? '#6a6860'; }
+function congeShort(t) {
+  const map = {
+    'Congé annuel (CA)':'CA', 'RTT':'RTT',
+    'Formation':'Formation', 'Récupération de garde':'Récup.', 'Activité hors site':'Ext.',
+  };
+  if (map[t]) return map[t];
+  if (t.includes('maternité')) return 'Maternité';
+  if (t.includes('maladie'))   return 'Maladie';
+  return t.slice(0, 8);
 }
 
-/** Jours ouvrés entre deux dates ISO (inclusif) */
+const MONTHS_SHORT = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+
+/* ── Helpers ──────────────────────────────────────────── */
 function countWorkingDays(d1, d2) {
   let n = 0;
   const end = new Date(d2 + 'T12:00:00');
@@ -44,478 +47,652 @@ function countWorkingDays(d1, d2) {
   return n;
 }
 
-/** Formate une date ISO en "jj/mm/aaaa" */
-function fmtDate(iso) {
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
+function sumW(p) {
+  return Object.values(p.weeks).reduce((a, b) => a + b, 0);
 }
 
-// Groupes de services dans l'ordre du planning
-const SERVICE_GROUPS = [
-  'Court séjour 1',
-  'Court séjour 2',
-  'Hôpital de jour',
-  'Extra-hospitalier',
-  'SSR',
-  'UCC / EMCC',
-  'EHPAD',
-  'Consultations',
-];
+function segs(p) {
+  const total = sumW(p);
+  if (!total) return [];
+  return POSTES
+    .filter(po => (p.weeks[po.id] || 0) > 0)
+    .map(po => ({ ...po, n: p.weeks[po.id], pct: (p.weeks[po.id] / total) * 100 }));
+}
 
-const POSTES_BY_GROUP = SERVICE_GROUPS.map(grp => ({
-  grp,
-  postes: POSTES.filter(p => p.grp === grp),
-}));
+function topSegs(p, n = 4) {
+  return segs(p).sort((a, b) => b.n - a.n).slice(0, n);
+}
 
-// ── Composant principal ────────────────────────────────────
+function congesByType(absences) {
+  const res = {};
+  absences.forEach(a => {
+    if (!res[a.type_abs]) res[a.type_abs] = 0;
+    res[a.type_abs] += countWorkingDays(a.date_debut, a.date_fin);
+  });
+  return res;
+}
 
-const MED_GROUPS = [
-  { key:'ph',      label:'Praticiens Hospitaliers' },
-  { key:'padhue',  label:'PADHUE' },
-  { key:'ipa',     label:'IPA' },
-  { key:'interne', label:'Internes' },
-  { key:'externe', label:'Externes' },
-];
+function hexA(hex, alpha) {
+  return hex + Math.round(alpha * 255).toString(16).padStart(2, '0');
+}
 
-export default function StatsTab({ medecins, onGoToAbsences }) {
-  const [search,    setSearch]    = useState('');
-  const [selected,  setSelected]  = useState(null);
-  const [stats,     setStats]     = useState(null);
-  const [loading,   setLoading]   = useState(false);
-  const [open,      setOpen]      = useState(false);
-  const [activeIdx, setActiveIdx] = useState(-1);
-  const listRef = useRef(null);
-
-  const totalWeeks = getTotalWeeksYear();
-  const year       = new Date().getFullYear();
-
-  const q        = search.trim().toLowerCase();
-  const filtered = q ? medecins.filter(m => m.nom.toLowerCase().includes(q)) : medecins;
-
-  useEffect(() => {
-    if (activeIdx < 0 || !listRef.current) return;
-    const item = listRef.current.children[activeIdx];
-    if (item) item.scrollIntoView({ block: 'nearest' });
-  }, [activeIdx]);
-
-  async function selectMed(med) {
-    setSelected(med);
-    setSearch(med.nom);
-    setOpen(false);
-    setActiveIdx(-1);
-    setStats(null);
-    setLoading(true);
-    try {
-      const data = await api.getStatsMedecin(med.id);
-      setStats(data);
-    } catch(e) {
-      console.error('Stats error:', e);
-    } finally {
-      setLoading(false);
+function monthlyCongeMap(absences) {
+  const res = {};
+  absences.forEach(a => {
+    if (!res[a.type_abs]) res[a.type_abs] = Array(12).fill(0);
+    const start = new Date(a.date_debut + 'T12:00:00');
+    const end   = new Date(a.date_fin   + 'T12:00:00');
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay();
+      if (dow > 0 && dow < 6) res[a.type_abs][d.getMonth()]++;
     }
-  }
+  });
+  return res;
+}
 
-  function clearSelection() {
-    setSelected(null);
-    setSearch('');
-    setStats(null);
-    setActiveIdx(-1);
-    setOpen(false);
-  }
+/* ── Icons ────────────────────────────────────────────── */
+const IcoCards = () => (
+  <svg width="15" height="12" viewBox="0 0 15 12" fill="currentColor">
+    <rect x="0" y="0" width="6.5" height="5" rx="1.2"/>
+    <rect x="8.5" y="0" width="6.5" height="5" rx="1.2"/>
+    <rect x="0" y="7" width="6.5" height="5" rx="1.2"/>
+    <rect x="8.5" y="7" width="6.5" height="5" rx="1.2"/>
+  </svg>
+);
+const IcoMatrix = () => (
+  <svg width="15" height="12" viewBox="0 0 15 12" fill="currentColor">
+    <rect x="0" y="0" width="15" height="2" rx="1"/>
+    <rect x="0" y="5" width="15" height="2" rx="1"/>
+    <rect x="0" y="10" width="15" height="2" rx="1"/>
+    <rect x="0" y="0" width="2" height="12" rx="1"/>
+    <rect x="6.5" y="0" width="2" height="12" rx="1"/>
+  </svg>
+);
+const IcoSearch = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+  </svg>
+);
+const IcoClose = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <path d="M18 6L6 18M6 6l12 12"/>
+  </svg>
+);
+
+/* ── ViewToggle ───────────────────────────────────────── */
+function ViewToggle({ view, setView }) {
+  const btn = (v, icon, label) => (
+    <button onClick={() => setView(v)} style={{
+      display:'flex', alignItems:'center', gap:6, padding:'6px 12px',
+      background: view === v ? 'var(--accent)' : 'transparent',
+      color:      view === v ? '#fff' : 'var(--text2)',
+      border:'none', borderRadius:6, cursor:'pointer',
+      fontSize:11, fontWeight:700, letterSpacing:'0.04em',
+      fontFamily:'Trebuchet MS,sans-serif',
+      transition:'all .15s',
+    }}>
+      {icon}{label}
+    </button>
+  );
+  return (
+    <div style={{ display:'flex', background:'#ede9e1', borderRadius:8, padding:3, gap:2 }}>
+      {btn('cards',  <IcoCards/>,  'Par praticien')}
+      {btn('matrix', <IcoMatrix/>, 'Vue matricielle')}
+    </div>
+  );
+}
+
+/* ── SvcBar ───────────────────────────────────────────── */
+function SvcBar({ p, h = 8 }) {
+  const s = segs(p);
+  if (!s.length) return <div style={{ height:h, background:'#ede9e1', borderRadius:h }}/>;
+  return (
+    <div style={{ display:'flex', height:h, width:'100%', borderRadius:h, overflow:'hidden', gap:1 }}>
+      {s.map(sg => (
+        <div key={sg.id}
+          title={`${sg.lbl} : ${sg.n} sem.`}
+          style={{ flex:sg.pct, background:sg.c }}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ── MediumCard ───────────────────────────────────────── */
+function MediumCard({ p, selected, onSelect }) {
+  const [hov, setHov] = useState(false);
+  const tw  = sumW(p);
+  const top = topSegs(p, 4);
+  const cat = CATS.find(c => c.id === p.type);
+  const conges       = congesByType(p.absences);
+  const totalAbsDays = Object.values(conges).reduce((a, b) => a + b, 0);
 
   return (
-    <div>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:12 }}>
-        <div className="sec-t">Synthèse par praticien</div>
-        <span style={{ fontSize:10, fontFamily:'sans-serif', color:'var(--text2)' }}>
-          Rotation {year} — semaines passées &amp; planifiées · {totalWeeks} semaines au total
-        </span>
-      </div>
-
-      {/* ── Recherche ── */}
-      <div style={{ position:'relative', maxWidth:380, marginBottom:20 }}>
-        <input
-          className="team-search"
-          type="text"
-          placeholder="Rechercher un praticien…"
-          value={search}
-          autoComplete="off"
-          onFocus={() => setOpen(true)}
-          onBlur={() => setTimeout(() => { setOpen(false); setActiveIdx(-1); }, 150)}
-          onChange={e => { setSearch(e.target.value); setSelected(null); setStats(null); setActiveIdx(-1); setOpen(true); }}
-          onKeyDown={e => {
-            if (!open || selected) return;
-            if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              setActiveIdx(i => Math.min(i + 1, filtered.length - 1));
-            } else if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              setActiveIdx(i => Math.max(i - 1, 0));
-            } else if (e.key === 'Enter') {
-              e.preventDefault();
-              if (filtered.length > 0) selectMed(filtered[activeIdx >= 0 ? activeIdx : 0]);
-            } else if (e.key === 'Escape') {
-              setOpen(false); setActiveIdx(-1);
-            }
-          }}
-        />
-        {/* Bouton effacer */}
-        {search && (
-          <button onClick={clearSelection} style={{
-            position:'absolute', right:8, top:'50%', transform:'translateY(-50%)',
-            background:'none', border:'none', cursor:'pointer',
-            color:'var(--text3)', fontSize:14, lineHeight:1,
-          }}>×</button>
-        )}
-
-        {/* Dropdown */}
-        {open && filtered.length > 0 && !selected && (
-          <div ref={listRef} style={{
-            position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:200,
-            background:'var(--surface)', border:'1px solid var(--border2)',
-            borderRadius:'var(--r)', boxShadow:'0 4px 16px rgba(0,0,0,.12)',
-            maxHeight:220, overflowY:'auto',
-          }}>
-            {filtered.map((m, idx) => (
-              <div key={m.id}
-                onMouseDown={() => selectMed(m)}
-                onMouseEnter={() => setActiveIdx(idx)}
-                onMouseLeave={() => setActiveIdx(-1)}
-                style={{
-                  padding:'8px 12px', cursor:'pointer',
-                  fontSize:12, fontFamily:'sans-serif',
-                  display:'flex', justifyContent:'space-between', alignItems:'center',
-                  borderBottom:'1px solid var(--border)',
-                  background: idx === activeIdx ? 'var(--accent-light)' : '',
-                }}>
-                <span style={{ fontWeight:600 }}>{m.nom}</span>
-                <span style={{ fontSize:10, color:'var(--text2)' }}>{TYPE_LBL[m.type]}</span>
-              </div>
-            ))}
+    <div
+      onClick={() => onSelect(p.id === selected ? null : p.id)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        background: selected ? 'var(--accent-light)' : hov ? '#faf9f7' : 'var(--surface)',
+        border:`1.5px solid ${selected ? 'var(--accent)' : hov ? '#c8c5be' : 'var(--border)'}`,
+        borderRadius:10, padding:'16px 18px', cursor:'pointer',
+        display:'flex', flexDirection:'column', gap:12,
+        transition:'all .15s',
+        boxShadow: selected ? '0 0 0 3px rgba(34,114,240,.13)' : hov ? '0 2px 8px rgba(0,0,0,.06)' : 'none',
+      }}
+    >
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+        <div style={{ minWidth:0, flex:1 }}>
+          <div style={{
+            fontWeight:700, fontSize:14, color:'var(--text)',
+            fontStyle: cat?.italic ? 'italic' : 'normal',
+            fontFamily:'Georgia,serif',
+            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+          }}>{p.nom}</div>
+          <div style={{ fontSize:10, color:'var(--text3)', marginTop:2, letterSpacing:'0.04em', fontFamily:'Trebuchet MS,sans-serif' }}>
+            {TYPE_LBL[p.type]}
           </div>
-        )}
+        </div>
+        <div style={{ textAlign:'right', flexShrink:0, marginLeft:12 }}>
+          <div style={{ fontSize:24, fontWeight:800, color: selected ? 'var(--accent)' : 'var(--text)', lineHeight:1, fontFamily:'system-ui,sans-serif' }}>
+            {tw}
+          </div>
+          <div style={{ fontSize:9, color:'var(--text2)', letterSpacing:'0.03em', fontFamily:'Trebuchet MS,sans-serif' }}>
+            semaines
+          </div>
+        </div>
       </div>
 
-      {/* ── Cards praticiens (état vide) ── */}
-      {!selected && !loading && (
-        <div>
-          {MED_GROUPS.map(grp => {
-            const members = medecins
-              .filter(m => m.type === grp.key)
-              .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
-            if (members.length === 0) return null;
-            return (
-              <div key={grp.key} style={{ marginBottom:20 }}>
-                <div className="sec-s" style={{ marginBottom:8 }}>{grp.label}</div>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                  {members.map(m => (
-                    <button
-                      key={m.id}
-                      onClick={() => selectMed(m)}
-                      style={{
-                        padding:'6px 14px',
-                        borderRadius:'var(--r)',
-                        border:'1px solid var(--border2)',
-                        background:'var(--surface)',
-                        cursor:'pointer',
-                        fontSize:11,
-                        fontFamily:'sans-serif',
-                        fontWeight: grp.key === 'ph' ? 700 : 400,
-                        fontStyle: (grp.key === 'interne' || grp.key === 'externe') ? 'italic' : 'normal',
-                        color:'var(--text)',
-                        boxShadow:'0 1px 3px rgba(0,0,0,.06)',
-                        whiteSpace:'nowrap',
-                        transition:'background .1s, border-color .1s, color .1s',
-                      }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.background    = 'var(--accent-light)';
-                        e.currentTarget.style.borderColor   = 'var(--accent)';
-                        e.currentTarget.style.color         = 'var(--accent)';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.background    = 'var(--surface)';
-                        e.currentTarget.style.borderColor   = 'var(--border2)';
-                        e.currentTarget.style.color         = 'var(--text)';
-                      }}
-                    >
-                      {m.nom}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+      <SvcBar p={p} h={10}/>
+
+      {top.length > 0 && (
+        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+          {top.map(s => (
+            <div key={s.id} style={{ display:'flex', alignItems:'center', gap:4 }}>
+              <div style={{ width:8, height:8, borderRadius:2, background:s.c, flexShrink:0 }}/>
+              <span style={{ fontSize:11, color:'var(--text2)', fontFamily:'system-ui,sans-serif' }}>
+                {s.short} <b style={{ color:'var(--text)', fontWeight:600 }}>{s.n}</b>
+              </span>
+            </div>
+          ))}
         </div>
       )}
 
-      {/* ── Chargement ── */}
-      {loading && (
-        <div style={{ fontFamily:'sans-serif', fontSize:12, color:'var(--text2)', padding:'1rem 0' }}>
-          Chargement…
+      {totalAbsDays > 0 && (
+        <div style={{ borderTop:'1px solid var(--border)', paddingTop:10, display:'flex', gap:8, flexWrap:'wrap', alignItems:'center' }}>
+          {Object.entries(conges).map(([type, days]) => days > 0 ? (
+            <div key={type} style={{ display:'flex', alignItems:'center', gap:3 }}>
+              <div style={{ width:6, height:6, borderRadius:'50%', background:congeColor(type) }}/>
+              <span style={{ fontSize:10, color:'var(--text2)', fontFamily:'system-ui,sans-serif' }}>
+                {congeShort(type)} <b style={{ color:'var(--text)', fontWeight:600 }}>{days}</b>
+              </span>
+            </div>
+          ) : null)}
+          <span style={{ marginLeft:'auto', fontSize:10, fontWeight:700, color:'var(--text2)', fontFamily:'system-ui,sans-serif' }}>
+            {totalAbsDays} j.
+          </span>
         </div>
-      )}
-
-      {/* ── Fiche praticien ── */}
-      {selected && stats && (
-        <MedecinStats med={selected} stats={stats} totalWeeks={totalWeeks} year={year} onGoToAbsences={onGoToAbsences} />
       )}
     </div>
   );
 }
 
-// ── Fiche de synthèse ──────────────────────────────────────
-
-function MedecinStats({ med, stats, totalWeeks, year, onGoToAbsences }) {
-  const { affectations, absences } = stats;
-
-  const affMap = {};
-  affectations.forEach(a => { affMap[a.poste_id] = Number(a.semaines); });
-
-  const totalSemaines = affectations.reduce((s, a) => s + Number(a.semaines), 0);
-  const groupsCovered = new Set(
-    affectations.map(a => POSTES.find(p => p.id === a.poste_id)?.grp).filter(Boolean)
+/* ── CardsView ────────────────────────────────────────── */
+function CardsView({ practitioners, selectedId, onSelect, search, setSearch }) {
+  const filtered = practitioners.filter(p =>
+    p.nom.toLowerCase().includes(search.toLowerCase())
   );
-  const totalAbsDays = absences.reduce((n, a) => n + countWorkingDays(a.date_debut, a.date_fin), 0);
-  const barPct = s => Math.min(Math.round((s / Math.max(totalWeeks, 1)) * 100), 100);
-
-  // Regroupement des congés : mois → liste des absences individuelles
-  const absencesByMonth = useMemo(() => {
-    const todayKey = new Date().toISOString().slice(0, 7);
-    const months = {};
-    absences.forEach(a => {
-      const key = a.date_debut.slice(0, 7);
-      if (!months[key]) months[key] = { total: 0, items: [] };
-      const days = countWorkingDays(a.date_debut, a.date_fin);
-      months[key].total += days;
-      months[key].items.push({ ...a, days });
-    });
-    return Object.entries(months)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([key, { total, items }]) => ({
-        key,
-        label: new Date(key + '-15').toLocaleDateString('fr-FR', { month:'long', year:'numeric' }),
-        isPast: key < todayKey,
-        items: items.slice().sort((a, b) => a.date_debut.localeCompare(b.date_debut)),
-        total,
-      }));
-  }, [absences]);
 
   return (
-    <div>
-      {/* ── Carte en-tête ── */}
-      <div style={{
-        background:'var(--surface)', border:'1px solid var(--border)',
-        borderRadius:'var(--rl)', padding:'14px 18px', marginBottom:20,
-        boxShadow:'var(--sh)', display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:12,
-      }}>
-        <div>
-          <div style={{ fontSize:16, fontWeight:'bold' }}>{med.nom}</div>
-          <div style={{ fontSize:11, fontFamily:'sans-serif', color:'var(--text2)', marginTop:2 }}>
-            {TYPE_LBL[med.type]}
-          </div>
+    <div style={{ padding:'24px 0' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:24 }}>
+        <div style={{
+          display:'flex', alignItems:'center', gap:8,
+          border:'1px solid var(--border)', borderRadius:8,
+          background:'var(--surface)', padding:'8px 14px', width:300,
+        }}>
+          <IcoSearch/>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher un praticien…"
+            style={{
+              border:'none', outline:'none', background:'transparent',
+              fontSize:13, color:'var(--text)', width:'100%',
+              fontFamily:'Georgia,serif',
+            }}
+          />
+          {search && (
+            <span onClick={() => setSearch('')} style={{ cursor:'pointer', color:'var(--text3)', fontSize:16, lineHeight:1 }}>
+              ×
+            </span>
+          )}
         </div>
-        <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
-          <Kpi value={groupsCovered.size} label="services couverts" />
-          <Kpi value={totalSemaines}       label="semaines affectées" />
-          <Kpi value={totalWeeks}          label={`semaines ${year}`} color="var(--text3)" />
-          {totalAbsDays > 0 && <Kpi value={totalAbsDays} label="jours d'absence" color="var(--warn)" />}
-        </div>
+        {search && (
+          <span style={{ fontSize:12, color:'var(--text2)', fontFamily:'system-ui,sans-serif' }}>
+            {filtered.length} résultat{filtered.length !== 1 ? 's' : ''}
+          </span>
+        )}
       </div>
 
-      {/* ── Mise en page 2 colonnes (responsive) ── */}
-      <div style={{ display:'flex', gap:20, flexWrap:'wrap', alignItems:'flex-start' }}>
-
-        {/* ── Colonne gauche : Rotation ── */}
-        <div style={{ flex:'1 1 300px', minWidth:0 }}>
-          <div className="sec-s" style={{ marginBottom:10 }}>Rotation par service — {year}</div>
-          {affectations.length === 0 && (
-            <p style={{ fontFamily:'sans-serif', fontSize:12, color:'var(--text3)' }}>
-              Aucune affectation enregistrée depuis le 01/01/{year}.
-            </p>
-          )}
-          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-            {POSTES_BY_GROUP.map(({ grp, postes }) => (
-              <GroupBlock
-                key={grp} grp={grp} postes={postes}
-                relevant={postes.filter(p => affMap[p.id])}
-                affMap={affMap} barPct={barPct}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* ── Colonne droite : Absences par mois ── */}
-        {absences.length > 0 && (
-          <div style={{ flex:'1 1 240px', minWidth:0 }}>
-            <div className="sec-s" style={{ marginBottom:10 }}>
-              Absences {year}
-              <span style={{ fontWeight:400, color:'var(--text2)', marginLeft:6 }}>
-                — {totalAbsDays} j. ouvré{totalAbsDays > 1 ? 's' : ''}
+      {CATS.map(cat => {
+        const prats = filtered.filter(p => p.type === cat.id);
+        if (!prats.length) return null;
+        return (
+          <div key={cat.id} style={{ marginBottom:28 }}>
+            <div style={{
+              fontSize:10, fontWeight:700, letterSpacing:'0.1em', textTransform:'uppercase',
+              color:'var(--text2)', paddingBottom:10, marginBottom:14,
+              borderBottom:'1px solid var(--border)',
+              display:'flex', justifyContent:'space-between',
+              fontFamily:'Trebuchet MS,sans-serif',
+            }}>
+              <span style={{ fontStyle: cat.italic ? 'italic' : 'normal' }}>{cat.label}</span>
+              <span style={{ fontWeight:500, letterSpacing:0, fontSize:11 }}>
+                {prats.length} praticien{prats.length !== 1 ? 's' : ''}
               </span>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-              {absencesByMonth.map(mo => (
-                <div key={mo.key} style={{
-                  background:'var(--surface)', border:'1px solid var(--border)',
-                  borderRadius:'var(--r)', overflow:'hidden',
-                }}>
-                  {/* En-tête mois — cliquable → onglet absences */}
-                  <div
-                    title={onGoToAbsences ? 'Voir dans le calendrier des absences' : undefined}
-                    onClick={() => onGoToAbsences && onGoToAbsences(med.id, mo.key)}
-                    style={{
-                      background: mo.isPast ? 'var(--surface2)' : 'var(--accent-light)',
-                      padding:'5px 10px',
-                      display:'flex', justifyContent:'space-between', alignItems:'center',
-                      borderBottom:'1px solid var(--border)',
-                      cursor: onGoToAbsences ? 'pointer' : 'default',
-                      userSelect:'none',
-                    }}
-                  >
-                    <span style={{
-                      fontSize:10, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
-                      letterSpacing:'.05em', textTransform:'uppercase',
-                      color: mo.isPast ? 'var(--text2)' : 'var(--accent)',
-                      display:'flex', alignItems:'center', gap:5,
-                    }}>
-                      {mo.isPast ? '✓ ' : ''}{mo.label}
-                      {onGoToAbsences && (
-                        <svg width="9" height="9" viewBox="0 0 10 10" fill="none"
-                          stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-                          style={{ opacity:.45, flexShrink:0 }}>
-                          <path d="M2 8 8 2M4 2h4v4"/>
-                        </svg>
-                      )}
-                    </span>
-                    <span style={{
-                      fontSize:11, fontFamily:'sans-serif', fontWeight:700,
-                      color: mo.isPast ? 'var(--text3)' : 'var(--accent)',
-                    }}>
-                      {mo.total} j.
-                    </span>
-                  </div>
-                  {/* Lignes individuelles (une par absence) */}
-                  <div style={{ padding:'6px 10px', display:'flex', flexDirection:'column', gap:5 }}>
-                    {mo.items.map((item, idx) => (
-                      <div key={idx} style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <span style={{
-                          width:9, height:9, borderRadius:2, flexShrink:0,
-                          background: typeColor(item.type_abs) + '33',
-                          border:`1.5px solid ${typeColor(item.type_abs)}99`,
-                        }} />
-                        <span style={{ flex:1, fontSize:10, fontFamily:'sans-serif', color:'var(--text2)', minWidth:0 }}>
-                          {item.type_abs}
-                          {(item.date_debut !== item.date_fin) && (
-                            <span style={{ color:'var(--text3)', marginLeft:5, whiteSpace:'nowrap' }}>
-                              {fmtDate(item.date_debut)} → {fmtDate(item.date_fin)}
-                            </span>
-                          )}
-                          {(item.date_debut === item.date_fin) && (
-                            <span style={{ color:'var(--text3)', marginLeft:5, whiteSpace:'nowrap' }}>
-                              {fmtDate(item.date_debut)}
-                            </span>
-                          )}
-                        </span>
-                        <span style={{
-                          fontSize:11, fontFamily:'sans-serif', fontWeight:700,
-                          color: typeColor(item.type_abs), whiteSpace:'nowrap',
-                        }}>
-                          {item.days} j.
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
+              {prats.map(p => (
+                <MediumCard key={p.id} p={p} selected={p.id === selectedId} onSelect={onSelect}/>
               ))}
             </div>
           </div>
-        )}
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── MatrixView ───────────────────────────────────────── */
+function MatrixView({ practitioners, selectedId, onSelect }) {
+  const activePostes = POSTES.filter(po =>
+    practitioners.some(p => (p.weeks[po.id] || 0) > 0)
+  );
+  const maxV = Math.max(
+    ...practitioners.flatMap(p => activePostes.map(po => p.weeks[po.id] || 0)),
+    1
+  );
+
+  return (
+    <div style={{ padding:'24px 0' }}>
+      <div style={{ fontSize:11, color:'var(--text2)', marginBottom:16, fontFamily:'system-ui,sans-serif' }}>
+        Intensité = volume de semaines · cliquer sur un nom pour ouvrir le détail
+      </div>
+      <div style={{
+        background:'var(--surface)', border:'1px solid var(--border)',
+        borderRadius:12, padding:'16px 20px',
+        display:'inline-block', minWidth:'100%',
+      }}>
+        <div style={{
+          display:'grid',
+          gridTemplateColumns:`160px repeat(${activePostes.length}, 40px)`,
+          gap:3, marginBottom:4, alignItems:'end',
+        }}>
+          <div/>
+          {activePostes.map(po => (
+            <div key={po.id} style={{ display:'flex', alignItems:'flex-end', justifyContent:'center', height:52 }}>
+              <span style={{
+                fontSize:9, fontWeight:700, textTransform:'uppercase',
+                letterSpacing:'0.04em', color:po.c,
+                writingMode:'vertical-rl', transform:'rotate(180deg)',
+                fontFamily:'Trebuchet MS,sans-serif',
+              }}>{po.short}</span>
+            </div>
+          ))}
+        </div>
+
+        {CATS.map(cat => {
+          const prats = practitioners.filter(p => p.type === cat.id);
+          if (!prats.length) return null;
+          return (
+            <div key={cat.id}>
+              <div style={{
+                display:'grid',
+                gridTemplateColumns:`160px repeat(${activePostes.length}, 40px)`,
+                gap:3, marginTop:10, marginBottom:4,
+              }}>
+                <div style={{
+                  fontSize:9, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase',
+                  color:'var(--text3)',
+                  display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:10,
+                  fontStyle: cat.italic ? 'italic' : 'normal',
+                  fontFamily:'Trebuchet MS,sans-serif',
+                }}>{cat.label}</div>
+                {activePostes.map(po => (
+                  <div key={po.id} style={{ height:1, background:'var(--border)' }}/>
+                ))}
+              </div>
+
+              {prats.map(p => (
+                <div key={p.id} style={{
+                  display:'grid',
+                  gridTemplateColumns:`160px repeat(${activePostes.length}, 40px)`,
+                  gap:3, marginBottom:3, alignItems:'center',
+                }}>
+                  <div
+                    onClick={() => onSelect(p.id === selectedId ? null : p.id)}
+                    style={{
+                      fontSize:12,
+                      fontWeight: p.id === selectedId ? 700 : 500,
+                      color: p.id === selectedId ? 'var(--accent)' : 'var(--text)',
+                      textAlign:'right', paddingRight:10, cursor:'pointer',
+                      fontStyle: cat.italic ? 'italic' : 'normal',
+                      fontFamily:'Georgia,serif',
+                      whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+                      transition:'color .15s',
+                    }}
+                  >
+                    {p.nom}
+                  </div>
+                  {activePostes.map(po => {
+                    const v = p.weeks[po.id] || 0;
+                    const alpha = v > 0 ? Math.max(0.15, v / maxV) : 0;
+                    const bg    = v > 0 ? hexA(po.c, alpha) : '#f0ede6';
+                    const txtCol = alpha > 0.55 ? '#fff' : v > 0 ? po.c : 'transparent';
+                    return (
+                      <div key={po.id}
+                        title={v > 0 ? `${po.lbl} : ${v} sem.` : '—'}
+                        style={{
+                          height:28, borderRadius:4, background:bg,
+                          display:'flex', alignItems:'center', justifyContent:'center',
+                          fontSize:10, fontWeight:700, color:txtCol,
+                          fontFamily:'system-ui,sans-serif',
+                        }}
+                      >
+                        {v > 0 ? v : ''}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          );
+        })}
+
+        <div style={{
+          display:'flex', alignItems:'center', gap:8,
+          marginTop:16, paddingTop:12, borderTop:'1px solid var(--border)',
+          fontFamily:'system-ui,sans-serif',
+        }}>
+          <span style={{ fontSize:10, color:'var(--text2)' }}>0</span>
+          <div style={{ display:'flex', gap:2 }}>
+            {[0.1,0.28,0.46,0.64,0.82,1].map(o => (
+              <div key={o} style={{ width:22, height:11, borderRadius:2, background:hexA('#2272f0', o) }}/>
+            ))}
+          </div>
+          <span style={{ fontSize:10, color:'var(--text2)' }}>{maxV} sem.</span>
+        </div>
       </div>
     </div>
   );
 }
 
-// ── Bloc d'un groupe de services ───────────────────────────
+/* ── DetailContent ────────────────────────────────────── */
+function DetailContent({ p }) {
+  const s    = segs(p).sort((a, b) => b.n - a.n);
+  const maxW = s[0]?.n || 1;
+  const conges         = congesByType(p.absences);
+  const totalAbsDays   = Object.values(conges).reduce((a, b) => a + b, 0);
+  const activeCongeTypes = Object.entries(conges).filter(([, d]) => d > 0);
+  const mc = monthlyCongeMap(p.absences);
 
-function GroupBlock({ grp, postes, relevant, affMap, barPct }) {
-  const hasCoverage = relevant.length > 0;
-  const notCovered  = postes.filter(p => !affMap[p.id]);
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:22 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
+        {[
+          ['Semaines', sumW(p)],
+          ['Services', s.length],
+          ['Absences', totalAbsDays + 'j'],
+        ].map(([l, v]) => (
+          <div key={l} style={{ background:'var(--bg)', borderRadius:8, padding:'12px 8px', textAlign:'center' }}>
+            <div style={{ fontSize:20, fontWeight:800, color:'var(--text)', lineHeight:1, fontFamily:'system-ui,sans-serif' }}>
+              {v}
+            </div>
+            <div style={{ fontSize:9, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text2)', marginTop:4, fontFamily:'Trebuchet MS,sans-serif' }}>
+              {l}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {s.length > 0 && (
+        <div>
+          <div style={{ fontSize:10, fontWeight:700, letterSpacing:'0.09em', textTransform:'uppercase', color:'var(--text2)', marginBottom:10, fontFamily:'Trebuchet MS,sans-serif' }}>
+            Répartition par service
+          </div>
+          {s.map(sv => (
+            <div key={sv.id} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+              <div style={{ width:10, height:10, borderRadius:2, background:sv.c, flexShrink:0 }}/>
+              <div style={{ width:52, fontSize:10, color:'var(--text2)', textAlign:'right', flexShrink:0, fontFamily:'system-ui,sans-serif' }}>
+                {sv.short}
+              </div>
+              <div style={{ flex:1, height:7, background:'#ede9e1', borderRadius:7, overflow:'hidden' }}>
+                <div style={{ height:'100%', width:`${(sv.n / maxW) * 100}%`, background:sv.c, borderRadius:7, transition:'width .4s ease' }}/>
+              </div>
+              <div style={{ width:24, fontSize:12, fontWeight:700, color:'var(--text)', textAlign:'right', fontFamily:'system-ui,sans-serif' }}>
+                {sv.n}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeCongeTypes.length > 0 && (
+        <div>
+          <div style={{ fontSize:10, fontWeight:700, letterSpacing:'0.09em', textTransform:'uppercase', color:'var(--text2)', marginBottom:10, fontFamily:'Trebuchet MS,sans-serif' }}>
+            Absences par mois
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'48px repeat(12,1fr)', gap:'2px', fontSize:9, fontFamily:'system-ui,sans-serif' }}>
+            <div/>
+            {MONTHS_SHORT.map(m => (
+              <div key={m} style={{ textAlign:'center', color:'var(--text3)', fontWeight:600, paddingBottom:3 }}>{m}</div>
+            ))}
+            {Object.keys(mc).map(type => [
+              <div key={type + 'l'} style={{ color:'var(--text2)', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'flex-end', paddingRight:3, fontSize:9 }}>
+                {congeShort(type)}
+              </div>,
+              ...MONTHS_SHORT.map((_, mi) => {
+                const v = mc[type][mi];
+                return (
+                  <div key={type + mi} style={{
+                    height:18, borderRadius:3,
+                    background: v > 0 ? congeColor(type) : '#ede9e1',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    color: v > 0 ? '#fff' : 'transparent',
+                    fontSize:8, fontWeight:700,
+                  }}>{v > 0 ? v : ''}</div>
+                );
+              }),
+            ])}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── SidePanel ────────────────────────────────────────── */
+function SidePanel({ p, onClose, practitioners }) {
+  const cat = CATS.find(c => c.id === p.type);
+  const idx = practitioners.findIndex(x => x.id === p.id);
 
   return (
     <div style={{
-      background:'var(--surface)', border:'1px solid var(--border)',
-      borderRadius:'var(--r)', overflow:'hidden',
+      width:380, flexShrink:0,
+      background:'var(--surface)',
+      borderLeft:'1px solid var(--border)',
+      display:'flex', flexDirection:'column', overflow:'hidden',
     }}>
-      {/* En-tête du groupe */}
-      <div style={{
-        background:'var(--surface2)', padding:'5px 12px',
-        fontSize:9, fontFamily:'Trebuchet MS,sans-serif', fontWeight:700,
-        letterSpacing:'.07em', textTransform:'uppercase', color:'var(--text2)',
-        display:'flex', justifyContent:'space-between', alignItems:'center',
-      }}>
-        <span>{grp}</span>
-        {hasCoverage
-          ? <span style={{ color:'var(--ok)', fontWeight:600 }}>✓ couvert</span>
-          : <span style={{ color:'var(--text3)' }}>non couvert</span>
-        }
+      <div style={{ padding:'20px 24px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontWeight:700, fontSize:16, color:'var(--text)', fontStyle: cat?.italic ? 'italic' : 'normal', lineHeight:1.3, fontFamily:'Georgia,serif' }}>
+              {p.nom}
+            </div>
+            <div style={{ fontSize:11, color:'var(--text2)', marginTop:4, fontFamily:'system-ui,sans-serif' }}>
+              {TYPE_LBL[p.type]} · Rotation {new Date().getFullYear()}
+            </div>
+          </div>
+          <button
+            onClick={() => onClose(null)}
+            style={{
+              background:'none', border:'1px solid var(--border)', borderRadius:6,
+              width:30, height:30, display:'flex', alignItems:'center', justifyContent:'center',
+              cursor:'pointer', color:'var(--text2)', flexShrink:0, marginLeft:12,
+              transition:'all .15s',
+            }}
+          >
+            <IcoClose/>
+          </button>
+        </div>
+        <div style={{ marginTop:14 }}>
+          <SvcBar p={p} h={8}/>
+        </div>
       </div>
 
-      {/* Postes couverts */}
-      {relevant.map(p => (
-        <div key={p.id} style={{
-          padding:'8px 12px', borderTop:'1px solid var(--border)',
-          display:'grid', gridTemplateColumns:'1fr auto auto',
-          alignItems:'center', gap:10,
-        }}>
-          <span style={{ fontSize:11, fontFamily:'sans-serif', color:'var(--text)' }}>{p.lbl}</span>
-          {/* Barre de progression */}
-          <div style={{
-            width:160, height:7, background:'var(--surface2)',
-            borderRadius:4, overflow:'hidden',
-          }}>
-            <div style={{
-              width:`${barPct(affMap[p.id])}%`, height:'100%',
-              background:p.c, borderRadius:4, transition:'width .4s ease',
-            }} />
-          </div>
-          <span style={{
-            fontSize:11, fontFamily:'sans-serif', fontWeight:600,
-            color:'var(--text)', minWidth:52, textAlign:'right',
-          }}>
-            {affMap[p.id]} sem.
-          </span>
-        </div>
-      ))}
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
+        <DetailContent p={p}/>
+      </div>
 
-      {/* Postes non couverts dans ce groupe */}
-      {notCovered.map(p => (
-        <div key={p.id} style={{
-          padding:'7px 12px', borderTop:'1px solid var(--border)',
-          display:'grid', gridTemplateColumns:'1fr auto auto',
-          alignItems:'center', gap:10, opacity:.45,
-        }}>
-          <span style={{ fontSize:11, fontFamily:'sans-serif', color:'var(--text2)' }}>{p.lbl}</span>
-          <div style={{ width:160, height:7, background:'var(--surface2)', borderRadius:4 }} />
-          <span style={{ fontSize:10, fontFamily:'sans-serif', color:'var(--text3)', minWidth:52, textAlign:'right' }}>
-            0 sem.
-          </span>
-        </div>
-      ))}
+      <div style={{ padding:'12px 24px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'space-between', flexShrink:0 }}>
+        {[[-1,'← Précédent'], [1,'Suivant →']].map(([dir, label]) => {
+          const next = practitioners[idx + dir];
+          return (
+            <button
+              key={dir}
+              onClick={() => next && onClose(next.id)}
+              disabled={!next}
+              style={{
+                background:'none', border:'1px solid var(--border)', borderRadius:6,
+                padding:'6px 12px', cursor: next ? 'pointer' : 'not-allowed',
+                color: next ? 'var(--text)' : 'var(--text3)',
+                fontSize:12, fontWeight:500, fontFamily:'system-ui,sans-serif',
+                transition:'all .15s', opacity: next ? 1 : 0.4,
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-// ── Indicateur chiffré ─────────────────────────────────────
+/* ── Main StatsTab ────────────────────────────────────── */
+export default function StatsTab({ medecins }) {
+  const [view,       setView]       = useState('cards');
+  const [selectedId, setSelectedId] = useState(null);
+  const [search,     setSearch]     = useState('');
+  const [allStats,   setAllStats]   = useState(null);
+  const [loading,    setLoading]    = useState(true);
 
-function Kpi({ value, label, color }) {
+  const year = new Date().getFullYear();
+
+  useEffect(() => {
+    api.getAllStats()
+      .then(data => {
+        const map = {};
+        data.forEach(({ med_id, affectations, absences }) => {
+          const weeks = {};
+          affectations.forEach(({ poste_id, semaines }) => { weeks[poste_id] = Number(semaines); });
+          map[med_id] = { weeks, absences };
+        });
+        setAllStats(map);
+      })
+      .catch(err => console.error('Stats error:', err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const practitioners = useMemo(() => {
+    const catOrder = Object.fromEntries(CATS.map((c, i) => [c.id, i]));
+    return medecins
+      .map(m => ({
+        ...m,
+        weeks:    allStats?.[m.id]?.weeks    ?? {},
+        absences: allStats?.[m.id]?.absences ?? [],
+      }))
+      .sort((a, b) =>
+        (catOrder[a.type] ?? 99) - (catOrder[b.type] ?? 99) ||
+        a.nom.localeCompare(b.nom, 'fr')
+      );
+  }, [medecins, allStats]);
+
+  const selectedP = practitioners.find(p => p.id === selectedId) ?? null;
+
+  function handleSelect(id) {
+    setSelectedId(id ?? null);
+  }
+
+  function handleViewSwitch(v) {
+    setView(v);
+    setSelectedId(null);
+    setSearch('');
+  }
+
   return (
-    <div style={{ textAlign:'center', minWidth:60 }}>
-      <div style={{ fontSize:22, fontWeight:'bold', color: color || 'var(--accent)', lineHeight:1 }}>
-        {value}
+    <div>
+      <div style={{
+        display:'flex', justifyContent:'space-between', alignItems:'center',
+        marginBottom:16, paddingBottom:14, borderBottom:'1px solid var(--border)',
+      }}>
+        <div>
+          <div className="sec-t">Synthèse par praticien</div>
+          <div style={{ fontSize:11, fontFamily:'system-ui,sans-serif', color:'var(--text2)', marginTop:3 }}>
+            Rotation {year} · semaines passées &amp; planifiées
+          </div>
+        </div>
+        <ViewToggle view={view} setView={handleViewSwitch}/>
       </div>
-      <div style={{ fontSize:9, fontFamily:'sans-serif', color:'var(--text2)', marginTop:2, lineHeight:1.3 }}>
-        {label}
-      </div>
+
+      {loading ? (
+        <div style={{ fontFamily:'system-ui,sans-serif', fontSize:12, color:'var(--text2)', padding:'2rem 0' }}>
+          Chargement des statistiques…
+        </div>
+      ) : (
+        <div style={{
+          display:'flex',
+          height:'calc(100vh - 190px)',
+          overflow:'hidden',
+          border:'1px solid var(--border)',
+          borderRadius:'var(--rl)',
+          background:'var(--bg)',
+          boxShadow:'var(--sh)',
+        }}>
+          <div style={{ flex:1, minWidth:0, overflowY:'auto', overflowX:'auto', padding:'0 24px' }}>
+            {view === 'cards'
+              ? <CardsView
+                  practitioners={practitioners}
+                  selectedId={selectedId}
+                  onSelect={handleSelect}
+                  search={search}
+                  setSearch={setSearch}
+                />
+              : <MatrixView
+                  practitioners={practitioners}
+                  selectedId={selectedId}
+                  onSelect={handleSelect}
+                />
+            }
+          </div>
+
+          <div style={{
+            width: selectedP ? 380 : 0,
+            flexShrink:0, overflow:'hidden',
+            transition:'width .25s ease',
+            display:'flex',
+          }}>
+            {selectedP && (
+              <SidePanel
+                p={selectedP}
+                onClose={handleSelect}
+                practitioners={practitioners}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -303,6 +303,34 @@ app.get('/api/stats/medecin/:medId', (req, res) => {
   res.json({ affectations, absences });
 });
 
+app.get('/api/stats/all', (req, res) => {
+  const year    = new Date().getFullYear();
+  const fromKey = `${year}-01-01`;
+  const toKey   = `${year}-12-31`;
+
+  const medecins = dbLib.queryAll('SELECT id FROM medecins ORDER BY id');
+  const result = medecins.map(({ id }) => {
+    const affectations = dbLib.queryAll(`
+      SELECT poste_id, COUNT(DISTINCT week_key) AS semaines
+      FROM affectations
+      WHERE med_id = ? AND week_key >= ? AND week_key <= ?
+      GROUP BY poste_id
+      ORDER BY semaines DESC
+    `, [id, fromKey, toKey]);
+
+    const absences = dbLib.queryAll(`
+      SELECT date_debut, date_fin, type_abs
+      FROM absences
+      WHERE med_id = ? AND date_fin >= ? AND date_debut <= ?
+      ORDER BY date_debut
+    `, [id, fromKey, toKey]);
+
+    return { med_id: id, affectations, absences };
+  });
+
+  res.json(result);
+});
+
 // ═══════════════════════════════════════════════════════
 // UTILITAIRES
 // ═══════════════════════════════════════════════════════
