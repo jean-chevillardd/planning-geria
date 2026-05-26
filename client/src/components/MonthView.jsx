@@ -95,6 +95,10 @@ const FILTERS = [
   { id: 'consult', label: 'Consultations', color: '#7c3aed', grps: ['Consultations'] },
 ];
 
+// Rang de chaque groupe de services (suit l'ordre des filtres)
+const GRP_ORDER = {};
+FILTERS.forEach((f, fi) => f.grps.forEach(g => { GRP_ORDER[g] = fi; }));
+
 export default function MonthView({ medecins, absences }) {
   const [monthDate,    setMonthDate]    = useState(new Date());
   const [weekData,     setWeekData]     = useState({});
@@ -271,28 +275,34 @@ export default function MonthView({ medecins, absences }) {
                 // Aucune vacation affichée sur les jours fériés
                 const chips = [];
                 if (!holidayName) {
-                  visiblePostes.forEach(p => {
+                  visiblePostes.forEach((p, pi) => {
                     const assigned = byPoste[p.id]?.medecins || [];
-                    assigned.forEach(m => {
+                    const grpRank  = GRP_ORDER[p.grp] ?? 99;
+                    assigned.forEach((m, mi) => {
                       if (!worksDay(m, di, absences)) return;
                       if (excls.includes(m.id)) return;
                       if (doctorFilter && m.id !== doctorFilter) return;
-                      chips.push({ nom: m.nom, short: p.short, c: p.c, key: p.id + m.id, type: m.type });
+                      chips.push({ nom: m.nom, short: p.short, c: p.c, key: p.id + m.id,
+                                   type: m.type, grpRank, posteIdx: pi, assignIdx: mi, isExtra: false });
                     });
-                    extras.filter(e => e.poste_id === p.id).forEach(e => {
+                    extras.filter(e => e.poste_id === p.id).forEach((e, ei) => {
                       if (doctorFilter && e.med_id !== doctorFilter) return;
-                      chips.push({ nom: e.nom, short: p.short, c: p.c, key: p.id + e.med_id + 'x', type: e.type });
+                      chips.push({ nom: e.nom, short: p.short, c: p.c, key: p.id + e.med_id + 'x',
+                                   type: e.type, grpRank, posteIdx: pi, assignIdx: 9999 + ei, isExtra: true });
                     });
                   });
                 }
 
-                // Tri : typeRank → alphabétique (congés toujours en dernier, sans type)
+                // Tri : service → séniorité → régulier avant remplaçant → ordre d'arrivée (congés en dernier)
                 chips.sort((a, b) => {
                   if (!a.nom && b.nom) return 1;
                   if (a.nom && !b.nom) return -1;
+                  if (a.grpRank !== b.grpRank) return a.grpRank - b.grpRank;
                   const ra = TYPE_RANK[a.type] ?? 99, rb = TYPE_RANK[b.type] ?? 99;
                   if (ra !== rb) return ra - rb;
-                  return a.nom.localeCompare(b.nom, 'fr');
+                  if (a.isExtra !== b.isExtra) return a.isExtra ? 1 : -1;
+                  if (a.posteIdx !== b.posteIdx) return a.posteIdx - b.posteIdx;
+                  return a.assignIdx - b.assignIdx;
                 });
 
                 // Congés — uniquement en vue par médecin
