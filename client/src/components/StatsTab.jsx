@@ -37,10 +37,23 @@ function congeShort(t) {
 const MONTHS_SHORT = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
 
 /* ── Helpers ──────────────────────────────────────────── */
+const YEAR      = new Date().getFullYear();
+const YEAR_START = `${YEAR}-01-01`;
+const YEAR_END   = `${YEAR}-12-31`;
+
+// Clamps an ISO date string to the current-year window.
+function clampYear(iso, isEnd) {
+  if (isEnd) return iso > YEAR_END   ? YEAR_END   : iso;
+  return           iso < YEAR_START  ? YEAR_START : iso;
+}
+
 function countWorkingDays(d1, d2) {
+  const s = clampYear(d1, false);
+  const e = clampYear(d2, true);
+  if (s > e) return 0;
   let n = 0;
-  const end = new Date(d2 + 'T12:00:00');
-  for (let d = new Date(d1 + 'T12:00:00'); d <= end; d.setDate(d.getDate() + 1)) {
+  const end = new Date(e + 'T12:00:00');
+  for (let d = new Date(s + 'T12:00:00'); d <= end; d.setDate(d.getDate() + 1)) {
     const dow = d.getDay();
     if (dow > 0 && dow < 6) n++;
   }
@@ -79,11 +92,14 @@ function hexA(hex, alpha) {
 function monthlyCongeMap(absences) {
   const res = {};
   absences.forEach(a => {
+    const s = clampYear(a.date_debut, false);
+    const e = clampYear(a.date_fin,   true);
+    if (s > e) return;
     if (!res[a.type_abs]) res[a.type_abs] = Array(12).fill(0);
-    const start = new Date(a.date_debut + 'T12:00:00');
-    const end   = new Date(a.date_fin   + 'T12:00:00');
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const end = new Date(e + 'T12:00:00');
+    for (let d = new Date(s + 'T12:00:00'); d <= end; d.setDate(d.getDate() + 1)) {
       const dow = d.getDay();
+      // d is already clamped to current year, so getMonth() is correct
       if (dow > 0 && dow < 6) res[a.type_abs][d.getMonth()]++;
     }
   });
