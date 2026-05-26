@@ -52,11 +52,19 @@ function fmtWeekRange(monday) {
   const d1 = monday.getDate(), m1 = monday.getMonth();
   const d2 = sunday.getDate(),  m2 = sunday.getMonth();
   const y  = sunday.getFullYear();
-  if (m1 === m2) return `${d1} – ${d2} ${MONTHS_FR_LOWER[m1]} ${y}`;
+  if (m1 === m2) return `${d1} – ${d2} ${MONTHS_FR_LOWER[m1]} ${y}`;
   return `${d1} ${MONTHS_FR_LOWER[m1]} – ${d2} ${MONTHS_FR_LOWER[m2]} ${y}`;
 }
 
-// ── EPill — person name chip ─────────────────────────────
+function getWeekendPartner(dateIso) {
+  const d = new Date(dateIso + 'T12:00:00');
+  const dow = d.getDay();
+  if (dow === 6) return toIso(addDays(d, 1));  // Sam → Dim
+  if (dow === 0) return toIso(addDays(d, -1)); // Dim → Sam
+  return null;
+}
+
+// ── EPill — name chip ────────────────────────────────────
 function EPill({ slotType, entry, dateIso, isSecretary, sel, onSel, onEdit }) {
   const { c, dot, bg } = slotType;
   const name = entry?.med_nom;
@@ -208,85 +216,98 @@ function StatsSection({ astreintes, monthLabel }) {
   );
 }
 
-// ── MiniMonth — sidebar for Semaine view ────────────────
-function MiniMonth({ year, month, aMap, sel, weekStart, holidays }) {
-  const weeks = buildMonthWeeks(year, month);
-  const todayIso  = toIso(new Date());
-  const wkMonIso  = toIso(weekStart);
+// ── SlotTypePicker — popover for rotation view ───────────
+function SlotTypePicker({ onPick, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    function h(e) {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [onClose]);
 
   return (
-    <div style={{
-      width:192, flexShrink:0, background:'var(--surface)',
-      borderRight:'1px solid var(--border)', padding:'16px 12px',
-      display:'flex', flexDirection:'column', gap:12,
+    <div ref={ref} style={{
+      position:'absolute', zIndex:200, top:'100%', left:0,
+      background:'var(--surface)', border:'1px solid var(--border)',
+      borderRadius:'var(--r)', boxShadow:'0 4px 16px rgba(0,0,0,.14)',
+      padding:5, display:'flex', flexDirection:'column', gap:2,
+      minWidth:140,
     }}>
-      <div>
-        <div style={{fontSize:12, fontWeight:800, color:'var(--text)', marginBottom:10, fontFamily:'sans-serif'}}>
-          {MONTHS_FR[month]} {year}
-        </div>
-        <div style={{display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:1, marginBottom:4}}>
-          {JOURS_COURTS.map((l,i) => (
-            <div key={l} style={{textAlign:'center', fontSize:8, fontWeight:700,
-              color: i>=5 ? '#e11d48' : 'var(--text3)', paddingBottom:3}}>
-              {l[0]}
-            </div>
-          ))}
-        </div>
-        {weeks.map((wk, wi) => {
-          const isSelectedWk = toIso(wk[0]) === wkMonIso;
-          return (
-            <div key={wi} style={{
-              display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:1,
-              background: isSelectedWk ? 'var(--accent-light)' : 'transparent',
-              borderRadius:5, marginBottom:1, padding:'1px 0',
-            }}>
-              {wk.map((day, di) => {
-                const inMonth = day.getMonth() === month;
-                const iso = toIso(day);
-                const d   = aMap[iso] || {};
-                const tod = iso === todayIso;
-                const wknd = di >= 5;
-                const personMatch = sel != null && (
-                  d.astreinte?.med_id === sel ||
-                  d.pont_rouge?.med_id === sel ||
-                  d.csg1?.med_id === sel
-                );
-                return (
-                  <div key={di} title={d.astreinte?.med_nom ?? ''} style={{
-                    display:'flex', flexDirection:'column', alignItems:'center',
-                    padding:'2px 0', borderRadius:3,
-                    background: tod ? 'var(--accent)' : personMatch ? 'var(--accent-light)' : 'transparent',
-                    opacity: inMonth ? 1 : 0.25,
-                  }}>
-                    <span style={{
-                      fontSize:9, fontWeight: tod ? 800 : 400,
-                      color: tod ? '#fff' : wknd ? '#e11d48' : 'var(--text)',
-                    }}>{day.getDate()}</span>
-                    {d.astreinte && !tod && (
-                      <div style={{
-                        width:4, height:4, borderRadius:'50%', marginTop:1,
-                        background: personMatch ? 'var(--accent)' : '#d97706',
-                      }} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
-      </div>
-      <div style={{borderTop:'1px solid var(--border)', paddingTop:10, display:'flex', flexDirection:'column', gap:6}}>
-        {SLOT_TYPES.map(sh => (
-          <div key={sh.id} style={{display:'flex', alignItems:'center', gap:6}}>
-            <span style={{color:sh.c, fontSize:11}}>{sh.dot}</span>
-            <div>
-              <div style={{fontSize:11, fontWeight:700, color:'var(--text)', fontFamily:'sans-serif'}}>{sh.label}</div>
-              <div style={{fontSize:9, color:'var(--text3)', fontFamily:'sans-serif', lineHeight:1.3}}>{sh.sub}</div>
-            </div>
+      {SLOT_TYPES.map(st => (
+        <button key={st.id} onClick={e => { e.stopPropagation(); onPick(st.id); }} style={{
+          display:'flex', alignItems:'center', gap:7,
+          padding:'5px 9px', borderRadius:6,
+          border:'none', background:'transparent', cursor:'pointer',
+          textAlign:'left', fontFamily:'sans-serif', width:'100%',
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = st.bg}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          <div style={{width:8, height:8, borderRadius:'50%', background:st.c, flexShrink:0}} />
+          <div>
+            <div style={{fontSize:11, fontWeight:700, color:st.c, lineHeight:1.3}}>{st.label}</div>
+            {st.weOnly && <div style={{fontSize:9, color:'var(--text3)', lineHeight:1.2}}>WE / férié</div>}
           </div>
-        ))}
-      </div>
+        </button>
+      ))}
     </div>
+  );
+}
+
+// ── SwimCellRot — rotation table cell ───────────────────
+function SwimCellRot({ iso, dow, med, aMap, holidays, isSecretary, onDirectAssign, onDirectRemove }) {
+  const [showPicker, setShowPicker] = useState(false);
+  const d    = aMap[iso] || {};
+  const shA  = d.astreinte?.med_id  === med.id;
+  const shP  = d.pont_rouge?.med_id === med.id;
+  const shC  = d.csg1?.med_id       === med.id;
+  const todayIso = toIso(new Date());
+  const tod  = iso === todayIso;
+  const wknd = dow >= 5;
+  const hol  = !!holidays?.get(iso);
+  const isWEH = wknd || hol;
+  const hasAssignment = shA || shP || shC;
+
+  function handleClick(e) {
+    if (!isSecretary) return;
+    e.stopPropagation();
+    if (hasAssignment) {
+      const typeAst = shA ? 'astreinte' : shP ? 'pont_rouge' : 'csg1';
+      const entry   = shA ? d.astreinte : shP ? d.pont_rouge : d.csg1;
+      onDirectRemove(entry, typeAst);
+    } else if (isWEH) {
+      setShowPicker(p => !p);
+    } else {
+      onDirectAssign(iso, 'astreinte', med);
+    }
+  }
+
+  return (
+    <td style={{
+      width:32, padding:0, textAlign:'center', verticalAlign:'middle',
+      background: tod ? 'rgba(34,114,240,.1)' : wknd ? 'rgba(225,29,72,.02)' : 'transparent',
+      borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)',
+      cursor: isSecretary ? 'pointer' : 'default',
+    }} onClick={handleClick}>
+      <div style={{position:'relative', width:32, height:34, display:'flex', alignItems:'center', justifyContent:'center'}}>
+        <div style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2}}>
+          {shA && <div style={{width:9,height:9,borderRadius:'50%',background:'#d97706'}} />}
+          {shP && <div style={{width:9,height:9,borderRadius:'50%',background:'#e11d48'}} />}
+          {shC && <div style={{width:9,height:9,borderRadius:'50%',background:'#2272f0'}} />}
+          {!hasAssignment && isSecretary && (
+            <div style={{width:14,height:14,borderRadius:3,border:'1.5px dashed var(--border)'}} />
+          )}
+        </div>
+        {showPicker && (
+          <SlotTypePicker
+            onPick={typeId => { setShowPicker(false); onDirectAssign(iso, typeId, med); }}
+            onClose={() => setShowPicker(false)}
+          />
+        )}
+      </div>
+    </td>
   );
 }
 
@@ -294,7 +315,7 @@ function MiniMonth({ year, month, aMap, sel, weekStart, holidays }) {
 function DayCard({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
   const iso   = toIso(date);
   const d     = aMap[iso] || {};
-  const dowN  = (date.getDay() + 6) % 7; // 0=Mon..6=Sun
+  const dowN  = (date.getDay() + 6) % 7;
   const wknd  = dowN >= 5;
   const hol   = holidays?.get(iso);
   const isWEH = wknd || !!hol;
@@ -327,19 +348,17 @@ function DayCard({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
           }}>
             {JOURS_COURTS[dowN]}
           </div>
-          <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:4}}>
-            <div style={{
-              fontSize:22, fontWeight:800, lineHeight:1,
-              color: isToday ? 'var(--accent)' : wknd ? '#e11d48' : 'var(--text)',
-            }}>
-              {date.getDate()}
-            </div>
-            {hol && (
-              <div style={{fontSize:9, color:'#b45309', fontWeight:600, lineHeight:1.3, fontFamily:'sans-serif', textAlign:'right', maxWidth:'65%'}}>
-                {hol}
-              </div>
-            )}
+          <div style={{
+            fontSize:22, fontWeight:800, lineHeight:1,
+            color: isToday ? 'var(--accent)' : wknd ? '#e11d48' : 'var(--text)',
+          }}>
+            {date.getDate()}
           </div>
+          {hol && (
+            <div style={{fontSize:9, color:'#92400e', fontWeight:600, marginTop:3, lineHeight:1.3, fontFamily:'sans-serif'}}>
+              {hol}
+            </div>
+          )}
         </div>
         <div style={{display:'flex', flexDirection:'column', gap:3}}>
           <EPill slotType={SLOT_TYPES[0]} entry={d.astreinte}  dateIso={iso} isSecretary={isSecretary} sel={sel} onSel={onSel} onEdit={onEdit} />
@@ -351,37 +370,19 @@ function DayCard({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
   );
 }
 
-// ── ViewSemaine (Direction A) ────────────────────────────
-function ViewSemaine({ year, month, weekStart, onWeekChange, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
-  const todayMon   = toIso(localMonday(new Date()));
+// ── ViewSemaine ──────────────────────────────────────────
+function ViewSemaine({ weekStart, onWeekChange, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
+  const todayMon    = toIso(localMonday(new Date()));
   const isCurrentWk = toIso(weekStart) === todayMon;
   const days = Array.from({length:7}, (_,i) => addDays(weekStart, i));
 
   return (
     <div>
-      <div style={{
-        display:'flex', alignItems:'center', gap:10,
-        marginBottom:16, flexWrap:'wrap',
-      }}>
-        <button onClick={() => onWeekChange(addDays(weekStart, -7))} style={{
-          background:'none', border:'1px solid var(--border)', borderRadius:6,
-          width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center',
-          cursor:'pointer', color:'var(--text2)', fontSize:14, fontFamily:'inherit',
-        }}>‹</button>
-        <span style={{fontSize:14, fontWeight:700, color:'var(--text)', fontFamily:'sans-serif'}}>
-          {fmtWeekRange(weekStart)}
-        </span>
-        {isCurrentWk && (
-          <span style={{
-            fontSize:10, background:'var(--accent-light)', color:'var(--accent)',
-            fontWeight:700, padding:'2px 9px', borderRadius:10, fontFamily:'sans-serif',
-          }}>Cette semaine</span>
-        )}
-        <button onClick={() => onWeekChange(addDays(weekStart, 7))} style={{
-          background:'none', border:'1px solid var(--border)', borderRadius:6,
-          width:26, height:26, display:'flex', alignItems:'center', justifyContent:'center',
-          cursor:'pointer', color:'var(--text2)', fontSize:14, fontFamily:'inherit',
-        }}>›</button>
+      <div className="wn print-hide">
+        <button className="wn-btn" onClick={() => onWeekChange(addDays(weekStart, -7))}>‹</button>
+        <button className="wn-btn" onClick={() => onWeekChange(addDays(weekStart, 7))}>›</button>
+        <span className="wn-lbl">{fmtWeekRange(weekStart)}</span>
+        {isCurrentWk && <span className="wn-chip" style={{cursor:'default'}}>Cette semaine</span>}
         {sel != null && (
           <button onClick={() => onSel(null)} style={{
             marginLeft:'auto', background:'none', border:'1px solid var(--border)',
@@ -390,21 +391,18 @@ function ViewSemaine({ year, month, weekStart, onWeekChange, aMap, holidays, isS
           }}>× Effacer</button>
         )}
       </div>
-      <div style={{display:'flex', gap:0, alignItems:'flex-start', border:'1px solid var(--border)', borderRadius:'var(--rl)', overflow:'hidden', background:'var(--surface)'}}>
-        <MiniMonth year={year} month={month} aMap={aMap} sel={sel} weekStart={weekStart} holidays={holidays} />
-        <div style={{flex:1, padding:16, display:'flex', gap:8, alignItems:'flex-start', overflowX:'auto', background:'var(--bg)'}}>
-          {days.map((d,i) => (
-            <DayCard key={i} date={d} aMap={aMap} holidays={holidays}
-              isSecretary={isSecretary} sel={sel} onSel={onSel} onEdit={onEdit} />
-          ))}
-        </div>
+      <div style={{display:'flex', gap:8, alignItems:'flex-start', overflowX:'auto', padding:'2px 0'}}>
+        {days.map((d,i) => (
+          <DayCard key={i} date={d} aMap={aMap} holidays={holidays}
+            isSecretary={isSecretary} sel={sel} onSel={onSel} onEdit={onEdit} />
+        ))}
       </div>
     </div>
   );
 }
 
-// ── ViewRotation (Direction B) ───────────────────────────
-function ViewRotation({ year, month, aMap, medecins, isSecretary, onEdit, holidays }) {
+// ── ViewRotation ─────────────────────────────────────────
+function ViewRotation({ year, month, aMap, medecins, isSecretary, onMonthChange, onDirectAssign, onDirectRemove, holidays }) {
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const todayIso    = toIso(new Date());
   const days = Array.from({length: daysInMonth}, (_,i) => {
@@ -433,116 +431,107 @@ function ViewRotation({ year, month, aMap, medecins, isSecretary, onEdit, holida
   [medecins, totals]);
 
   return (
-    <div style={{overflowX:'auto'}}>
-      <table style={{borderCollapse:'collapse', tableLayout:'fixed', width:'max-content'}}>
-        <colgroup>
-          <col style={{width:160}} />
-          {days.map(({iso}) => <col key={iso} style={{width:32}} />)}
-          <col style={{width:96}} />
-        </colgroup>
-        <thead>
-          <tr>
-            <th style={{padding:0, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)'}} />
-            {days.map(({day, iso, dow}) => {
-              const tod  = iso === todayIso;
-              const wknd = dow >= 5;
-              const hol  = !!holidays?.get(iso);
+    <div>
+      <div className="wn print-hide" style={{marginBottom:12}}>
+        <button className="wn-btn" onClick={() => onMonthChange(new Date(year, month-1, 1))}>‹</button>
+        <button className="wn-btn" onClick={() => onMonthChange(new Date(year, month+1, 1))}>›</button>
+        <span className="wn-lbl">{MONTHS_FR[month]} {year}</span>
+        <button className="wn-chip" onClick={() => {
+          const n = new Date(); onMonthChange(new Date(n.getFullYear(), n.getMonth(), 1));
+        }}>Mois actuel</button>
+      </div>
+      <div style={{overflowX:'auto'}}>
+        <table style={{borderCollapse:'collapse', tableLayout:'fixed', width:'max-content'}}>
+          <colgroup>
+            <col style={{width:160}} />
+            {days.map(({iso}) => <col key={iso} style={{width:32}} />)}
+            <col style={{width:96}} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={{padding:0, borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)'}} />
+              {days.map(({day, iso, dow}) => {
+                const tod  = iso === todayIso;
+                const wknd = dow >= 5;
+                const hol  = !!holidays?.get(iso);
+                return (
+                  <th key={iso} style={{
+                    height:40, padding:'4px 0', textAlign:'center', verticalAlign:'bottom',
+                    background: tod ? 'var(--accent)' : hol ? '#fef3c7' : wknd ? '#fdf4f4' : 'var(--bg)',
+                    borderRight:'1px solid var(--border)',
+                    borderBottom:`1px solid ${tod ? 'var(--accent)' : 'var(--border)'}`,
+                  }}>
+                    <div style={{fontSize:7, fontWeight:700, lineHeight:1, marginBottom:2,
+                      color: tod ? 'rgba(255,255,255,.7)' : wknd ? '#e11d48' : 'var(--text3)'}}>
+                      {JOURS_COURTS[dow][0]}
+                    </div>
+                    <div style={{fontSize:11, fontWeight: tod ? 800 : 600, lineHeight:1,
+                      color: tod ? '#fff' : wknd ? '#e11d48' : 'var(--text)'}}>
+                      {day}
+                    </div>
+                  </th>
+                );
+              })}
+              <th style={{padding:'0 0 4px 10px', textAlign:'left', verticalAlign:'bottom',
+                borderBottom:'1px solid var(--border)'}}>
+                <span style={{fontSize:9, fontWeight:700, letterSpacing:'0.08em', color:'var(--text3)',
+                  fontFamily:'system-ui,sans-serif'}}>TOTAL</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(med => {
+              const t = totals[med.id] || {a:0,p:0,c:0};
               return (
-                <th key={iso} style={{
-                  height:40, padding:'4px 0', textAlign:'center', verticalAlign:'bottom',
-                  background: tod ? 'var(--accent)' : hol ? '#fef3c7' : wknd ? '#fdf4f4' : 'var(--bg)',
-                  borderRight:'1px solid var(--border)',
-                  borderBottom:`1px solid ${tod ? 'var(--accent)' : 'var(--border)'}`,
-                }}>
-                  <div style={{fontSize:7, fontWeight:700, lineHeight:1, marginBottom:2,
-                    color: tod ? 'rgba(255,255,255,.7)' : wknd ? '#e11d48' : 'var(--text3)'}}>
-                    {JOURS_COURTS[dow][0]}
-                  </div>
-                  <div style={{fontSize:11, fontWeight: tod ? 800 : 600, lineHeight:1,
-                    color: tod ? '#fff' : wknd ? '#e11d48' : 'var(--text)'}}>
-                    {day}
-                  </div>
-                </th>
+                <tr key={med.id}>
+                  <td style={{
+                    height:34, padding:'0 14px', fontSize:12, fontWeight:600, color:'var(--text)',
+                    whiteSpace:'nowrap', borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)',
+                    background:'var(--surface)', fontFamily:'sans-serif',
+                  }}>
+                    {med.nom}
+                  </td>
+                  {days.map(({iso, dow}) => (
+                    <SwimCellRot
+                      key={iso}
+                      iso={iso} dow={dow} med={med}
+                      aMap={aMap} holidays={holidays}
+                      isSecretary={isSecretary}
+                      onDirectAssign={onDirectAssign}
+                      onDirectRemove={onDirectRemove}
+                    />
+                  ))}
+                  <td style={{padding:'0 0 0 10px', borderBottom:'1px solid var(--border)', background:'var(--surface)'}}>
+                    <div style={{display:'flex', gap:3, alignItems:'center', flexWrap:'nowrap'}}>
+                      {t.a > 0 && <span style={{fontSize:10,fontWeight:700,color:'#d97706',background:'#fdf6e7',padding:'2px 5px',borderRadius:6,whiteSpace:'nowrap',fontFamily:'sans-serif'}}>{t.a}A</span>}
+                      {t.p > 0 && <span style={{fontSize:10,fontWeight:700,color:'#e11d48',background:'#fff1f2',padding:'2px 5px',borderRadius:6,whiteSpace:'nowrap',fontFamily:'sans-serif'}}>{t.p}P</span>}
+                      {t.c > 0 && <span style={{fontSize:10,fontWeight:700,color:'#2272f0',background:'#eff6ff',padding:'2px 5px',borderRadius:6,whiteSpace:'nowrap',fontFamily:'sans-serif'}}>{t.c}C</span>}
+                    </div>
+                  </td>
+                </tr>
               );
             })}
-            <th style={{padding:'0 0 4px 10px', textAlign:'left', verticalAlign:'bottom',
-              borderBottom:'1px solid var(--border)'}}>
-              <span style={{fontSize:9, fontWeight:700, letterSpacing:'0.08em', color:'var(--text3)',
-                fontFamily:'system-ui,sans-serif'}}>TOTAL</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map(med => {
-            const t = totals[med.id] || {a:0,p:0,c:0};
-            return (
-              <tr key={med.id}>
-                <td style={{
-                  height:34, padding:'0 14px', fontSize:12, fontWeight:600, color:'var(--text)',
-                  whiteSpace:'nowrap', borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)',
-                  background:'var(--surface)', fontFamily:'sans-serif',
-                }}>
-                  {med.nom}
-                </td>
-                {days.map(({iso, dow}) => {
-                  const d    = aMap[iso] || {};
-                  const shA  = d.astreinte?.med_id  === med.id;
-                  const shP  = d.pont_rouge?.med_id === med.id;
-                  const shC  = d.csg1?.med_id       === med.id;
-                  const tod  = iso === todayIso;
-                  const wknd = dow >= 5;
-                  return (
-                    <td key={iso} style={{
-                      width:32, padding:0, textAlign:'center', verticalAlign:'middle',
-                      background: tod ? 'rgba(34,114,240,.1)' : wknd ? 'rgba(225,29,72,.02)' : 'transparent',
-                      borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)',
-                      cursor: isSecretary ? 'pointer' : 'default',
-                    }} onClick={isSecretary ? () => {
-                      const sid     = shA ? 'astreinte' : shP ? 'pont_rouge' : 'csg1';
-                      const current = shA ? d.astreinte : shP ? d.pont_rouge : shC ? d.csg1 : null;
-                      onEdit(iso, sid, current);
-                    } : undefined}>
-                      <div style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, height:34}}>
-                        {shA && <div style={{width:9,height:9,borderRadius:'50%',background:'#d97706'}} />}
-                        {shP && <div style={{width:9,height:9,borderRadius:'50%',background:'#e11d48'}} />}
-                        {shC && <div style={{width:9,height:9,borderRadius:'50%',background:'#2272f0'}} />}
-                        {!shA && !shP && !shC && isSecretary && (
-                          <div style={{width:14,height:14,borderRadius:3,border:'1.5px dashed var(--border)'}} />
-                        )}
-                      </div>
-                    </td>
-                  );
-                })}
-                <td style={{padding:'0 0 0 10px', borderBottom:'1px solid var(--border)', background:'var(--surface)'}}>
-                  <div style={{display:'flex', gap:3, alignItems:'center', flexWrap:'nowrap'}}>
-                    {t.a > 0 && <span style={{fontSize:10,fontWeight:700,color:'#d97706',background:'#fdf6e7',padding:'2px 5px',borderRadius:6,whiteSpace:'nowrap',fontFamily:'sans-serif'}}>{t.a}A</span>}
-                    {t.p > 0 && <span style={{fontSize:10,fontWeight:700,color:'#e11d48',background:'#fff1f2',padding:'2px 5px',borderRadius:6,whiteSpace:'nowrap',fontFamily:'sans-serif'}}>{t.p}P</span>}
-                    {t.c > 0 && <span style={{fontSize:10,fontWeight:700,color:'#2272f0',background:'#eff6ff',padding:'2px 5px',borderRadius:6,whiteSpace:'nowrap',fontFamily:'sans-serif'}}>{t.c}C</span>}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-      <div style={{display:'flex', gap:14, paddingTop:10, paddingLeft:160, flexWrap:'wrap'}}>
-        {SLOT_TYPES.map(sh => (
-          <div key={sh.id} style={{display:'flex', alignItems:'center', gap:5}}>
-            <div style={{width:9,height:9,borderRadius:'50%',background:sh.c}} />
-            <span style={{fontSize:10, color:'var(--text2)', fontFamily:'sans-serif'}}>{sh.label}</span>
-          </div>
-        ))}
-        {isSecretary && (
-          <span style={{fontSize:10, color:'var(--text3)', marginLeft:4, fontFamily:'sans-serif', fontStyle:'italic'}}>
-            Cliquer sur une cellule pour modifier
-          </span>
-        )}
+          </tbody>
+        </table>
+        <div style={{display:'flex', gap:14, paddingTop:10, paddingLeft:160, flexWrap:'wrap'}}>
+          {SLOT_TYPES.map(sh => (
+            <div key={sh.id} style={{display:'flex', alignItems:'center', gap:5}}>
+              <div style={{width:9,height:9,borderRadius:'50%',background:sh.c}} />
+              <span style={{fontSize:10, color:'var(--text2)', fontFamily:'sans-serif'}}>{sh.label}</span>
+            </div>
+          ))}
+          {isSecretary && (
+            <span style={{fontSize:10, color:'var(--text3)', marginLeft:4, fontFamily:'sans-serif', fontStyle:'italic'}}>
+              Clic = assigner / retirer
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// ── CalCell — calendar cell for Calendrier view ──────────
+// ── CalCell — calendar cell ──────────────────────────────
 function CalCell({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
   const iso   = toIso(date);
   const d     = aMap[iso] || {};
@@ -560,26 +549,21 @@ function CalCell({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
       position:'relative', overflow:'hidden',
       border: isToday ? '2px solid var(--accent)' : '1px solid var(--border)',
       borderRadius:'var(--r)',
-      background: isToday ? 'var(--accent-light)' : wknd ? 'rgba(225,29,72,.03)' : 'var(--surface)',
+      background: hol ? 'var(--holiday-stripe)' : isToday ? 'var(--accent-light)' : wknd ? 'rgba(225,29,72,.03)' : 'var(--surface)',
       padding:'8px 8px 7px',
       minHeight: isWEH ? 88 : 50,
       opacity: fade ? 0.25 : 1, transition:'opacity .2s',
     }}>
-      {hol && (
-        <div style={{position:'absolute', inset:0, pointerEvents:'none', borderRadius:'inherit', backgroundImage:'var(--holiday-stripe)'}}/>
-      )}
       <div style={{position:'relative', zIndex:1}}>
-        <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:4, marginBottom:4}}>
-          <span style={{
-            fontSize:11, fontWeight: isToday ? 800 : 600, fontFamily:'sans-serif',
-            color: isToday ? 'var(--accent)' : wknd ? '#e11d48' : 'var(--text)',
-          }}>
-            {date.getDate()}
-          </span>
+        <div style={{
+          fontSize:11, fontWeight: isToday ? 800 : 600, fontFamily:'sans-serif',
+          color: isToday ? 'var(--accent)' : wknd ? '#e11d48' : 'var(--text)',
+          marginBottom:4,
+        }}>
+          {date.getDate()}
           {hol && (
-            <span style={{fontSize:8, color:'#b45309', fontWeight:600, textAlign:'right', lineHeight:1.3, fontFamily:'sans-serif'}}>
-              {hol}
-            </span>
+            <span style={{display:'block', fontSize:8, fontStyle:'italic', color:'#d97706',
+              fontWeight:500, lineHeight:1.2}}>{hol}</span>
           )}
         </div>
         {visible.map(st => (
@@ -591,8 +575,8 @@ function CalCell({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
   );
 }
 
-// ── ViewCalendrier (Direction C) ─────────────────────────
-function ViewCalendrier({ year, month, aMap, medecins, holidays, isSecretary, sel, onSel, onEdit }) {
+// ── ViewCalendrier ───────────────────────────────────────
+function ViewCalendrier({ year, month, aMap, medecins, holidays, isSecretary, sel, onSel, onEdit, onMonthChange }) {
   const weeks    = buildMonthWeeks(year, month);
   const todayIso = toIso(new Date());
   const tonight  = aMap[todayIso];
@@ -610,6 +594,14 @@ function ViewCalendrier({ year, month, aMap, medecins, holidays, isSecretary, se
 
   return (
     <div>
+      <div className="wn print-hide" style={{marginBottom:14}}>
+        <button className="wn-btn" onClick={() => onMonthChange(new Date(year, month-1, 1))}>‹</button>
+        <button className="wn-btn" onClick={() => onMonthChange(new Date(year, month+1, 1))}>›</button>
+        <span className="wn-lbl">{MONTHS_FR[month]} {year}</span>
+        <button className="wn-chip" onClick={() => {
+          const n = new Date(); onMonthChange(new Date(n.getFullYear(), n.getMonth(), 1));
+        }}>Mois actuel</button>
+      </div>
       {showSpotlight && tonight?.astreinte && (
         <div style={{
           display:'inline-flex', alignItems:'center', gap:8,
@@ -739,12 +731,30 @@ export default function AstreintesTab({ medecins, isSecretary, onToast, onPushUn
       if (!medId) {
         if (!existing) { setModal(null); return; }
         await api.deleteAstreinte(existing.id);
+        if (typeAst === 'pont_rouge' || typeAst === 'csg1') {
+          const partner = getWeekendPartner(dateIso);
+          if (partner) {
+            const partnerEntry = aMap[partner]?.[typeAst];
+            if (partnerEntry && partnerEntry.med_id === existing.med_id) {
+              await api.deleteAstreinte(partnerEntry.id);
+            }
+          }
+        }
         const snap = { date_iso:dateIso, type_ast:typeAst, med_id:existing.med_id };
         onPushUndo?.('Retrait astreinte', async () => { await api.addAstreinte(snap); load(); });
       } else {
         const newRow = await api.addAstreinte({ date_iso:dateIso, type_ast:typeAst, med_id:medId });
         const newId  = newRow.id;
         const prevSnap = existing ? { date_iso:dateIso, type_ast:typeAst, med_id:existing.med_id } : null;
+        if (typeAst === 'pont_rouge' || typeAst === 'csg1') {
+          const partner = getWeekendPartner(dateIso);
+          if (partner) {
+            const partnerExisting = aMap[partner]?.[typeAst];
+            if (!partnerExisting || partnerExisting.med_id !== medId) {
+              await api.addAstreinte({ date_iso: partner, type_ast: typeAst, med_id: medId });
+            }
+          }
+        }
         onPushUndo?.('Affectation astreinte', async () => {
           await api.deleteAstreinte(newId);
           if (prevSnap) await api.addAstreinte(prevSnap);
@@ -752,6 +762,55 @@ export default function AstreintesTab({ medecins, isSecretary, onToast, onPushUn
         });
       }
       setModal(null);
+      await load();
+      onToast?.('Enregistré');
+    } catch(e) {
+      onToast?.(e.message || 'Erreur', 'err');
+    }
+  }
+
+  async function handleDirectAssign(dateIso, typeAst, med) {
+    try {
+      const existing = aMap[dateIso]?.[typeAst];
+      if (existing && existing.med_id === med.id) return;
+      const newRow = await api.addAstreinte({ date_iso: dateIso, type_ast: typeAst, med_id: med.id });
+      const newId = newRow.id;
+      const prevSnap = existing ? { date_iso: dateIso, type_ast: typeAst, med_id: existing.med_id } : null;
+      if (typeAst === 'pont_rouge' || typeAst === 'csg1') {
+        const partner = getWeekendPartner(dateIso);
+        if (partner) {
+          const partnerExisting = aMap[partner]?.[typeAst];
+          if (!partnerExisting || partnerExisting.med_id !== med.id) {
+            await api.addAstreinte({ date_iso: partner, type_ast: typeAst, med_id: med.id });
+          }
+        }
+      }
+      onPushUndo?.('Affectation astreinte', async () => {
+        await api.deleteAstreinte(newId);
+        if (prevSnap) await api.addAstreinte(prevSnap);
+        load();
+      });
+      await load();
+      onToast?.('Enregistré');
+    } catch(e) {
+      onToast?.(e.message || 'Erreur', 'err');
+    }
+  }
+
+  async function handleDirectRemove(entry, typeAst) {
+    try {
+      await api.deleteAstreinte(entry.id);
+      if (typeAst === 'pont_rouge' || typeAst === 'csg1') {
+        const partner = getWeekendPartner(entry.date_iso);
+        if (partner) {
+          const partnerEntry = aMap[partner]?.[typeAst];
+          if (partnerEntry && partnerEntry.med_id === entry.med_id) {
+            await api.deleteAstreinte(partnerEntry.id);
+          }
+        }
+      }
+      const snap = { date_iso: entry.date_iso, type_ast: typeAst, med_id: entry.med_id };
+      onPushUndo?.('Retrait astreinte', async () => { await api.addAstreinte(snap); load(); });
       await load();
       onToast?.('Enregistré');
     } catch(e) {
@@ -767,32 +826,12 @@ export default function AstreintesTab({ medecins, isSecretary, onToast, onPushUn
 
   return (
     <div>
-      {/* Month nav */}
-      <div className="wn print-hide">
-        <button className="wn-btn" onClick={() => changeMonth(new Date(y, mo-1, 1))}>‹</button>
-        <span className="wn-lbl">{MONTHS_FR[mo]} {y}</span>
-        <button className="wn-btn" onClick={() => changeMonth(new Date(y, mo+1, 1))}>›</button>
-        <button className="wn-chip" onClick={() => {
-          const n = new Date(); changeMonth(new Date(n.getFullYear(), n.getMonth(), 1));
-        }}>Mois actuel</button>
-        {loading && (
-          <span style={{ fontSize:11, color:'var(--text2)', marginLeft:8, fontFamily:'sans-serif' }}>
-            Chargement…
-          </span>
-        )}
-        {!isSecretary && (
-          <span style={{ fontSize:10, color:'var(--text3)', marginLeft:'auto', fontFamily:'sans-serif', fontStyle:'italic' }}>
-            Lecture seule — déverrouillez pour modifier
-          </span>
-        )}
-      </div>
-
       {/* View switcher + legend toolbar */}
       <div style={{
         display:'flex', justifyContent:'space-between', alignItems:'center',
         gap:12, marginBottom:16, flexWrap:'wrap',
       }}>
-        <div style={{display:'flex', gap:6}}>
+        <div style={{display:'flex', gap:6, alignItems:'center'}}>
           {VIEWS.map(v => (
             <button key={v.id} onClick={() => { setView(v.id); setSel(null); }} style={{
               display:'flex', flexDirection:'column', alignItems:'flex-start', gap:2,
@@ -809,6 +848,11 @@ export default function AstreintesTab({ medecins, isSecretary, onToast, onPushUn
               </span>
             </button>
           ))}
+          {loading && (
+            <span style={{fontSize:11, color:'var(--text2)', marginLeft:4, fontFamily:'sans-serif'}}>
+              Chargement…
+            </span>
+          )}
         </div>
         <div style={{display:'flex', gap:6, alignItems:'center', flexWrap:'wrap'}}>
           {SLOT_TYPES.map(sh => (
@@ -832,7 +876,7 @@ export default function AstreintesTab({ medecins, isSecretary, onToast, onPushUn
       {/* Views */}
       {view === 'A' && (
         <ViewSemaine
-          year={y} month={mo} weekStart={weekStart} onWeekChange={handleWeekChange}
+          weekStart={weekStart} onWeekChange={handleWeekChange}
           aMap={aMap} holidays={holidays} isSecretary={isSecretary}
           sel={sel} onSel={setSel} onEdit={handleEdit}
         />
@@ -840,7 +884,9 @@ export default function AstreintesTab({ medecins, isSecretary, onToast, onPushUn
       {view === 'B' && (
         <ViewRotation
           year={y} month={mo} aMap={aMap} medecins={medecins}
-          isSecretary={isSecretary} onEdit={handleEdit} holidays={holidays}
+          isSecretary={isSecretary} onMonthChange={changeMonth}
+          onDirectAssign={handleDirectAssign} onDirectRemove={handleDirectRemove}
+          holidays={holidays}
         />
       )}
       {view === 'C' && (
@@ -849,6 +895,7 @@ export default function AstreintesTab({ medecins, isSecretary, onToast, onPushUn
             year={y} month={mo} aMap={aMap} medecins={medecins}
             holidays={holidays} isSecretary={isSecretary}
             sel={sel} onSel={setSel} onEdit={handleEdit}
+            onMonthChange={changeMonth}
           />
           <StatsSection astreintes={astreintes} monthLabel={`${MONTHS_FR[mo]} ${y}`} />
         </>
