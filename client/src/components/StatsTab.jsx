@@ -4,14 +4,13 @@ import { POSTES, TYPE_LBL, getMonday } from '../utils';
 import * as api from '../api';
 
 const TYPE_COLORS = {
-  'Congé annuel (CA)':              '#2272f0',
-  'Formation / DPC':                '#059669',
-  'Congé maladie':                  '#e11d48',
-  'Temps non clinique':             '#9333ea',
-  'RTT':                            '#4f46e5',
-  'Récupération de garde':          '#ea580c',
-  'Congé formation (CF)':           '#0891b2',
-  'Activité externe (CM2R / MTG…)': '#d97706',
+  'Congé annuel (CA)':     '#2272f0',
+  'Congé maladie':         '#e11d48',
+  'Congé maternité':       '#db2777',
+  'RTT':                   '#4f46e5',
+  'Récupération de garde': '#ea580c',
+  'Formation':             '#059669',
+  'Activité hors site':    '#d97706',
 };
 function typeColor(t) { return TYPE_COLORS[t] ?? '#6A6A66'; }
 

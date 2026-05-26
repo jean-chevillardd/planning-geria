@@ -20,7 +20,8 @@
       "Bash(node -e ' *)",
       "Bash(node -e \"const db=require\\('./db'\\); const cols=db.prepare\\('PRAGMA table_info\\(medecins\\)'\\).all\\(\\); console.log\\(JSON.stringify\\(cols\\)\\); const s=db.prepare\\('SELECT * FROM medecins LIMIT 8'\\).all\\(\\); console.log\\(JSON.stringify\\(s,null,2\\)\\);\")",
       "Bash(npx vite *)",
-      "Bash(sqlite3 \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/database.sqlite\" \".tables\")"
+      "Bash(sqlite3 \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/database.sqlite\" \".tables\")",
+      "Bash(sqlite3 '/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/database.sqlite' ' *)"
     ]
   },
   "hooks": {

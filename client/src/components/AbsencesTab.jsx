@@ -15,9 +15,9 @@ const TYPE_LABELS = {
 };
 
 const TYPES_ABS = [
-  'Congé annuel (CA)', 'Formation / DPC', 'Congé maladie',
-  'Temps non clinique', 'RTT', 'Récupération de garde',
-  'Congé formation (CF)', 'Activité externe (CM2R / MTG…)',
+  'Congé annuel (CA)', 'Congé maladie', 'Congé maternité',
+  'RTT', 'Récupération de garde', 'Formation',
+  'Activité hors site',
 ];
 
 const MONTHS_FR = [
@@ -31,14 +31,13 @@ const DAY_H    = 32;
 
 // ── Couleurs par type d'absence (fixes, sémantiques) ────────
 const TYPE_COLORS = {
-  'Congé annuel (CA)':              '#2272f0', // bleu
-  'Formation / DPC':                '#059669', // emeraude
-  'Congé maladie':                  '#e11d48', // rose
-  'Temps non clinique':             '#9333ea', // violet
-  'RTT':                            '#4f46e5', // indigo
-  'Récupération de garde':          '#ea580c', // orange
-  'Congé formation (CF)':           '#0891b2', // cyan
-  'Activité externe (CM2R / MTG…)': '#d97706', // ambre
+  'Congé annuel (CA)':  '#2272f0', // bleu
+  'Congé maladie':      '#e11d48', // rose
+  'Congé maternité':    '#db2777', // rose fuchsia
+  'RTT':                '#4f46e5', // indigo
+  'Récupération de garde': '#ea580c', // orange
+  'Formation':          '#059669', // émeraude
+  'Activité hors site': '#d97706', // ambre
 };
 function typeColor(typeAbs) { return TYPE_COLORS[typeAbs] ?? '#6A6A66'; }
 
