@@ -4,13 +4,14 @@ import { getMonday, toIso, addDays } from './utils';
 import { useBaseData, usePlanning } from './hooks/useData';
 import * as api from './api';
 
-import WeekNav      from './components/WeekNav';
-import PlanningGrid from './components/PlanningGrid';
-import AssignModal  from './components/AssignModal';
-import TeamTab      from './components/TeamTab';
-import AbsencesTab  from './components/AbsencesTab';
-import StatsTab     from './components/StatsTab';
-import MonthView    from './components/MonthView';
+import WeekNav       from './components/WeekNav';
+import PlanningGrid  from './components/PlanningGrid';
+import AssignModal   from './components/AssignModal';
+import TeamTab       from './components/TeamTab';
+import AbsencesTab   from './components/AbsencesTab';
+import StatsTab      from './components/StatsTab';
+import MonthView     from './components/MonthView';
+import AstreintesTab from './components/AstreintesTab';
 
 // ── Tab definitions — no emoji, SVG icons ──────────────────
 const TAB_ICONS = {
@@ -171,40 +172,6 @@ function LockButton({ isSecretary, onLock, onUnlock }) {
         {isSecretary ? 'Accès total' : 'Lecture seule'}
       </span>
     </button>
-  );
-}
-
-// ── Onglet Astreintes (placeholder) ───────────────────────
-function AstreintesTab({ dayIso }) {
-  return (
-    <div style={{
-      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-      padding:'4rem 2rem', textAlign:'center', gap:16,
-    }}>
-      <svg width="48" height="48" viewBox="0 0 14 14" fill="none"
-        stroke="var(--accent)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"
-        style={{ opacity:.35 }}>
-        <path d="M7 1.5c.55 0 1 .45 1 1v.4a4 4 0 0 1 3 3.8V10l1 1.5H2L3 10V6.7a4 4 0 0 1 3-3.8V2.5c0-.55.45-1 1-1z"/>
-        <path d="M5.5 12a1.5 1.5 0 0 0 3 0"/>
-      </svg>
-      <div>
-        <div style={{ fontFamily:'system-ui,-apple-system,sans-serif', fontSize:15, fontWeight:700,
-          color:'var(--text)', marginBottom:6 }}>
-          Astreintes
-        </div>
-        {dayIso && (
-          <div style={{ fontFamily:'system-ui,-apple-system,sans-serif', fontSize:11,
-            color:'var(--text2)', marginBottom:8 }}>
-            Jour sélectionné :{' '}
-            <strong>{new Date(dayIso + 'T12:00:00').toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long', year:'numeric' })}</strong>
-          </div>
-        )}
-        <div style={{ fontFamily:'system-ui,-apple-system,sans-serif', fontSize:11,
-          color:'var(--text3)', fontStyle:'italic' }}>
-          Cet onglet sera complété prochainement.
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -444,7 +411,15 @@ export default function App() {
           setAbsencesInitNav({ medId, monthDate: new Date(monthKey + '-15'), nonce: Date.now() });
           setTab('absences');
         }} />}
-        {tab === 'astreintes' && <AstreintesTab dayIso={astreintesDay} />}
+        {tab === 'astreintes' && (
+          <AstreintesTab
+            medecins={medecins}
+            isSecretary={isSecretary}
+            onToast={showToast}
+            onPushUndo={pushUndo}
+            dayIso={astreintesDay}
+          />
+        )}
 
         <div className="foot">Pôle Gériatrie — Planning interne · Base de données SQLite</div>
       </div>

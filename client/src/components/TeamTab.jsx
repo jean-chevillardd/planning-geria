@@ -12,13 +12,17 @@ const GROUPS = [
 ];
 
 export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPushUndo = () => {} }) {
-  const [modal,      setModal]      = useState(null); // null | { mode:'add'|'edit', med?:object }
+  const [modal,      setModal]      = useState(null); // null | { mode:'add'|'edit', med?:object, context?:'geriatrie'|'externe' }
   const [search,     setSearch]     = useState('');
   const [typeFilter, setTypeFilter] = useState(null); // null = tous, ou clé de groupe
 
-  // ── Filtrage par nom + type ───────────────────────────
+  // ── Séparation gériatrie / médecins d'astreinte extérieurs ──
+  const gerMedecins  = medecins.filter(m => !m.service || m.service === 'geriatrie');
+  const extMedecins  = medecins.filter(m => m.service  && m.service !== 'geriatrie');
+
+  // ── Filtrage par nom + type (équipe gériatrie seulement) ───
   const q = search.trim().toLowerCase();
-  const filtered = medecins
+  const filtered = gerMedecins
     .filter(m => !q || m.nom.toLowerCase().includes(q))
     .filter(m => !typeFilter || m.type === typeFilter);
 
@@ -55,7 +59,9 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
         <div className="sec-t">Équipe &amp; présences</div>
         {isSecretary && (
-          <button className="btn-primary" onClick={() => setModal({ mode:'add' })}>+ Ajouter un personnel</button>
+          <button className="btn-primary" onClick={() => setModal({ mode:'add', context:'geriatrie' })}>
+            + Ajouter un personnel
+          </button>
         )}
       </div>
 
@@ -82,7 +88,7 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
       <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:14, alignItems:'center' }}>
         {GROUPS.map(g => {
           const active = typeFilter === g.key;
-          const count  = medecins.filter(m => m.type === g.key).length;
+          const count  = gerMedecins.filter(m => m.type === g.key).length;
           return (
             <button
               key={g.key}
@@ -131,7 +137,7 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
         </p>
       )}
 
-      {/* ── Groupes ── */}
+      {/* ── Groupes gériatrie ── */}
       {GROUPS.map(g => {
         const list = filtered.filter(m => m.type === g.key);
         if (!list.length) return null;
@@ -143,7 +149,7 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
                 <MedCard key={m.id} med={m}
                   isSecretary={isSecretary}
                   onSchedChange={(idx, val) => handleSched(m, idx, val)}
-                  onEdit={() => setModal({ mode:'edit', med:m })}
+                  onEdit={() => setModal({ mode:'edit', med:m, context:'geriatrie' })}
                   onDelete={() => handleDelete(m)} />
               ))}
             </div>
@@ -151,11 +157,38 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
         );
       })}
 
+      {/* ── Section médecins d'astreinte extérieurs ── */}
+      <div style={{ marginTop:24 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+          <div className="sec-s" style={{ marginBottom:0 }}>Médecins d&apos;astreinte (autres services)</div>
+          {isSecretary && (
+            <button className="btn-sm" onClick={() => setModal({ mode:'add', context:'externe' })}>
+              + Ajouter
+            </button>
+          )}
+        </div>
+        {extMedecins.length === 0
+          ? <p style={{ fontSize:11, fontFamily:'sans-serif', color:'var(--text3)', fontStyle:'italic', margin:'8px 0' }}>
+              Aucun médecin d&apos;astreinte d&apos;un autre service.
+              {isSecretary && ' Cliquez « + Ajouter » pour en créer un.'}
+            </p>
+          : <div className="tgrid">
+              {extMedecins.map(m => (
+                <ExtMedCard key={m.id} med={m}
+                  isSecretary={isSecretary}
+                  onEdit={() => setModal({ mode:'edit', med:m, context:'externe' })}
+                  onDelete={() => handleDelete(m)} />
+              ))}
+            </div>
+        }
+      </div>
+
       {/* ── Modal ajout / modification ── */}
       {modal && (
         <PersonnelModal
           mode={modal.mode}
           med={modal.med}
+          initContext={modal.context}
           onClose={() => setModal(null)}
           onToast={onToast}
           onSave={async (data) => {
@@ -164,7 +197,10 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
                 const newMed = await api.addMedecin(data);
                 onPushUndo('Ajout personnel', async () => { await api.deleteMedecin(newMed.id); onReload(); });
               } else {
-                const oldData = { nom: modal.med.nom, type: modal.med.type, sched: [...modal.med.sched] };
+                const oldData = {
+                  nom: modal.med.nom, type: modal.med.type,
+                  sched: [...modal.med.sched], service: modal.med.service, tel: modal.med.tel,
+                };
                 const medId = modal.med.id;
                 await api.updateMedecin(medId, data);
                 onPushUndo('Modification personnel', async () => { await api.updateMedecin(medId, oldData); onReload(); });
@@ -177,6 +213,27 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
             }
           }}
         />
+      )}
+    </div>
+  );
+}
+
+// ── Carte médecin d'astreinte extérieur ──────────────────
+function ExtMedCard({ med, isSecretary, onEdit, onDelete }) {
+  return (
+    <div className="mcard">
+      <div className="mc-name">{med.nom}</div>
+      <div className="mc-type" style={{ color:'#6b7280' }}>{med.service}</div>
+      {med.tel && (
+        <div style={{ fontSize:11, fontFamily:'sans-serif', color:'var(--text2)', margin:'6px 0 2px' }}>
+          {med.tel}
+        </div>
+      )}
+      {isSecretary && (
+        <div className="mc-actions">
+          <button className="btn-sm" onClick={onEdit}>✎ Modifier</button>
+          <button className="btn-sm danger" onClick={onDelete}>🗑 Supprimer</button>
+        </div>
       )}
     </div>
   );
@@ -224,12 +281,14 @@ function MedCard({ med, isSecretary, onSchedChange, onEdit, onDelete }) {
 }
 
 // ── Modal ajout / édition ─────────────────────────────────
-function PersonnelModal({ mode, med, onClose, onSave, onToast }) {
-  const [nom,   setNom]   = useState(med?.nom  || '');
-  const [type,  setType]  = useState(med?.type || 'ph');
-  const [sched, setSched] = useState(
-    med?.sched ? [...med.sched] : Array(10).fill(1)
-  );
+function PersonnelModal({ mode, med, initContext, onClose, onSave, onToast }) {
+  const extInitial = initContext === 'externe' || (med?.service && med.service !== 'geriatrie');
+  const [isExterne, setIsExterne] = useState(extInitial);
+  const [nom,      setNom]      = useState(med?.nom   || '');
+  const [type,     setType]     = useState(med?.type  || 'ph');
+  const [sched,    setSched]    = useState(med?.sched ? [...med.sched] : Array(10).fill(1));
+  const [service,  setService]  = useState(med?.service && med.service !== 'geriatrie' ? med.service : '');
+  const [tel,      setTel]      = useState(med?.tel || '');
 
   const dj  = sched.filter(Boolean).length;
   const pct = Math.round(dj / 10 * 100);
@@ -241,14 +300,17 @@ function PersonnelModal({ mode, med, onClose, onSave, onToast }) {
 
   function handleSubmit() {
     if (!nom.trim()) { onToast('Le nom est requis', 'err'); return; }
-    onSave({ nom: nom.trim(), type, sched });
+    if (isExterne && !service.trim()) { onToast('Le service est requis', 'err'); return; }
+    if (isExterne) {
+      onSave({ nom:nom.trim(), type:'ph', sched:Array(10).fill(0), service:service.trim(), tel:tel.trim() });
+    } else {
+      onSave({ nom:nom.trim(), type, sched, service:'geriatrie', tel:tel.trim() });
+    }
   }
 
-  // Ref pour accéder à la version fraîche de handleSubmit sans stale closure
   const submitRef = useRef(handleSubmit);
   submitRef.current = handleSubmit;
 
-  // Esc → fermer · Entrée → enregistrer (hors boutons et checkboxes)
   useEffect(() => {
     function h(e) {
       if (e.key === 'Escape') { onClose(); return; }
@@ -263,10 +325,33 @@ function PersonnelModal({ mode, med, onClose, onSave, onToast }) {
 
   return (
     <div className="mbg open" onClick={e => e.target.classList.contains('mbg') && onClose()}>
-      <div className="mbox" style={{ width:400, maxHeight:580 }}>
+      <div className="mbox" style={{ width:420, maxHeight:620 }}>
         <div className="mhead">
           <div className="mttl">{mode === 'add' ? 'Ajouter un personnel' : 'Modifier'}</div>
           <button className="mclose" onClick={onClose}>×</button>
+        </div>
+
+        {/* Toggle contexte */}
+        <div className="form-row" style={{ marginBottom:14 }}>
+          <label style={{ marginBottom:6 }}>Contexte</label>
+          <div style={{ display:'flex', gap:6 }}>
+            {[
+              { key:false, label:'Équipe gériatrie' },
+              { key:true,  label:'Astreinte — autre service' },
+            ].map(({ key, label }) => (
+              <button key={String(key)}
+                onClick={() => setIsExterne(key)}
+                style={{
+                  flex:1, padding:'5px 8px', fontSize:11, fontFamily:'sans-serif',
+                  borderRadius:'var(--r)', cursor:'pointer', fontWeight: isExterne===key ? 700 : 400,
+                  border: isExterne===key ? '1.5px solid var(--accent)' : '1px solid var(--border2)',
+                  background: isExterne===key ? 'var(--accent-light)' : 'transparent',
+                  color: isExterne===key ? 'var(--accent)' : 'var(--text2)',
+                  transition:'all .1s',
+                }}
+              >{label}</button>
+            ))}
+          </div>
         </div>
 
         {/* Nom */}
@@ -276,42 +361,68 @@ function PersonnelModal({ mode, med, onClose, onSave, onToast }) {
             placeholder="Ex. Dr Martin Pierre" autoFocus />
         </div>
 
-        {/* Type */}
-        <div className="form-row">
-          <label>Type</label>
-          <select value={type} onChange={e => setType(e.target.value)}>
-            {Object.entries(TYPE_LBL).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
-          </select>
-        </div>
-
-        {/* Journées travaillées */}
-        <div className="form-row">
-          <label>Journées travaillées — {dj}/10 demi-journées ({pct}%)</label>
-          <div className="modal-sched">
-            <div className="schedule-grid">
-              <div></div>
-              {DAYS_FR.map(d => <div key={d} className="sg-head">{d}</div>)}
-              {rows.map((rl, ri) => (
-                <div key={rl} style={{ display:'contents' }}>
-                  <div className="sg-label">{rl}</div>
-                  {DAYS_FR.map((_, di) => {
-                    const idx = di * 2 + ri;
-                    return (
-                      <div key={di} className="sg-cell">
-                        <input type="checkbox" checked={!!sched[idx]}
-                          onChange={() => toggleSched(idx)} />
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+        {isExterne ? (
+          <>
+            {/* Service */}
+            <div className="form-row">
+              <label>Service / Spécialité</label>
+              <input type="text" value={service} onChange={e => setService(e.target.value)}
+                placeholder="Ex. Cardiologie, Médecine interne…" />
             </div>
-          </div>
-          <div style={{ display:'flex', gap:6, marginTop:6 }}>
-            <button className="btn-sm" onClick={() => setSched(Array(10).fill(1))}>Temps plein</button>
-            <button className="btn-sm" onClick={() => setSched(Array(10).fill(0))}>Tout effacer</button>
-          </div>
-        </div>
+            {/* Téléphone */}
+            <div className="form-row">
+              <label>Téléphone (optionnel)</label>
+              <input type="text" value={tel} onChange={e => setTel(e.target.value)}
+                placeholder="06 XX XX XX XX / XXXXX" />
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Type */}
+            <div className="form-row">
+              <label>Type</label>
+              <select value={type} onChange={e => setType(e.target.value)}>
+                {Object.entries(TYPE_LBL).map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+              </select>
+            </div>
+
+            {/* Téléphone */}
+            <div className="form-row">
+              <label>Téléphone (optionnel)</label>
+              <input type="text" value={tel} onChange={e => setTel(e.target.value)}
+                placeholder="06 XX XX XX XX / XXXXX" />
+            </div>
+
+            {/* Journées travaillées */}
+            <div className="form-row">
+              <label>Journées travaillées — {dj}/10 demi-journées ({pct}%)</label>
+              <div className="modal-sched">
+                <div className="schedule-grid">
+                  <div></div>
+                  {DAYS_FR.map(d => <div key={d} className="sg-head">{d}</div>)}
+                  {rows.map((rl, ri) => (
+                    <div key={rl} style={{ display:'contents' }}>
+                      <div className="sg-label">{rl}</div>
+                      {DAYS_FR.map((_, di) => {
+                        const idx = di * 2 + ri;
+                        return (
+                          <div key={di} className="sg-cell">
+                            <input type="checkbox" checked={!!sched[idx]}
+                              onChange={() => toggleSched(idx)} />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:6, marginTop:6 }}>
+                <button className="btn-sm" onClick={() => setSched(Array(10).fill(1))}>Temps plein</button>
+                <button className="btn-sm" onClick={() => setSched(Array(10).fill(0))}>Tout effacer</button>
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="modal-actions">
           <button className="btn-cancel" onClick={onClose}>Annuler</button>

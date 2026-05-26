@@ -53,23 +53,27 @@ app.get('/api/medecins', (req, res) => {
 });
 
 app.post('/api/medecins', (req, res) => {
-  const { nom, type, sched } = req.body;
+  const { nom, type, sched, service, tel } = req.body;
   if (!nom || !type) return res.status(400).json({ error: 'nom et type requis' });
   const id = 'm_' + Date.now();
   const schedStr = (sched || Array(10).fill(1)).join('');
-  dbLib.run('INSERT INTO medecins (id,nom,type,sched) VALUES (?,?,?,?)', [id, nom, type, schedStr]);
-  res.json({ id, nom, type, sched: schedStr.split('').map(Number) });
+  const svc   = service || 'geriatrie';
+  const phone = tel || '';
+  dbLib.run('INSERT INTO medecins (id,nom,type,sched,service,tel) VALUES (?,?,?,?,?,?)', [id, nom, type, schedStr, svc, phone]);
+  res.json({ id, nom, type, sched: schedStr.split('').map(Number), service: svc, tel: phone });
 });
 
 app.put('/api/medecins/:id', (req, res) => {
-  const { nom, type, sched } = req.body;
+  const { nom, type, sched, service, tel } = req.body;
   const { id } = req.params;
-  if (nom  !== undefined) dbLib.run('UPDATE medecins SET nom=?  WHERE id=?', [nom, id]);
-  if (type !== undefined) dbLib.run('UPDATE medecins SET type=? WHERE id=?', [type, id]);
-  if (sched !== undefined) {
+  if (nom     !== undefined) dbLib.run('UPDATE medecins SET nom=?     WHERE id=?', [nom, id]);
+  if (type    !== undefined) dbLib.run('UPDATE medecins SET type=?    WHERE id=?', [type, id]);
+  if (sched   !== undefined) {
     const s = Array.isArray(sched) ? sched.join('') : sched;
     dbLib.run('UPDATE medecins SET sched=? WHERE id=?', [s, id]);
   }
+  if (service !== undefined) dbLib.run('UPDATE medecins SET service=? WHERE id=?', [service, id]);
+  if (tel     !== undefined) dbLib.run('UPDATE medecins SET tel=?     WHERE id=?', [tel, id]);
   const updated = dbLib.queryOne('SELECT * FROM medecins WHERE id=?', [id]);
   if (!updated) return res.status(404).json({ error: 'Médecin non trouvé' });
   res.json({ ...updated, sched: updated.sched.split('').map(Number) });
@@ -81,6 +85,7 @@ app.delete('/api/medecins/:id', (req, res) => {
   dbLib.run('DELETE FROM affectations WHERE med_id=?', [id]);
   dbLib.run('DELETE FROM exclusions  WHERE med_id=?', [id]);
   dbLib.run('DELETE FROM extras      WHERE med_id=?', [id]);
+  dbLib.run('DELETE FROM astreintes  WHERE med_id=?', [id]);
   dbLib.run('DELETE FROM medecins    WHERE id=?', [id]);
   res.json({ ok: true });
 });
@@ -230,6 +235,44 @@ app.post('/api/planning/copy', (req, res) => {
     exts.forEach(r => dbLib.run('INSERT OR IGNORE INTO extras (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
       [to_week, r.poste_id, r.med_id, r.jour]));
   });
+  res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
+// ASTREINTES
+// ═══════════════════════════════════════════════════════
+app.get('/api/astreintes', (req, res) => {
+  const { month } = req.query;
+  if (!month) return res.status(400).json({ error: 'month requis (YYYY-MM)' });
+  const rows = dbLib.queryAll(`
+    SELECT a.id, a.date_iso, a.type_ast, a.med_id, m.nom as med_nom, m.tel as med_tel
+    FROM astreintes a JOIN medecins m ON a.med_id = m.id
+    WHERE a.date_iso LIKE ?
+    ORDER BY a.date_iso, a.type_ast
+  `, [month + '-%']);
+  res.json(rows);
+});
+
+app.post('/api/astreintes', (req, res) => {
+  const { date_iso, type_ast, med_id } = req.body;
+  if (!date_iso || !type_ast || !med_id)
+    return res.status(400).json({ error: 'date_iso, type_ast, med_id requis' });
+  try {
+    dbLib.run('DELETE FROM astreintes WHERE date_iso=? AND type_ast=?', [date_iso, type_ast]);
+    const result = dbLib.run(
+      'INSERT INTO astreintes (date_iso,type_ast,med_id) VALUES (?,?,?)',
+      [date_iso, type_ast, med_id]
+    );
+    const row = dbLib.queryOne(`
+      SELECT a.id, a.date_iso, a.type_ast, a.med_id, m.nom as med_nom, m.tel as med_tel
+      FROM astreintes a JOIN medecins m ON a.med_id=m.id WHERE a.id=?
+    `, [result.lastInsertRowid]);
+    res.json(row);
+  } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+app.delete('/api/astreintes/:id', (req, res) => {
+  dbLib.run('DELETE FROM astreintes WHERE id=?', [req.params.id]);
   res.json({ ok: true });
 });
 

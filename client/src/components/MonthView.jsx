@@ -98,9 +98,16 @@ const FILTERS = [
 const GRP_ORDER = {};
 FILTERS.forEach((f, fi) => f.grps.forEach(g => { GRP_ORDER[g] = fi; }));
 
+const AST_TYPES = {
+  astreinte:  { label:'Astreinte 18h30→8h30', c:'#d97706' },
+  pont_rouge: { label:'Pont Rouge 8h30→13h30', c:'#e11d48' },
+  csg1:       { label:'CSG 1 8h30→13h30',      c:'#2272f0' },
+};
+
 export default function MonthView({ medecins, absences }) {
   const [monthDate,    setMonthDate]    = useState(new Date());
   const [weekData,     setWeekData]     = useState({});
+  const [astrData,     setAstrData]     = useState([]); // astreintes du mois filtré par médecin
   const [filter,       setFilter]       = useState(null);
   const [subFilter,    setSubFilter]    = useState(null); // p.short du sous-service actif
   const [doctorFilter, setDoctorFilter] = useState('');
@@ -129,6 +136,15 @@ export default function MonthView({ medecins, absences }) {
     }
     load();
   }, [y, mo]);
+
+  // Charge les astreintes uniquement en vue médecin
+  useEffect(() => {
+    if (!doctorFilter) { setAstrData([]); return; }
+    const mk = `${y}-${String(mo + 1).padStart(2, '0')}`;
+    api.getAstreintes(mk)
+      .then(data => setAstrData(data.filter(a => a.med_id === doctorFilter)))
+      .catch(() => {});
+  }, [y, mo, doctorFilter]);
 
   const activeFilter  = FILTERS.find(f => f.id === filter) ?? null;
   // Postes visibles selon le filtre principal + sous-filtre éventuel
@@ -385,17 +401,24 @@ export default function MonthView({ medecins, absences }) {
                   return a.assignIdx - b.assignIdx;
                 });
 
-                // Congés — uniquement en vue par médecin
+                // Congés + astreintes — uniquement en vue par médecin
                 if (doctorFilter) {
-                  const med = medecins.find(m => m.id === doctorFilter);
                   absences
                     .filter(a => a.med_id === doctorFilter && a.date_debut <= di && a.date_fin >= di)
                     .forEach(a => {
                       chips.push({
-                        nom:   '',
-                        short: a.type_abs,
-                        c:     absColor(a.type_abs),
-                        key:   'abs-' + a.id + '-' + di,
+                        nom:'', short:a.type_abs, c:absColor(a.type_abs),
+                        key:'abs-' + a.id + '-' + di,
+                      });
+                    });
+                  astrData
+                    .filter(a => a.date_iso === di)
+                    .forEach(a => {
+                      const st = AST_TYPES[a.type_ast];
+                      chips.push({
+                        nom:'', short: st ? st.label : a.type_ast,
+                        c: st ? st.c : '#d97706',
+                        key:'ast-' + a.id,
                       });
                     });
                 }

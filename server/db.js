@@ -78,6 +78,20 @@ async function init() {
     )
   `);
 
+  // ── Migrations idempotentes ────────────────────────────
+  try { db.run(`ALTER TABLE medecins ADD COLUMN service TEXT DEFAULT 'geriatrie'`); } catch(_) {}
+  try { db.run(`ALTER TABLE medecins ADD COLUMN tel TEXT DEFAULT ''`); } catch(_) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS astreintes (
+      id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      date_iso  TEXT NOT NULL,
+      type_ast  TEXT NOT NULL,
+      med_id    TEXT NOT NULL,
+      UNIQUE(date_iso, type_ast)
+    )
+  `);
+
   // ── Seed ───────────────────────────────────────────────
   const count = queryOne('SELECT COUNT(*) as n FROM medecins').n;
   if (count === 0) {
