@@ -24,15 +24,6 @@ const TAB_ICONS = {
       <path d="M4 8.5h1.2M6.9 8.5h1.2M9.8 8.5h1.2"/>
     </svg>
   ),
-  mois: (active) => (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-      stroke={active ? '#2272f0' : '#c8c5bc'} strokeWidth="1.5"
-      strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="2" width="12" height="11" rx="1.5"/>
-      <path d="M1 5.5h12"/><path d="M4.5 1v3M9.5 1v3"/>
-      <path d="M3.5 8.5h1M6.5 8.5h1M9.5 8.5h1M3.5 11h1M6.5 11h1"/>
-    </svg>
-  ),
   equipe: (active) => (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
       stroke={active ? '#2272f0' : '#c8c5bc'} strokeWidth="1.5"
@@ -72,11 +63,15 @@ const TAB_ICONS = {
 
 const TABS = [
   { id:'planning',   label:'Planning' },
-  { id:'mois',       label:'Vue mensuelle' },
   { id:'equipe',     label:'Équipe' },
   { id:'absences',   label:'Absences' },
   { id:'stats',      label:'Synthèse' },
   { id:'astreintes', label:'Astreintes' },
+];
+
+const PLANNING_VIEWS = [
+  { id:'semaine',    label:'Semaine',    desc:'Cette semaine en grand' },
+  { id:'calendrier', label:'Calendrier', desc:'Vue mensuelle'         },
 ];
 
 const SESSION_KEY = 'secretary_key';
@@ -174,6 +169,7 @@ function LockButton({ isSecretary, onLock, onUnlock }) {
 // ── App principale ─────────────────────────────────────────
 export default function App() {
   const [tab,            setTab]        = useState('planning');
+  const [planningView,   setPlanningView] = useState('semaine');
   const [absencesInitNav, setAbsencesInitNav] = useState(null);
   const [monday,         setMonday]     = useState(() => getMonday(new Date()));
   const [modal,          setModal]      = useState(null);
@@ -379,28 +375,57 @@ export default function App() {
         {/* ── Planning ── */}
         {tab === 'planning' && (
           <>
-            <div className="print-hide">
-              <WeekNav monday={monday} onChange={setMonday} onCopy={handleCopyWeek}
-                onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isSecretary}
-                medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
+            {/* Switcher sous-vues */}
+            <div className="print-hide" style={{ display:'flex', gap:6, alignItems:'center', marginBottom:16 }}>
+              {PLANNING_VIEWS.map(v => (
+                <button key={v.id} onClick={() => setPlanningView(v.id)} style={{
+                  display:'flex', flexDirection:'column', alignItems:'flex-start', gap:2,
+                  padding:'8px 16px', borderRadius:'var(--r)',
+                  border:`1.5px solid ${planningView===v.id ? 'var(--accent)' : 'var(--border)'}`,
+                  background: planningView===v.id ? 'var(--accent-light)' : 'transparent',
+                  cursor:'pointer', fontFamily:'inherit', transition:'all .15s', minWidth:90,
+                }}>
+                  <span style={{ fontSize:12, fontWeight:700, color: planningView===v.id ? 'var(--accent)' : 'var(--text)' }}>
+                    {v.label}
+                  </span>
+                  <span style={{ fontSize:10, color: planningView===v.id ? 'rgba(34,114,240,.6)' : 'var(--text3)' }}>
+                    {v.desc}
+                  </span>
+                </button>
+              ))}
             </div>
-            {planLoading && !planningData && (
-              <div style={{ fontFamily:'system-ui,sans-serif', fontSize:12, color:'var(--text2)', padding:'1rem 0' }}>
-                Chargement du planning…
-              </div>
+
+            {/* Sous-vue Semaine */}
+            {planningView === 'semaine' && (
+              <>
+                <div className="print-hide">
+                  <WeekNav monday={monday} onChange={setMonday} onCopy={handleCopyWeek}
+                    onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isSecretary}
+                    medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
+                </div>
+                {planLoading && !planningData && (
+                  <div style={{ fontFamily:'system-ui,sans-serif', fontSize:12, color:'var(--text2)', padding:'1rem 0' }}>
+                    Chargement du planning…
+                  </div>
+                )}
+                {planningData && (
+                  <div style={{ opacity: planLoading ? 0.55 : 1, transition:'opacity .15s', pointerEvents: planLoading ? 'none' : undefined }}>
+                    <PlanningGrid monday={monday} planningData={planningData} absences={absences}
+                      medecins={medecins} isSecretary={isSecretary} doctorFilter={doctorFilter}
+                      onCellClick={(poste, dayIso) => isSecretary && setModal({ poste, dayIso })}
+                      onOpenAstreintes={handleOpenAstreintes}
+                      onMove={handleMove} />
+                  </div>
+                )}
+              </>
             )}
-            {planningData && (
-              <div style={{ opacity: planLoading ? 0.55 : 1, transition:'opacity .15s', pointerEvents: planLoading ? 'none' : undefined }}>
-                <PlanningGrid monday={monday} planningData={planningData} absences={absences}
-                  medecins={medecins} isSecretary={isSecretary} doctorFilter={doctorFilter}
-                  onCellClick={(poste, dayIso) => isSecretary && setModal({ poste, dayIso })}
-                  onOpenAstreintes={handleOpenAstreintes}
-                  onMove={handleMove} />
-              </div>
+
+            {/* Sous-vue Calendrier */}
+            {planningView === 'calendrier' && (
+              <MonthView medecins={medecins} absences={absences} />
             )}
           </>
         )}
-        {tab === 'mois'     && <MonthView medecins={medecins} absences={absences} />}
         {tab === 'equipe'   && <TeamTab medecins={medecins} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
         {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} initNav={absencesInitNav} />}
         {tab === 'stats'      && <StatsTab medecins={medecins} onGoToAbsences={(medId, monthKey) => {
