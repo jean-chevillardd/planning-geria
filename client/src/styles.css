@@ -194,6 +194,12 @@ button, input, select { font-family:inherit; }
 .modal-sched .sg-cell { display:flex; align-items:center; justify-content:center; }
 .modal-sched .sg-cell input[type=checkbox] { width:13px; height:13px; cursor:pointer; accent-color:var(--accent); }
 
+/* Équipe tab — slide-in drawer animation */
+@keyframes eq-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
 /* Print */
 .print-only { display: none; }
 .print-title {
