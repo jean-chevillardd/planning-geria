@@ -181,41 +181,6 @@ function AssignModal({ dateIso, typeAst, current, medecins, onClose, onAssign, o
   );
 }
 
-// ── StatsSection ───────────────────────────────────────
-function StatsSection({ astreintes, monthLabel }) {
-  if (!astreintes.length) return null;
-  const counts = {};
-  astreintes.forEach(a => {
-    if (!counts[a.med_id]) counts[a.med_id] = { nom:a.med_nom, astreinte:0, we:0 };
-    if (a.type_ast === 'astreinte') counts[a.med_id].astreinte++;
-    const dow = new Date(a.date_iso + 'T12:00:00').getDay();
-    if (dow === 0 || dow === 6) counts[a.med_id].we++;
-  });
-  const sorted = Object.values(counts).sort((a, b) => b.astreinte - a.astreinte);
-  return (
-    <div style={{ marginTop:20, borderTop:'1px solid var(--border)', paddingTop:14 }}>
-      <div className="sec-s">Récapitulatif — {monthLabel}</div>
-      <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-        {sorted.map(({ nom, astreinte, we }) => (
-          <div key={nom} style={{
-            fontSize:10, fontFamily:'sans-serif', padding:'3px 10px',
-            background:'var(--surface2)', borderRadius:'var(--r)',
-            border:'1px solid var(--border)',
-          }}>
-            <strong>{nom}</strong>
-            <span style={{ color:'var(--text2)', marginLeft:6 }}>
-              {astreinte} nuit{astreinte > 1 ? 's' : ''}
-            </span>
-            {we > 0 && (
-              <span style={{ color:'#e11d48', marginLeft:5, fontWeight:600 }}>+{we} WE</span>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ── SlotTypePicker — popover for rotation view ───────────
 function SlotTypePicker({ onPick, onClose }) {
   const ref = useRef(null);
@@ -549,21 +514,26 @@ function CalCell({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
       position:'relative', overflow:'hidden',
       border: isToday ? '2px solid var(--accent)' : '1px solid var(--border)',
       borderRadius:'var(--r)',
-      background: hol ? 'var(--holiday-stripe)' : isToday ? 'var(--accent-light)' : wknd ? 'rgba(225,29,72,.03)' : 'var(--surface)',
+      background: isToday ? 'var(--accent-light)' : wknd ? 'rgba(225,29,72,.03)' : 'var(--surface)',
       padding:'8px 8px 7px',
       minHeight: isWEH ? 88 : 50,
       opacity: fade ? 0.25 : 1, transition:'opacity .2s',
     }}>
+      {hol && (
+        <div style={{position:'absolute', inset:0, pointerEvents:'none', borderRadius:'inherit', backgroundImage:'var(--holiday-stripe)'}}/>
+      )}
       <div style={{position:'relative', zIndex:1}}>
-        <div style={{
-          fontSize:11, fontWeight: isToday ? 800 : 600, fontFamily:'sans-serif',
-          color: isToday ? 'var(--accent)' : wknd ? '#e11d48' : 'var(--text)',
-          marginBottom:4,
-        }}>
-          {date.getDate()}
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:4, marginBottom:4}}>
+          <span style={{
+            fontSize:11, fontWeight: isToday ? 800 : 600, fontFamily:'sans-serif',
+            color: isToday ? 'var(--accent)' : wknd ? '#e11d48' : 'var(--text)',
+          }}>
+            {date.getDate()}
+          </span>
           {hol && (
-            <span style={{display:'block', fontSize:8, fontStyle:'italic', color:'#d97706',
-              fontWeight:500, lineHeight:1.2}}>{hol}</span>
+            <span style={{fontSize:8, color:'#b45309', fontWeight:600, textAlign:'right', lineHeight:1.3, fontFamily:'sans-serif'}}>
+              {hol}
+            </span>
           )}
         </div>
         {visible.map(st => (
@@ -699,6 +669,11 @@ export default function AstreintesTab({ medecins, isSecretary, onToast, onPushUn
   useEffect(() => { load(); }, [load]);
 
   const aMap = useMemo(() => buildMap(astreintes), [astreintes]);
+
+  const astreinteMedecins = useMemo(() =>
+    medecins.filter(m => m.type === 'ph' || (m.service && m.service !== 'geriatrie')),
+    [medecins]
+  );
 
   function changeMonth(newMo) {
     setMonthDate(newMo);
@@ -883,28 +858,25 @@ export default function AstreintesTab({ medecins, isSecretary, onToast, onPushUn
       )}
       {view === 'B' && (
         <ViewRotation
-          year={y} month={mo} aMap={aMap} medecins={medecins}
+          year={y} month={mo} aMap={aMap} medecins={astreinteMedecins}
           isSecretary={isSecretary} onMonthChange={changeMonth}
           onDirectAssign={handleDirectAssign} onDirectRemove={handleDirectRemove}
           holidays={holidays}
         />
       )}
       {view === 'C' && (
-        <>
-          <ViewCalendrier
-            year={y} month={mo} aMap={aMap} medecins={medecins}
-            holidays={holidays} isSecretary={isSecretary}
-            sel={sel} onSel={setSel} onEdit={handleEdit}
-            onMonthChange={changeMonth}
-          />
-          <StatsSection astreintes={astreintes} monthLabel={`${MONTHS_FR[mo]} ${y}`} />
-        </>
+        <ViewCalendrier
+          year={y} month={mo} aMap={aMap} medecins={astreinteMedecins}
+          holidays={holidays} isSecretary={isSecretary}
+          sel={sel} onSel={setSel} onEdit={handleEdit}
+          onMonthChange={changeMonth}
+        />
       )}
 
       {modal && isSecretary && (
         <AssignModal
           {...modal}
-          medecins={medecins}
+          medecins={astreinteMedecins}
           onClose={() => setModal(null)}
           onAssign={medId => handleAssign(modal.dateIso, modal.typeAst, medId)}
           onClear={() => handleAssign(modal.dateIso, modal.typeAst, null)}
