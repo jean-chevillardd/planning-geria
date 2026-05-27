@@ -95,8 +95,8 @@ function PasswordModal({ onClose, onSuccess }) {
     if (!pwd.trim()) return;
     setBusy(true); setError('');
     try {
-      await api.checkPassword(pwd);
-      onSuccess(pwd);
+      const { token } = await api.checkPassword(pwd);
+      onSuccess(token ?? '');
     } catch {
       setError('Mot de passe incorrect.');
       setPwd('');

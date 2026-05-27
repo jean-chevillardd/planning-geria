@@ -17,6 +17,9 @@ client/dist/
 .env.local
 .env.*.local
 
+# ── Configuration secrétariat (contient le hash du mot de passe) ──
+server/secretary.config.json
+
 # ── Logs ─────────────────────────────────────────────────────
 *.log
 npm-debug.log*

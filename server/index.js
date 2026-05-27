@@ -1,31 +1,61 @@
 // index.js — serveur Express + API REST (sql.js async init)
-const express = require('express');
-const cors    = require('cors');
-const fs      = require('fs');
-const path    = require('path');
-const dbLib   = require('./db');
+const express   = require('express');
+const cors      = require('cors');
+const fs        = require('fs');
+const path      = require('path');
+const helmet    = require('helmet');
+const rateLimit = require('express-rate-limit');
+const bcrypt    = require('bcryptjs');
+const jwt       = require('jsonwebtoken');
+const crypto    = require('crypto');
+const dbLib     = require('./db');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
+app.use(helmet());
 app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3001'] }));
 app.use(express.json());
 
 // ═══════════════════════════════════════════════════════
 // CONFIGURATION SECRÉTARIAT
-// Modifier le mot de passe dans server/secretary.config.json
+// Modifier le mot de passe via : node -e "require('bcryptjs').hash('MOTDEPASSE',12).then(h=>require('fs').writeFileSync('secretary.config.json',JSON.stringify({passwordHash:h},null,2)))"
 // ═══════════════════════════════════════════════════════
-let SECRETARY_PASSWORD = '';
-try {
-  const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, 'secretary.config.json'), 'utf8'));
-  SECRETARY_PASSWORD = cfg.password || '';
-} catch { /* pas de fichier config → toutes les modifications sont libres */ }
+const CFG_PATH   = path.join(__dirname, 'secretary.config.json');
+const JWT_SECRET = crypto.randomBytes(32).toString('hex'); // regénéré à chaque redémarrage
 
-// Authentification (pas besoin de la DB, définie avant les guards)
-app.post('/api/auth', (req, res) => {
-  if (!SECRETARY_PASSWORD) return res.json({ ok: true });
-  if (req.body.password === SECRETARY_PASSWORD) return res.json({ ok: true });
-  res.status(401).json({ error: 'Mot de passe incorrect' });
+let SECRETARY_HASH = '';
+
+async function loadSecretaryConfig() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(CFG_PATH, 'utf8'));
+    if (cfg.passwordHash) {
+      SECRETARY_HASH = cfg.passwordHash;
+    } else if (cfg.password) {
+      // Migration automatique : hash du mot de passe en clair
+      SECRETARY_HASH = await bcrypt.hash(cfg.password, 12);
+      fs.writeFileSync(CFG_PATH, JSON.stringify({ passwordHash: SECRETARY_HASH }, null, 2));
+      console.log('✓ Mot de passe migré vers bcrypt (secretary.config.json mis à jour)');
+    }
+  } catch { /* pas de fichier config → accès libre */ }
+}
+
+// ── Rate limiting (anti brute-force sur /api/auth) ────
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Trop de tentatives, réessayez dans 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// ── Authentification (pas besoin de la DB) ────────────
+app.post('/api/auth', authLimiter, async (req, res) => {
+  if (!SECRETARY_HASH) return res.json({ ok: true, token: '' });
+  const match = await bcrypt.compare(req.body.password || '', SECRETARY_HASH);
+  if (!match) return res.status(401).json({ error: 'Mot de passe incorrect' });
+  const token = jwt.sign({ role: 'secretary' }, JWT_SECRET, { expiresIn: '8h' });
+  res.json({ ok: true, token });
 });
 
 // ── Guard : DB initialisée ────────────────────────────
@@ -35,14 +65,34 @@ app.use((req, res, next) => {
   next();
 });
 
-// ── Guard : secrétariat requis pour toute mutation ────
+// ── Guard : token JWT requis pour toute mutation ──────
 app.use((req, res, next) => {
   if (!['POST', 'PUT', 'DELETE'].includes(req.method)) return next();
-  if (!SECRETARY_PASSWORD) return next();
-  if (req.headers['x-secretary-key'] !== SECRETARY_PASSWORD)
-    return res.status(403).json({ error: 'Accès réservé aux secrétaires' });
-  next();
+  if (!SECRETARY_HASH) return next();
+  const token = req.headers['x-secretary-key'];
+  if (!token) return res.status(403).json({ error: 'Accès réservé aux secrétaires' });
+  try {
+    jwt.verify(token, JWT_SECRET);
+    next();
+  } catch {
+    res.status(403).json({ error: 'Session expirée, veuillez vous reconnecter' });
+  }
 });
+
+// ═══════════════════════════════════════════════════════
+// VALIDATION
+// ═══════════════════════════════════════════════════════
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MONTH_RE    = /^\d{4}-\d{2}$/;
+const MED_TYPES   = new Set(['ph', 'ipa', 'interne', 'externe', 'padhue']);
+const ABS_TYPES   = new Set([
+  'Congé annuel (CA)', 'Congé maladie', 'Congé maternité',
+  'RTT', 'Récupération de garde', 'Formation', 'Activité hors site',
+]);
+const AST_TYPES   = new Set(['astreinte', 'pont_rouge', 'csg1']);
+
+function isIsoDate(s) { return typeof s === 'string' && ISO_DATE_RE.test(s); }
+function isMonth(s)   { return typeof s === 'string' && MONTH_RE.test(s); }
 
 // ═══════════════════════════════════════════════════════
 // MÉDECINS
@@ -55,6 +105,7 @@ app.get('/api/medecins', (req, res) => {
 app.post('/api/medecins', (req, res) => {
   const { nom, type, sched, service, tel } = req.body;
   if (!nom || !type) return res.status(400).json({ error: 'nom et type requis' });
+  if (!MED_TYPES.has(type)) return res.status(400).json({ error: 'type invalide' });
   const id = 'm_' + Date.now();
   const schedStr = (sched || Array(10).fill(1)).join('');
   const svc   = service || 'geriatrie';
@@ -66,6 +117,8 @@ app.post('/api/medecins', (req, res) => {
 app.put('/api/medecins/:id', (req, res) => {
   const { nom, type, sched, service, tel } = req.body;
   const { id } = req.params;
+  if (type !== undefined && !MED_TYPES.has(type))
+    return res.status(400).json({ error: 'type invalide' });
   if (nom     !== undefined) dbLib.run('UPDATE medecins SET nom=?     WHERE id=?', [nom, id]);
   if (type    !== undefined) dbLib.run('UPDATE medecins SET type=?    WHERE id=?', [type, id]);
   if (sched   !== undefined) {
@@ -106,6 +159,10 @@ app.post('/api/absences', (req, res) => {
   const { med_id, date_debut, date_fin, type_abs } = req.body;
   if (!med_id || !date_debut || !date_fin || !type_abs)
     return res.status(400).json({ error: 'Champs manquants' });
+  if (!isIsoDate(date_debut) || !isIsoDate(date_fin))
+    return res.status(400).json({ error: 'Format de date invalide (YYYY-MM-DD attendu)' });
+  if (!ABS_TYPES.has(type_abs))
+    return res.status(400).json({ error: 'type_abs invalide' });
   if (date_fin < date_debut) return res.status(400).json({ error: 'date_fin < date_debut' });
   const result = dbLib.run(
     'INSERT INTO absences (med_id,date_debut,date_fin,type_abs) VALUES (?,?,?,?)',
@@ -124,6 +181,8 @@ app.delete('/api/absences/:id', (req, res) => {
 // ═══════════════════════════════════════════════════════
 app.get('/api/planning/:weekKey', (req, res) => {
   const { weekKey } = req.params;
+  if (!isIsoDate(weekKey))
+    return res.status(400).json({ error: 'weekKey invalide (YYYY-MM-DD attendu)' });
 
   const affRows = dbLib.queryAll(`
     SELECT a.poste_id, a.med_id, m.nom, m.type, m.sched
@@ -165,6 +224,7 @@ app.get('/api/planning/:weekKey', (req, res) => {
 app.post('/api/affectations', (req, res) => {
   const { week_key, poste_id, med_id } = req.body;
   if (!week_key || !poste_id || !med_id) return res.status(400).json({ error: 'Champs manquants' });
+  if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
   try {
     dbLib.run(
       'INSERT OR IGNORE INTO affectations (week_key,poste_id,med_id) VALUES (?,?,?)',
@@ -176,6 +236,7 @@ app.post('/api/affectations', (req, res) => {
 
 app.delete('/api/affectations', (req, res) => {
   const { week_key, poste_id, med_id } = req.body;
+  if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
   dbLib.run('DELETE FROM affectations WHERE week_key=? AND poste_id=? AND med_id=?', [week_key, poste_id, med_id]);
   dbLib.run('DELETE FROM exclusions   WHERE week_key=? AND poste_id=? AND med_id=?', [week_key, poste_id, med_id]);
   res.json({ ok: true });
@@ -186,6 +247,8 @@ app.delete('/api/affectations', (req, res) => {
 // ═══════════════════════════════════════════════════════
 app.post('/api/exclusions', (req, res) => {
   const { week_key, poste_id, med_id, jour } = req.body;
+  if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+  if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
   dbLib.run('INSERT OR IGNORE INTO exclusions (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
     [week_key, poste_id, med_id, jour]);
   res.json({ ok: true });
@@ -193,6 +256,8 @@ app.post('/api/exclusions', (req, res) => {
 
 app.delete('/api/exclusions', (req, res) => {
   const { week_key, poste_id, med_id, jour } = req.body;
+  if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+  if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
   dbLib.run('DELETE FROM exclusions WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
     [week_key, poste_id, med_id, jour]);
   res.json({ ok: true });
@@ -203,6 +268,8 @@ app.delete('/api/exclusions', (req, res) => {
 // ═══════════════════════════════════════════════════════
 app.post('/api/extras', (req, res) => {
   const { week_key, poste_id, med_id, jour } = req.body;
+  if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+  if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
   dbLib.run('INSERT OR IGNORE INTO extras (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
     [week_key, poste_id, med_id, jour]);
   res.json({ ok: true });
@@ -210,6 +277,8 @@ app.post('/api/extras', (req, res) => {
 
 app.delete('/api/extras', (req, res) => {
   const { week_key, poste_id, med_id, jour } = req.body;
+  if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+  if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
   dbLib.run('DELETE FROM extras WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
     [week_key, poste_id, med_id, jour]);
   res.json({ ok: true });
@@ -221,6 +290,8 @@ app.delete('/api/extras', (req, res) => {
 app.post('/api/planning/copy', (req, res) => {
   const { from_week, to_week } = req.body;
   if (!from_week || !to_week) return res.status(400).json({ error: 'from_week et to_week requis' });
+  if (!isIsoDate(from_week) || !isIsoDate(to_week))
+    return res.status(400).json({ error: 'Format de semaine invalide (YYYY-MM-DD attendu)' });
   dbLib.transaction(() => {
     dbLib.run('DELETE FROM affectations WHERE week_key=?', [to_week]);
     dbLib.run('DELETE FROM exclusions   WHERE week_key=?', [to_week]);
@@ -244,6 +315,7 @@ app.post('/api/planning/copy', (req, res) => {
 app.get('/api/astreintes', (req, res) => {
   const { month } = req.query;
   if (!month) return res.status(400).json({ error: 'month requis (YYYY-MM)' });
+  if (!isMonth(month)) return res.status(400).json({ error: 'month invalide (YYYY-MM attendu)' });
   const rows = dbLib.queryAll(`
     SELECT a.id, a.date_iso, a.type_ast, a.med_id, m.nom as med_nom, m.tel as med_tel
     FROM astreintes a JOIN medecins m ON a.med_id = m.id
@@ -257,6 +329,10 @@ app.post('/api/astreintes', (req, res) => {
   const { date_iso, type_ast, med_id } = req.body;
   if (!date_iso || !type_ast || !med_id)
     return res.status(400).json({ error: 'date_iso, type_ast, med_id requis' });
+  if (!isIsoDate(date_iso))
+    return res.status(400).json({ error: 'date_iso invalide (YYYY-MM-DD attendu)' });
+  if (!AST_TYPES.has(type_ast))
+    return res.status(400).json({ error: 'type_ast invalide' });
   try {
     dbLib.run('DELETE FROM astreintes WHERE date_iso=? AND type_ast=?', [date_iso, type_ast]);
     const result = dbLib.run(
@@ -343,15 +419,19 @@ function addDaysStr(isoDate, n) {
 // ═══════════════════════════════════════════════════════
 // DÉMARRAGE
 // ═══════════════════════════════════════════════════════
-dbLib.init().then(() => {
+loadSecretaryConfig().then(() => {
+  return dbLib.init();
+}).then(() => {
   DB_READY = true;
-  const pwdStatus = SECRETARY_PASSWORD ? '(mot de passe secrétariat configuré)' : '(ATTENTION : aucun mot de passe, accès libre)';
+  const pwdStatus = SECRETARY_HASH
+    ? '(mot de passe secrétariat configuré)'
+    : '(ATTENTION : aucun mot de passe, accès libre)';
   app.listen(PORT, () => {
     console.log(`\n✓ Serveur planning gériatrie → http://localhost:${PORT}`);
     console.log(`  API → http://localhost:${PORT}/api`);
     console.log(`  Secrétariat ${pwdStatus}\n`);
   });
 }).catch(err => {
-  console.error('Erreur init DB :', err);
+  console.error('Erreur init :', err);
   process.exit(1);
 });
