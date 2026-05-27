@@ -1,14 +1,14 @@
-// components/TeamTab.jsx — Équipe & Présences, itération 2
+// components/TeamTab.jsx — Équipe & Présences, itération 3
 import { useState, useEffect, useMemo } from 'react';
 import * as api from '../api';
 
 const CATS = [
-  { id:'ph',        label:'Praticiens Hospitaliers', short:'PH',       color:'#2272f0', bg:'#eef3ff' },
-  { id:'padhue',    label:'PADHUE',                  short:'PADHUE',   color:'#7c3aed', bg:'#f5f0ff' },
-  { id:'internes',  label:'Internes',                short:'Internes', color:'#ea580c', bg:'#fff4ed' },
-  { id:'ipa',       label:'IPA',                     short:'IPA',      color:'#059669', bg:'#edfdf5' },
-  { id:'externes',  label:'Externes',                short:'Externes', color:'#0891b2', bg:'#f0fbff' },
-  { id:'astreinte', label:"Médecins d'astreinte",    short:'',         color:'#d97706', bg:'#fffbeb' },
+  { id:'ph',        label:'Praticiens Hospitaliers', color:'#2272f0', bg:'#eef3ff' },
+  { id:'padhue',    label:'PADHUE',                  color:'#7c3aed', bg:'#f5f0ff' },
+  { id:'internes',  label:'Internes',                color:'#ea580c', bg:'#fff4ed' },
+  { id:'ipa',       label:'IPA',                     color:'#059669', bg:'#edfdf5' },
+  { id:'externes',  label:'Externes',                color:'#0891b2', bg:'#f0fbff' },
+  { id:'astreinte', label:"Médecins d'astreinte",    color:'#d97706', bg:'#fffbeb' },
 ];
 
 const DAYS_SHORT = ['L', 'Ma', 'Me', 'J', 'V'];
@@ -102,36 +102,6 @@ function PresenceStrips({ presence, color }) {
   );
 }
 
-// ── SummaryBar — pas de pill astreinte ───────────────────────
-function SummaryBar({ members }) {
-  const totals = CATS
-    .filter(c => c.id !== 'astreinte' && c.short)
-    .map(c => ({ ...c, count: members.filter(m => m.cat === c.id).length }))
-    .filter(c => c.count > 0);
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6,
-      padding: '8px 0 12px', borderBottom: '1px solid var(--border)', marginBottom: 16,
-    }}>
-      {totals.map(c => (
-        <span key={c.id} style={{
-          display: 'inline-flex', alignItems: 'center', gap: 5,
-          padding: '3px 10px', borderRadius: 20,
-          border: `1px solid ${c.color}44`, background: c.bg,
-          fontSize: 10, fontWeight: 700, fontFamily: 'system-ui,sans-serif',
-          color: c.color, whiteSpace: 'nowrap',
-        }}>
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: c.color }} />
-          {c.short} · {c.count}
-        </span>
-      ))}
-      <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text3)', fontFamily: 'system-ui,sans-serif', whiteSpace: 'nowrap' }}>
-        {members.length} membre{members.length > 1 ? 's' : ''} au total
-      </span>
-    </div>
-  );
-}
-
 // ── Carte membre — clic sur toute la carte pour éditer ───────
 function V1Card({ member, isSecretary, onEdit }) {
   const cat = getCat(member.cat);
@@ -145,13 +115,14 @@ function V1Card({ member, isSecretary, onEdit }) {
       onMouseLeave={() => setHovered(false)}
       onClick={isSecretary ? () => onEdit(member) : undefined}
       style={{
-        background: '#fff', borderRadius: 8, padding: '11px 12px',
-        borderTop:    `1px solid ${active ? cat.color + '55' : 'var(--border)'}`,
-        borderRight:  `1px solid ${active ? cat.color + '55' : 'var(--border)'}`,
-        borderBottom: `1px solid ${active ? cat.color + '55' : 'var(--border)'}`,
+        background: active ? '#fafafa' : '#fff',
+        borderRadius: 8, padding: '11px 12px',
+        borderTop:    `1px solid ${active ? cat.color + '44' : 'var(--border)'}`,
+        borderRight:  `1px solid ${active ? cat.color + '44' : 'var(--border)'}`,
+        borderBottom: `1px solid ${active ? cat.color + '44' : 'var(--border)'}`,
         borderLeft:   `3px solid ${cat.color}`,
-        boxShadow: active ? `0 3px 10px ${cat.color}28` : '0 1px 3px rgba(0,0,0,.07)',
-        transition: 'box-shadow .15s',
+        boxShadow: active ? `0 3px 10px ${cat.color}22` : '0 1px 3px rgba(0,0,0,.05)',
+        transition: 'box-shadow .15s, background .13s',
         cursor: isSecretary ? 'pointer' : 'default',
       }}
     >
@@ -181,14 +152,21 @@ function V1Card({ member, isSecretary, onEdit }) {
   );
 }
 
-// ── Section accordion — bandeau clairement cliquable ─────────
+// ── Section accordion — container blanc englobant ────────────
 function Section({ catId, members, isSecretary, onAdd, onEdit }) {
   const [open, setOpen] = useState(true);
   const [hdrHovered, setHdrHovered] = useState(false);
   const cat = getCat(catId);
   return (
-    <div style={{ marginBottom: 14 }}>
-      {/* Header band */}
+    <div style={{
+      marginBottom: 14,
+      background: '#fff',
+      borderRadius: 12,
+      border: '1px solid var(--border)',
+      boxShadow: '0 1px 4px rgba(0,0,0,.06)',
+      overflow: 'hidden',
+    }}>
+      {/* Bandeau en-tête */}
       <div
         onMouseEnter={() => setHdrHovered(true)}
         onMouseLeave={() => setHdrHovered(false)}
@@ -196,10 +174,9 @@ function Section({ catId, members, isSecretary, onAdd, onEdit }) {
         title={open ? 'Cliquer pour replier' : 'Cliquer pour déplier'}
         style={{
           display: 'flex', alignItems: 'center', gap: 8,
-          padding: '8px 12px', borderRadius: 7,
-          background: hdrHovered ? `${cat.color}16` : `${cat.color}0a`,
-          border: `1.5px solid ${cat.color}35`,
-          marginBottom: open ? 10 : 0,
+          padding: '10px 14px',
+          background: hdrHovered ? `${cat.color}18` : `${cat.color}0c`,
+          borderBottom: open ? '1px solid var(--border)' : 'none',
           cursor: 'pointer', userSelect: 'none',
           transition: 'background .13s',
         }}
@@ -231,9 +208,10 @@ function Section({ catId, members, isSecretary, onAdd, onEdit }) {
           <path d="M5 3l4 4-4 4" />
         </svg>
       </div>
-      {/* Card grid — 6 colonnes */}
+
+      {/* Grille de cartes — 6 colonnes, à l'intérieur du container blanc */}
       {open && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+        <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
           {members.map(m => (
             <V1Card key={m.id} member={m} isSecretary={isSecretary} onEdit={onEdit} />
           ))}
@@ -243,7 +221,7 @@ function Section({ catId, members, isSecretary, onAdd, onEdit }) {
   );
 }
 
-// ── Panneau d'édition (slide-in drawer) ─────────────────────
+// ── Panneau d'édition — carte flottante style Synthèse ───────
 function EditModal({ isNew, member, defaultCat, onClose, onSave, onDelete, onToast }) {
   const [prenom,   setPrenom]   = useState(member?.prenom  || '');
   const [nom,      setNom]      = useState(member?.nom     || '');
@@ -277,27 +255,44 @@ function EditModal({ isNew, member, defaultCat, onClose, onSave, onDelete, onToa
       onClick={e => e.target === e.currentTarget && onClose()}
       style={{
         position: 'fixed', inset: 0, zIndex: 600,
-        background: 'rgba(0,0,0,.35)', backdropFilter: 'blur(3px)',
-        display: 'flex', justifyContent: 'flex-end',
+        background: 'rgba(0,0,0,.18)',
+        display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start',
       }}
     >
       <div style={{
-        width: 420, height: '100%', background: '#fff',
-        boxShadow: '-8px 0 40px rgba(0,0,0,.18)',
+        width: 420,
+        margin: '16px 16px 16px 0',
+        background: '#fff',
+        borderRadius: 12,
+        boxShadow: '0 8px 40px rgba(0,0,0,.18)',
         display: 'flex', flexDirection: 'column',
         animation: 'eq-slide-in 220ms ease-out',
         overflow: 'hidden',
+        maxHeight: 'calc(100vh - 32px)',
       }}>
         {/* En-tête */}
-        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{
+          padding: '16px 18px 14px',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          flexShrink: 0,
+        }}>
           <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'system-ui,sans-serif' }}>
             {isNew ? 'Nouveau membre' : 'Modifier le membre'}
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 20, color: 'var(--text3)', lineHeight: 1, padding: 0 }}>✕</button>
+          <button
+            onClick={onClose}
+            style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: 'var(--bg)', border: '1px solid var(--border)',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 15, color: 'var(--text3)', lineHeight: 1,
+            }}
+          >✕</button>
         </div>
 
         {/* Formulaire */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
           {/* Prénom / Nom */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
             <div className="form-row" style={{ marginBottom: 0 }}>
@@ -356,31 +351,35 @@ function EditModal({ isNew, member, defaultCat, onClose, onSave, onDelete, onToa
               </div>
             </div>
           )}
+
+          {/* Bouton supprimer — membres existants, en bas du formulaire */}
+          {!isNew && onDelete && (
+            <div style={{ marginTop: 8 }}>
+              <button
+                onClick={onDelete}
+                style={{
+                  width: '100%', padding: '9px', borderRadius: 8,
+                  border: '1px solid #fda4af',
+                  background: 'var(--danger-bg)', color: 'var(--danger)',
+                  fontSize: 11, fontFamily: 'system-ui,sans-serif', fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Supprimer ce membre
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Pied de page */}
-        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
-          {/* Bouton supprimer — membres existants uniquement */}
-          {!isNew && onDelete && (
-            <button
-              onClick={onDelete}
-              style={{
-                padding: '8px', borderRadius: 8,
-                border: '1px solid #fda4af',
-                background: 'var(--danger-bg)', color: 'var(--danger)',
-                fontSize: 11, fontFamily: 'system-ui,sans-serif', fontWeight: 700,
-                cursor: 'pointer',
-              }}
-            >
-              Supprimer ce membre
-            </button>
-          )}
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn-cancel" onClick={onClose} style={{ flex: 1 }}>Annuler</button>
-            <button className="btn-primary" onClick={handleSave} style={{ flex: 2 }}>
-              {isNew ? 'Créer le membre' : 'Enregistrer'}
-            </button>
-          </div>
+        {/* Pied de page — bouton enregistrer uniquement */}
+        <div style={{
+          padding: '12px 18px',
+          borderTop: '1px solid var(--border)',
+          flexShrink: 0,
+        }}>
+          <button className="btn-primary" onClick={handleSave} style={{ width: '100%', padding: '10px' }}>
+            {isNew ? 'Créer le membre' : 'Enregistrer'}
+          </button>
         </div>
       </div>
     </div>
@@ -438,32 +437,51 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
   return (
     <div>
       {/* En-tête de page */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
         <div className="sec-t">Équipe &amp; présences</div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <div style={{ position: 'relative' }}>
-            <input
-              className="team-search" type="text" placeholder="Rechercher…"
-              value={search} onChange={e => setSearch(e.target.value)}
-              style={{ width: 200 }}
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--text3)', fontSize:14, lineHeight:1 }}
-              >×</button>
-            )}
-          </div>
-          {isSecretary && (
-            <button className="btn-primary" onClick={() => setModal({ isNew: true, defaultCat: 'ph' })}>
-              + Ajouter un personnel
-            </button>
-          )}
-        </div>
+        {isSecretary && (
+          <button className="btn-primary" onClick={() => setModal({ isNew: true, defaultCat: 'ph' })}>
+            + Ajouter un personnel
+          </button>
+        )}
       </div>
 
-      {/* Barre de synthèse */}
-      {filtered.length > 0 && <SummaryBar members={filtered} />}
+      {/* Champ de recherche — standalone, bien visible */}
+      <div style={{ position: 'relative', marginBottom: 18 }}>
+        <svg
+          width="15" height="15" viewBox="0 0 15 15" fill="none"
+          stroke="var(--text3)" strokeWidth="1.5" strokeLinecap="round"
+          style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+        >
+          <circle cx="6.5" cy="6.5" r="4.5" />
+          <line x1="10" y1="10" x2="13.5" y2="13.5" />
+        </svg>
+        <input
+          type="text"
+          placeholder="Rechercher un praticien…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            padding: '9px 34px 9px 32px',
+            border: '1px solid var(--border)',
+            borderRadius: 8, background: '#fff',
+            fontSize: 13, fontFamily: 'system-ui,sans-serif',
+            color: 'var(--text)', outline: 'none',
+            boxShadow: '0 1px 3px rgba(0,0,0,.06)',
+          }}
+        />
+        {search && (
+          <button
+            onClick={() => setSearch('')}
+            style={{
+              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--text3)', fontSize: 16, lineHeight: 1, padding: 0,
+            }}
+          >×</button>
+        )}
+      </div>
 
       {/* Recherche vide */}
       {filtered.length === 0 && q && (
