@@ -1,4 +1,4 @@
-// components/TeamTab.jsx — Équipe & Présences, itération 3
+// components/TeamTab.jsx — Équipe & Présences, itération 4 (slide panel)
 import { useState, useEffect, useMemo } from 'react';
 import * as api from '../api';
 
@@ -62,20 +62,18 @@ function Avatar({ member, size = 36 }) {
   );
 }
 
-// ── PresenceStrips — full card width ─────────────────────────
+// ── PresenceStrips — full width ──────────────────────────────
 function PresenceStrips({ presence, color }) {
   const count = presence.flat().reduce((a, b) => a + b, 0);
   const pct   = Math.round(count / 10 * 100);
   return (
     <div style={{ fontFamily: 'system-ui,sans-serif', width: '100%' }}>
-      {/* Day labels */}
       <div style={{ display: 'grid', gridTemplateColumns: '14px repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
         <div />
         {DAYS_SHORT.map(d => (
           <div key={d} style={{ fontSize: 8, color: 'var(--text3)', textAlign: 'center', fontWeight: 700 }}>{d}</div>
         ))}
       </div>
-      {/* M row and A row */}
       {[0, 1].map(pi => (
         <div key={pi} style={{ display: 'grid', gridTemplateColumns: '14px repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
           <div style={{ fontSize: 8, color: 'var(--text3)', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
@@ -89,7 +87,6 @@ function PresenceStrips({ presence, color }) {
           ))}
         </div>
       ))}
-      {/* Progress bar + count */}
       <div style={{ marginTop: 5 }}>
         <div style={{ height: 3, borderRadius: 2, background: '#eeecea', overflow: 'hidden', marginBottom: 2 }}>
           <div style={{ width: `${pct}%`, height: '100%', background: `${color}cc`, borderRadius: 2 }} />
@@ -102,35 +99,35 @@ function PresenceStrips({ presence, color }) {
   );
 }
 
-// ── Carte membre — clic sur toute la carte pour éditer ───────
-function V1Card({ member, isSecretary, onEdit }) {
+// ── Carte membre ─────────────────────────────────────────────
+function V1Card({ member, isSecretary, onEdit, isSelected }) {
   const cat = getCat(member.cat);
   const isAstreinte = member.cat === 'astreinte';
-  const [hovered, setHovered] = useState(false);
+  const [hov, setHov] = useState(false);
   const fullName = [member.prenom, member.nom].filter(Boolean).join(' ');
-  const active = hovered && isSecretary;
   return (
     <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
       onClick={isSecretary ? () => onEdit(member) : undefined}
       style={{
-        background: active ? '#fafafa' : '#fff',
+        background: isSelected ? 'var(--accent-light)' : hov ? '#fafafa' : '#fff',
         borderRadius: 8, padding: '11px 12px',
-        borderTop:    `1px solid ${active ? cat.color + '44' : 'var(--border)'}`,
-        borderRight:  `1px solid ${active ? cat.color + '44' : 'var(--border)'}`,
-        borderBottom: `1px solid ${active ? cat.color + '44' : 'var(--border)'}`,
-        borderLeft:   `3px solid ${cat.color}`,
-        boxShadow: active ? `0 3px 10px ${cat.color}22` : '0 1px 3px rgba(0,0,0,.05)',
-        transition: 'box-shadow .15s, background .13s',
+        borderTop:    `1px solid ${isSelected ? 'var(--accent)' : hov ? cat.color + '44' : 'var(--border)'}`,
+        borderRight:  `1px solid ${isSelected ? 'var(--accent)' : hov ? cat.color + '44' : 'var(--border)'}`,
+        borderBottom: `1px solid ${isSelected ? 'var(--accent)' : hov ? cat.color + '44' : 'var(--border)'}`,
+        borderLeft:   `3px solid ${isSelected ? 'var(--accent)' : cat.color}`,
+        boxShadow: isSelected
+          ? '0 0 0 3px rgba(34,114,240,.12)'
+          : hov ? `0 3px 10px ${cat.color}22` : '0 1px 3px rgba(0,0,0,.05)',
+        transition: 'all .15s',
         cursor: isSecretary ? 'pointer' : 'default',
       }}
     >
-      {/* Avatar + nom */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <Avatar member={member} size={32} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)', lineHeight: 1.3, fontFamily: 'system-ui,sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? 'var(--accent)' : 'var(--text)', lineHeight: 1.3, fontFamily: 'system-ui,sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {fullName}
           </div>
           <div style={{ fontSize: 9, color: 'var(--text2)', fontFamily: 'system-ui,sans-serif', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -138,7 +135,6 @@ function V1Card({ member, isSecretary, onEdit }) {
           </div>
         </div>
       </div>
-      {/* Présence ou note astreinte */}
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 7 }}>
         {isAstreinte ? (
           <div style={{ fontSize: 9, fontStyle: 'italic', color: 'var(--text3)', fontFamily: 'system-ui,sans-serif', lineHeight: 1.5 }}>
@@ -152,30 +148,29 @@ function V1Card({ member, isSecretary, onEdit }) {
   );
 }
 
-// ── Section accordion — container blanc englobant ────────────
-function Section({ catId, members, isSecretary, onAdd, onEdit }) {
+// ── Section accordion — container blanc ──────────────────────
+function Section({ catId, members, isSecretary, selectedId, onAdd, onEdit }) {
   const [open, setOpen] = useState(true);
-  const [hdrHovered, setHdrHovered] = useState(false);
+  const [hdrHov, setHdrHov] = useState(false);
   const cat = getCat(catId);
   return (
     <div style={{
       marginBottom: 14,
       background: '#fff',
-      borderRadius: 12,
+      borderRadius: 'var(--rl)',
       border: '1px solid var(--border)',
-      boxShadow: '0 1px 4px rgba(0,0,0,.06)',
+      boxShadow: 'var(--sh)',
       overflow: 'hidden',
     }}>
-      {/* Bandeau en-tête */}
       <div
-        onMouseEnter={() => setHdrHovered(true)}
-        onMouseLeave={() => setHdrHovered(false)}
+        onMouseEnter={() => setHdrHov(true)}
+        onMouseLeave={() => setHdrHov(false)}
         onClick={() => setOpen(o => !o)}
         title={open ? 'Cliquer pour replier' : 'Cliquer pour déplier'}
         style={{
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '10px 14px',
-          background: hdrHovered ? `${cat.color}18` : `${cat.color}0c`,
+          background: hdrHov ? `${cat.color}18` : `${cat.color}0c`,
           borderBottom: open ? '1px solid var(--border)' : 'none',
           cursor: 'pointer', userSelect: 'none',
           transition: 'background .13s',
@@ -208,12 +203,16 @@ function Section({ catId, members, isSecretary, onAdd, onEdit }) {
           <path d="M5 3l4 4-4 4" />
         </svg>
       </div>
-
-      {/* Grille de cartes — 6 colonnes, à l'intérieur du container blanc */}
       {open && (
         <div style={{ padding: '12px 14px', display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
           {members.map(m => (
-            <V1Card key={m.id} member={m} isSecretary={isSecretary} onEdit={onEdit} />
+            <V1Card
+              key={m.id}
+              member={m}
+              isSecretary={isSecretary}
+              isSelected={m.id === selectedId}
+              onEdit={onEdit}
+            />
           ))}
         </div>
       )}
@@ -221,22 +220,30 @@ function Section({ catId, members, isSecretary, onAdd, onEdit }) {
   );
 }
 
-// ── Panneau d'édition — carte flottante style Synthèse ───────
-function EditModal({ isNew, member, defaultCat, onClose, onSave, onDelete, onToast }) {
+// ── Panneau latéral (style Synthèse) ─────────────────────────
+function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast, allMembers }) {
+  const isNew  = selected?.isNew === true;
+  const member = isNew ? null : selected;
+
   const [prenom,   setPrenom]   = useState(member?.prenom  || '');
   const [nom,      setNom]      = useState(member?.nom     || '');
-  const [cat,      setCat]      = useState(member?.cat     || defaultCat || 'ph');
+  const [cat,      setCat]      = useState(member?.cat     || selected?.defaultCat || 'ph');
   const [service,  setService]  = useState(member?.service || '');
   const [presence, setPresence] = useState(
     member?.presence || Array.from({ length: 5 }, () => [1, 1])
   );
 
   const isAstreinte = cat === 'astreinte';
-  const catColor    = getCat(cat).color;
+  const catObj      = getCat(cat);
   const presCount   = presence.flat().reduce((a, b) => a + b, 0);
+  const fullName    = [member?.prenom, member?.nom].filter(Boolean).join(' ');
+
+  const idx  = isNew ? -1 : (allMembers || []).findIndex(m => m.id === member?.id);
+  const prev = isNew ? null : (allMembers || [])[idx - 1] ?? null;
+  const next = isNew ? null : (allMembers || [])[idx + 1] ?? null;
 
   function togglePresence(di, pi) {
-    setPresence(prev => prev.map((d, i) => i === di ? d.map((v, j) => j === pi ? (v ? 0 : 1) : v) : d));
+    setPresence(p => p.map((d, i) => i === di ? d.map((v, j) => j === pi ? (v ? 0 : 1) : v) : d));
   }
 
   function handleSave() {
@@ -244,152 +251,166 @@ function EditModal({ isNew, member, defaultCat, onClose, onSave, onDelete, onToa
     onSave({ prenom: prenom.trim(), nom: nom.trim(), cat, service: service.trim(), presence });
   }
 
-  useEffect(() => {
-    const h = e => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
-
   return (
-    <div
-      onClick={e => e.target === e.currentTarget && onClose()}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 600,
-        background: 'rgba(0,0,0,.18)',
-        display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start',
-      }}
-    >
-      <div style={{
-        width: 420,
-        margin: '16px 16px 16px 0',
-        background: '#fff',
-        borderRadius: 12,
-        boxShadow: '0 8px 40px rgba(0,0,0,.18)',
-        display: 'flex', flexDirection: 'column',
-        animation: 'eq-slide-in 220ms ease-out',
-        overflow: 'hidden',
-        maxHeight: 'calc(100vh - 32px)',
-      }}>
-        {/* En-tête */}
-        <div style={{
-          padding: '16px 18px 14px',
-          borderBottom: '1px solid var(--border)',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          flexShrink: 0,
-        }}>
-          <div style={{ fontSize: 15, fontWeight: 700, fontFamily: 'system-ui,sans-serif' }}>
-            {isNew ? 'Nouveau membre' : 'Modifier le membre'}
+    <div style={{
+      width: 420, flexShrink: 0,
+      background: 'var(--surface)',
+      borderLeft: '1px solid var(--border)',
+      display: 'flex', flexDirection: 'column', overflow: 'hidden',
+    }}>
+      {/* En-tête */}
+      <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
+            {!isNew && member && <Avatar member={member} size={44} />}
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', lineHeight: 1.3, fontFamily: 'system-ui,sans-serif' }}>
+                {isNew ? 'Nouveau membre' : fullName}
+              </div>
+              {!isNew && member && (
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, fontFamily: 'system-ui,sans-serif' }}>
+                  {getCat(member.cat).label}{member.service ? ` · ${member.service}` : ''}
+                </div>
+              )}
+            </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => onClose(null)}
             style={{
-              width: 28, height: 28, borderRadius: 8,
-              background: 'var(--bg)', border: '1px solid var(--border)',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 15, color: 'var(--text3)', lineHeight: 1,
+              background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+              width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: 'var(--text2)', flexShrink: 0, marginLeft: 12,
+              transition: 'all .15s',
             }}
-          >✕</button>
-        </div>
-
-        {/* Formulaire */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '18px' }}>
-          {/* Prénom / Nom */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div className="form-row" style={{ marginBottom: 0 }}>
-              <label>Prénom</label>
-              <input type="text" value={prenom} onChange={e => setPrenom(e.target.value)} placeholder="Prénom" autoFocus />
-            </div>
-            <div className="form-row" style={{ marginBottom: 0 }}>
-              <label>Nom</label>
-              <input type="text" value={nom} onChange={e => setNom(e.target.value)} placeholder="Nom" />
-            </div>
-          </div>
-
-          {/* Catégorie */}
-          <div className="form-row">
-            <label>Catégorie</label>
-            <select value={cat} onChange={e => setCat(e.target.value)}>
-              {CATS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-            </select>
-          </div>
-
-          {/* Service d'origine — astreinte uniquement */}
-          {isAstreinte && (
-            <div className="form-row">
-              <label>Service d'origine</label>
-              <input type="text" value={service} onChange={e => setService(e.target.value)} placeholder="Ex. Cardiologie" />
-            </div>
-          )}
-
-          {/* Grille de présence */}
-          {!isAstreinte && (
-            <div className="form-row">
-              <label>Présence — {presCount}/10 demi-journées</label>
-              <div style={{ marginTop: 8 }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(5, 1fr)', gap: 5, marginBottom: 5 }}>
-                  <div />
-                  {DAYS_FULL.map(d => (
-                    <div key={d} style={{ fontSize: 9, fontWeight: 700, textAlign: 'center', color: 'var(--text3)', fontFamily: 'system-ui,sans-serif' }}>{d}</div>
-                  ))}
-                </div>
-                {['Matin', 'Après-midi'].map((period, pi) => (
-                  <div key={period} style={{ display: 'grid', gridTemplateColumns: '60px repeat(5, 1fr)', gap: 5, marginBottom: 5 }}>
-                    <div style={{ fontSize: 10, color: 'var(--text2)', display: 'flex', alignItems: 'center', fontFamily: 'system-ui,sans-serif' }}>{period}</div>
-                    {presence.map((day, di) => (
-                      <button
-                        key={di}
-                        onClick={() => togglePresence(di, pi)}
-                        style={{
-                          height: 34, borderRadius: 6, border: 'none', cursor: 'pointer',
-                          background: day[pi] ? catColor : '#e8e6df',
-                          transition: 'background .1s',
-                        }}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Bouton supprimer — membres existants, en bas du formulaire */}
-          {!isNew && onDelete && (
-            <div style={{ marginTop: 8 }}>
-              <button
-                onClick={onDelete}
-                style={{
-                  width: '100%', padding: '9px', borderRadius: 8,
-                  border: '1px solid #fda4af',
-                  background: 'var(--danger-bg)', color: 'var(--danger)',
-                  fontSize: 11, fontFamily: 'system-ui,sans-serif', fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Supprimer ce membre
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Pied de page — bouton enregistrer uniquement */}
-        <div style={{
-          padding: '12px 18px',
-          borderTop: '1px solid var(--border)',
-          flexShrink: 0,
-        }}>
-          <button className="btn-primary" onClick={handleSave} style={{ width: '100%', padding: '10px' }}>
-            {isNew ? 'Créer le membre' : 'Enregistrer'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
           </button>
         </div>
       </div>
+
+      {/* Corps scrollable */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
+        {/* Prénom / Nom */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+          <div className="form-row" style={{ marginBottom: 0 }}>
+            <label>Prénom</label>
+            <input type="text" value={prenom} onChange={e => setPrenom(e.target.value)} placeholder="Prénom" autoFocus />
+          </div>
+          <div className="form-row" style={{ marginBottom: 0 }}>
+            <label>Nom</label>
+            <input type="text" value={nom} onChange={e => setNom(e.target.value)} placeholder="Nom" />
+          </div>
+        </div>
+
+        {/* Catégorie */}
+        <div className="form-row">
+          <label>Catégorie</label>
+          <select value={cat} onChange={e => setCat(e.target.value)}>
+            {CATS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+        </div>
+
+        {/* Service d'origine — astreinte uniquement */}
+        {isAstreinte && (
+          <div className="form-row">
+            <label>Service d'origine</label>
+            <input type="text" value={service} onChange={e => setService(e.target.value)} placeholder="Ex. Cardiologie" />
+          </div>
+        )}
+
+        {/* Grille de présence */}
+        {!isAstreinte && (
+          <div className="form-row">
+            <label>Présence — {presCount}/10 demi-journées</label>
+            <div style={{ marginTop: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(5, 1fr)', gap: 5, marginBottom: 5 }}>
+                <div />
+                {DAYS_FULL.map(d => (
+                  <div key={d} style={{ fontSize: 9, fontWeight: 700, textAlign: 'center', color: 'var(--text3)', fontFamily: 'system-ui,sans-serif' }}>{d}</div>
+                ))}
+              </div>
+              {['Matin', 'Après-midi'].map((period, pi) => (
+                <div key={period} style={{ display: 'grid', gridTemplateColumns: '60px repeat(5, 1fr)', gap: 5, marginBottom: 5 }}>
+                  <div style={{ fontSize: 10, color: 'var(--text2)', display: 'flex', alignItems: 'center', fontFamily: 'system-ui,sans-serif' }}>{period}</div>
+                  {presence.map((day, di) => (
+                    <button
+                      key={di}
+                      onClick={() => togglePresence(di, pi)}
+                      style={{
+                        height: 34, borderRadius: 6, border: 'none', cursor: 'pointer',
+                        background: day[pi] ? catObj.color : '#e8e6df',
+                        transition: 'background .1s',
+                      }}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Supprimer */}
+        {!isNew && onDelete && (
+          <div style={{ marginTop: 8 }}>
+            <button
+              onClick={onDelete}
+              style={{
+                width: '100%', padding: '9px', borderRadius: 8,
+                border: '1px solid #fda4af',
+                background: 'var(--danger-bg)', color: 'var(--danger)',
+                fontSize: 11, fontFamily: 'system-ui,sans-serif', fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              Supprimer ce membre
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Pied — enregistrer */}
+      <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+        <button className="btn-primary" onClick={handleSave} style={{ width: '100%', padding: '10px' }}>
+          {isNew ? 'Créer le membre' : 'Enregistrer'}
+        </button>
+      </div>
+
+      {/* Navigation précédent / suivant */}
+      {!isNew && (
+        <div style={{
+          padding: '10px 24px',
+          borderTop: '1px solid var(--border)',
+          display: 'flex', justifyContent: 'space-between',
+          flexShrink: 0,
+        }}>
+          {[[-1, prev, '← Précédent'], [1, next, 'Suivant →']].map(([, target, label]) => (
+            <button
+              key={label}
+              onClick={() => target && onClose(target)}
+              disabled={!target}
+              style={{
+                background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+                padding: '6px 12px', cursor: target ? 'pointer' : 'not-allowed',
+                color: target ? 'var(--text)' : 'var(--text3)',
+                fontSize: 12, fontWeight: 500, fontFamily: 'system-ui,sans-serif',
+                transition: 'all .15s', opacity: target ? 1 : 0.4,
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Composant principal ──────────────────────────────────────
 export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPushUndo = () => {} }) {
-  const [modal,  setModal]  = useState(null);
-  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState(null); // member obj | { isNew:true, defaultCat } | null
+  const [search,   setSearch]   = useState('');
 
   const members = useMemo(() => medecins.map(normalizeMedecin), [medecins]);
 
@@ -398,12 +419,19 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
     ? members.filter(m => `${m.prenom} ${m.nom} ${m.service || ''}`.toLowerCase().includes(q))
     : members;
 
+  // Escape ferme le panneau
+  useEffect(() => {
+    const h = e => { if (e.key === 'Escape') setSelected(null); };
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, []);
+
   async function handleDelete(member) {
     const fullName = [member.prenom, member.nom].filter(Boolean).join(' ');
     if (!confirm(`Supprimer ${fullName} ? Toutes ses affectations seront retirées.`)) return;
     try {
       await api.deleteMedecin(member.id);
-      setModal(null);
+      setSelected(null);
       onReload();
       onToast(`${member.nom} supprimé(e)`);
     } catch(e) {
@@ -412,110 +440,149 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
   }
 
   async function handleSave(data) {
-    const apiData = denormalizeMedecin(data, modal.member);
+    const isNew = selected?.isNew === true;
+    const apiData = denormalizeMedecin(data, isNew ? null : selected);
     try {
-      if (modal.isNew) {
+      if (isNew) {
         const newMed = await api.addMedecin(apiData);
         onPushUndo('Ajout personnel', async () => { await api.deleteMedecin(newMed.id); onReload(); });
       } else {
         const oldData = {
-          nom: modal.member._rawNom, type: modal.member._rawType,
-          sched: modal.member._rawSched, service: modal.member._rawService, tel: modal.member.tel,
+          nom: selected._rawNom, type: selected._rawType,
+          sched: selected._rawSched, service: selected._rawService, tel: selected.tel,
         };
-        const medId = modal.member.id;
+        const medId = selected.id;
         await api.updateMedecin(medId, apiData);
         onPushUndo('Modification personnel', async () => { await api.updateMedecin(medId, oldData); onReload(); });
       }
-      setModal(null);
+      setSelected(null);
       onReload();
-      onToast(modal.isNew ? 'Personnel ajouté' : 'Modifications enregistrées');
+      onToast(isNew ? 'Personnel ajouté' : 'Modifications enregistrées');
     } catch(e) {
       onToast(e.message || "Erreur lors de l'enregistrement", 'err');
     }
   }
 
+  // Fermeture ou navigation précédent/suivant depuis le panneau
+  function handlePanelClose(nextMember) {
+    if (nextMember && nextMember.id) {
+      setSelected(nextMember);
+    } else {
+      setSelected(null);
+    }
+  }
+
   return (
     <div>
-      {/* En-tête de page */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+      {/* En-tête — titre + bouton ajouter */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div className="sec-t">Équipe &amp; présences</div>
         {isSecretary && (
-          <button className="btn-primary" onClick={() => setModal({ isNew: true, defaultCat: 'ph' })}>
+          <button className="btn-primary" onClick={() => setSelected({ isNew: true, defaultCat: 'ph' })}>
             + Ajouter un personnel
           </button>
         )}
       </div>
 
-      {/* Champ de recherche — standalone, bien visible */}
-      <div style={{ position: 'relative', marginBottom: 18 }}>
-        <svg
-          width="15" height="15" viewBox="0 0 15 15" fill="none"
-          stroke="var(--text3)" strokeWidth="1.5" strokeLinecap="round"
-          style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
-        >
-          <circle cx="6.5" cy="6.5" r="4.5" />
-          <line x1="10" y1="10" x2="13.5" y2="13.5" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Rechercher un praticien…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{
-            width: '100%', boxSizing: 'border-box',
-            padding: '9px 34px 9px 32px',
-            border: '1px solid var(--border)',
-            borderRadius: 8, background: '#fff',
-            fontSize: 13, fontFamily: 'system-ui,sans-serif',
-            color: 'var(--text)', outline: 'none',
-            boxShadow: '0 1px 3px rgba(0,0,0,.06)',
-          }}
-        />
-        {search && (
-          <button
-            onClick={() => setSearch('')}
-            style={{
-              position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text3)', fontSize: 16, lineHeight: 1, padding: 0,
-            }}
-          >×</button>
-        )}
+      {/* Cadre principal — même structure que l'onglet Synthèse */}
+      <div style={{
+        display: 'flex',
+        height: 'calc(100vh - 190px)',
+        overflow: 'hidden',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--rl)',
+        background: 'var(--bg)',
+        boxShadow: 'var(--sh)',
+      }}>
+        {/* Zone gauche — contenu scrollable */}
+        <div style={{ flex: 1, minWidth: 0, overflowY: 'auto', padding: '0 24px' }}>
+
+          {/* Recherche — sticky en haut */}
+          <div style={{
+            position: 'sticky', top: 0, zIndex: 10,
+            background: 'var(--bg)', paddingTop: 20, paddingBottom: 14,
+          }}>
+            <div style={{ position: 'relative' }}>
+              <svg
+                width="15" height="15" viewBox="0 0 15 15" fill="none"
+                stroke="var(--text3)" strokeWidth="1.5" strokeLinecap="round"
+                style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}
+              >
+                <circle cx="6.5" cy="6.5" r="4.5" />
+                <line x1="10" y1="10" x2="13.5" y2="13.5" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Rechercher un praticien…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '9px 34px 9px 32px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8, background: '#fff',
+                  fontSize: 13, fontFamily: 'system-ui,sans-serif',
+                  color: 'var(--text)', outline: 'none',
+                  boxShadow: '0 1px 3px rgba(0,0,0,.06)',
+                }}
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  style={{
+                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text3)', fontSize: 16, lineHeight: 1, padding: 0,
+                  }}
+                >×</button>
+              )}
+            </div>
+          </div>
+
+          {/* Sections */}
+          <div style={{ paddingBottom: 24 }}>
+            {filtered.length === 0 && q && (
+              <p className="empty-msg">Aucun praticien trouvé pour « {search} ».</p>
+            )}
+            {CATS.map(cat => {
+              const catMembers = filtered.filter(m => m.cat === cat.id);
+              if (!catMembers.length) return null;
+              return (
+                <Section
+                  key={cat.id}
+                  catId={cat.id}
+                  members={catMembers}
+                  isSecretary={isSecretary}
+                  selectedId={selected?.id}
+                  onAdd={catId => setSelected({ isNew: true, defaultCat: catId })}
+                  onEdit={m => setSelected(m)}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Zone droite — panneau latéral à largeur animée */}
+        <div style={{
+          width: selected ? 420 : 0,
+          flexShrink: 0, overflow: 'hidden',
+          transition: 'width .25s ease',
+          display: 'flex',
+        }}>
+          {selected && (
+            <MemberPanel
+              key={selected?.id ?? 'new'}
+              selected={selected}
+              isSecretary={isSecretary}
+              onClose={handlePanelClose}
+              onSave={handleSave}
+              onDelete={!selected?.isNew && selected?.id ? () => handleDelete(selected) : undefined}
+              onToast={onToast}
+              allMembers={filtered}
+            />
+          )}
+        </div>
       </div>
-
-      {/* Recherche vide */}
-      {filtered.length === 0 && q && (
-        <p className="empty-msg">Aucun praticien trouvé pour « {search} ».</p>
-      )}
-
-      {/* Sections par catégorie */}
-      {CATS.map(cat => {
-        const catMembers = filtered.filter(m => m.cat === cat.id);
-        if (!catMembers.length) return null;
-        return (
-          <Section
-            key={cat.id}
-            catId={cat.id}
-            members={catMembers}
-            isSecretary={isSecretary}
-            onAdd={catId => setModal({ isNew: true, defaultCat: catId })}
-            onEdit={m => setModal({ isNew: false, member: m })}
-          />
-        );
-      })}
-
-      {/* Panneau d'édition */}
-      {modal && (
-        <EditModal
-          isNew={modal.isNew}
-          member={modal.member}
-          defaultCat={modal.defaultCat}
-          onClose={() => setModal(null)}
-          onSave={handleSave}
-          onDelete={!modal.isNew && modal.member ? () => handleDelete(modal.member) : undefined}
-          onToast={onToast}
-        />
-      )}
     </div>
   );
 }
