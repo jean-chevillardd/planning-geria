@@ -584,7 +584,7 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
                   background:'#d9770618', border:'1px solid #d9770644',
                   color:'#b45309', fontWeight:700, flexShrink:0,
                 }}>
-                  {chip.halfDay === 'matin' ? '½M' : '½AM'}
+                  {chip.halfDay === 'matin' ? 'matin' : 'après-midi'}
                 </span>
               )}
             </span>

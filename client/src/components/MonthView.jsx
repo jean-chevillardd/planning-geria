@@ -452,7 +452,7 @@ export default function MonthView({ medecins, absences }) {
                                   background:'#d9770618', border:'1px solid #d9770644',
                                   color:'#b45309', fontWeight:700, fontStyle:'normal', flexShrink:0,
                                 }}>
-                                  {ch.halfDay === 'matin' ? '½M' : '½AM'}
+                                  {ch.halfDay === 'matin' ? 'matin' : 'après-midi'}
                                 </span>
                               )}
                             </span>
