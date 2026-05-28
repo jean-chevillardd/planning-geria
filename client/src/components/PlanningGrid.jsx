@@ -1,6 +1,6 @@
 // components/PlanningGrid.jsx
 import { useMemo, useState, useRef } from 'react';
-import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getHalfDayAbsence, getFrenchHolidays } from '../utils';
+import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getSchedHalfDay, getFrenchHolidays } from '../utils';
 
 function fmtWeek(monday, days) {
   const opts = { day: 'numeric', month: 'long', year: 'numeric' };
@@ -496,7 +496,7 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
       isExtra: false,
       color: m._color || poste.c,
       srcPid: poste.id,
-      halfDay: getHalfDayAbsence(m.id, dayIso, absences),
+      halfDay: getSchedHalfDay(m, dayIso),
     })),
     ...dayExtras.map(e => ({
       key: e.med_id + '-x',

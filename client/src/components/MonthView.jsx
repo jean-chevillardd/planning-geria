@@ -1,6 +1,6 @@
 // components/MonthView.jsx
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, getHalfDayAbsence, getFrenchHolidays } from '../utils';
+import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, getSchedHalfDay, getFrenchHolidays } from '../utils';
 import * as api from '../api';
 import DoctorSearch from './DoctorSearch';
 
@@ -379,7 +379,7 @@ export default function MonthView({ medecins, absences }) {
                       chips.push({ nom: m.nom, short: p.short, c: p.c, key: p.id + m.id,
                                    type: m.type, grpRank, posteIdx: pi,
                                    assignIdx: posteOrder[m.id] ?? 9999, isExtra: false,
-                                   halfDay: getHalfDayAbsence(m.id, di, absences) });
+                                   halfDay: getSchedHalfDay(m, di) });
                     });
                     extras.filter(e => e.poste_id === p.id).forEach((e, ei) => {
                       if (doctorFilter && e.med_id !== doctorFilter) return;

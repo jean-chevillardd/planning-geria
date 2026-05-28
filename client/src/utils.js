@@ -66,40 +66,32 @@ export function fmtDayLong(d) {
 // ── Schedule helpers ──────────────────────────────────────
 export function schedIdx(dow) { return (dow - 1) * 2; }
 
-/** Retourne l'absence qui couvre ce jour, ou null */
-export function getAbsenceForDay(medId, dayIso, absences = []) {
-  return absences.find(a => a.med_id === medId && a.date_debut <= dayIso && a.date_fin >= dayIso) || null;
-}
-
-/** True uniquement pour une absence JOURNÉE ENTIÈRE (demi_journee == null/falsy) */
 export function isAbsent(medId, dayIso, absences = []) {
-  const a = getAbsenceForDay(medId, dayIso, absences);
-  return !!a && !a.demi_journee;
-}
-
-/** Retourne 'matin' | 'apm' | null selon la demi-journée d'absence */
-export function getHalfDayAbsence(medId, dayIso, absences = []) {
-  const a = getAbsenceForDay(medId, dayIso, absences);
-  return (a && a.demi_journee) ? a.demi_journee : null;
+  return absences.some(a => a.med_id === medId && a.date_debut <= dayIso && a.date_fin >= dayIso);
 }
 
 export function worksDay(med, dayIso, absences = []) {
+  if (isAbsent(med.id, dayIso, absences)) return false;
   const dow = new Date(dayIso + 'T12:00:00').getDay();
   if (dow === 0 || dow === 6) return false;
-
-  const absence = getAbsenceForDay(med.id, dayIso, absences);
-
-  // Absence journée entière → absent
-  if (absence && !absence.demi_journee) return false;
-
   const i = schedIdx(dow);
-
-  // Absence demi-journée : vérifier s'il travaille l'autre demi-journée
-  if (absence?.demi_journee === 'matin') return !!(med.sched[i + 1]); // présent l'AM ?
-  if (absence?.demi_journee === 'apm')   return !!(med.sched[i]);     // présent le matin ?
-
-  // Pas d'absence
   return !!(med.sched[i] || med.sched[i + 1]);
+}
+
+/**
+ * Retourne 'matin' si le médecin ne travaille que le matin ce jour-là,
+ * 'apm' si seulement l'après-midi, null s'il travaille les deux.
+ * Basé sur le sched défini dans l'onglet Équipe.
+ */
+export function getSchedHalfDay(med, dayIso) {
+  const dow = new Date(dayIso + 'T12:00:00').getDay();
+  if (dow === 0 || dow === 6) return null;
+  const i = schedIdx(dow);
+  const am = !!(med.sched[i]);
+  const pm = !!(med.sched[i + 1]);
+  if (am && !pm) return 'matin';
+  if (!am && pm) return 'apm';
+  return null;
 }
 
 export function countDemiJournees(med) {
