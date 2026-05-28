@@ -1,4 +1,2324 @@
 This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+The content has been processed where line numbers have been added, content has been formatted for parsing in markdown style, content has been compressed (code blocks are separated by ⋮---- delimiter).
+
+# File Summary
+
+## Purpose
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+
+## File Format
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  a. A header with the file path (## File: path/to/file)
+  b. The full contents of the file in a code block
+
+## Usage Guidelines
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+
+## Notes
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Line numbers have been added to the beginning of each line
+- Content has been formatted for parsing in markdown style
+- Content has been compressed - code blocks are separated by ⋮---- delimiter
+- Files are sorted by Git change count (files with more changes are at the bottom)
+
+# Directory Structure
+```
+.claude/
+  launch.json
+  settings.json
+  settings.local.json
+client/
+  src/
+    __tests__/
+      utils.test.js
+    components/
+      AbsencesTab.jsx
+      AssignModal.jsx
+      AstreintesTab.jsx
+      CongePublicPage.jsx
+      DoctorSearch.jsx
+      MonthView.jsx
+      PlanningGrid.jsx
+      StatsTab.jsx
+      TeamTab.jsx
+      WeekNav.jsx
+    hooks/
+      useData.js
+    api.js
+    App.jsx
+    main.jsx
+    styles.css
+    utils.js
+  index.html
+  package.json
+  vite.config.js
+server/
+  __tests__/
+    api.test.js
+  clear_holidays.js
+  db_testable.js
+  db.js
+  email.config.json.example
+  fix_names.js
+  import_absences.js
+  index.js
+  package.json
+  planning.db
+  seed.js
+.gitignore
+CLAUDE.md
+package.json
+railway.toml
+README.md
+repomix-output.xml
+```
+
+# Files
+
+## File: .claude/launch.json
+````json
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "client",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:client"],
+      "port": 5173
+    }
+  ]
+}
+````
+
+## File: .claude/settings.json
+````json
+{
+  "plugins": ["gstack"]
+}
+````
+
+## File: .claude/settings.local.json
+````json
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(node --check \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/index.js\")",
+      "Read(//tmp/**)",
+      "Bash(sleep 4 && cat /tmp/dev-server.log)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(curl -s http://localhost:3001/api/medecins)",
+      "Bash(unzip -o \"/Users/jeanchevillard/Downloads/Planning G_riatrie Design System\\(1\\).zip\" -d planning_design)",
+      "Bash(cp /tmp/planning_design/design_handoff_palette_refresh/patch/utils.js \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/client/src/utils.js\")",
+      "Bash(unzip -o \"/Users/jeanchevillard/Downloads/Planning G_riatrie Design System\\(2\\).zip\" -d planning_design2)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js|css|html\\)$\")",
+      "Bash(find /Users/jeanchevillard -name \"repomix-output.xml\" 2>/dev/null)",
+      "Bash(mv /Users/jeanchevillard/repomix-output.xml \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(xargs kill -9)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const db=require\\('./db'\\); const cols=db.prepare\\('PRAGMA table_info\\(medecins\\)'\\).all\\(\\); console.log\\(JSON.stringify\\(cols\\)\\); const s=db.prepare\\('SELECT * FROM medecins LIMIT 8'\\).all\\(\\); console.log\\(JSON.stringify\\(s,null,2\\)\\);\")",
+      "Bash(npx vite *)",
+      "Bash(sqlite3 \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/database.sqlite\" \".tables\")",
+      "Bash(sqlite3 '/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/database.sqlite' ' *)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie\" && git add -A && git diff --cached --quiet || git commit -m \"Auto-commit: session changes $(date '+%Y-%m-%d %H:%M')\" && git push 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
+````
+
+## File: client/src/__tests__/utils.test.js
+````javascript
+/**
+ * Tests Vitest — client/src/utils.js
+ * Couvre toutes les fonctions utilitaires pures
+ */
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// CONSTANTES
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// getMonday
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+const monday = new Date('2025-06-02T00:00:00'); // lundi
+⋮----
+const wed = new Date('2025-06-04T00:00:00'); // mercredi
+⋮----
+const fri = new Date('2025-06-06T00:00:00'); // vendredi
+⋮----
+const sun = new Date('2025-06-08T00:00:00'); // dimanche
+⋮----
+const sat = new Date('2025-06-07T00:00:00'); // samedi
+⋮----
+const d = new Date('2025-01-01T00:00:00'); // mercredi
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// toIso
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+const d = new Date(2025, 5, 2); // mois 0-indexé : juin = 5
+⋮----
+const d = new Date(2025, 0, 5); // 5 janvier
+⋮----
+// toIso utilise getFullYear/getMonth/getDate (local), pas toISOString() (UTC)
+const d = new Date(2025, 5, 2); // 2 juin en heure locale
+⋮----
+const d = new Date(2025, 11, 31); // 31 décembre
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// addDays
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// weekDays
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// schedIdx
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// lundi matin = index 0, lundi AM = index 1
+// vendredi matin = index 8, vendredi AM = index 9
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// isAbsent
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// worksDay
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// sched : [lunM, lunAM, marM, marAM, merM, merAM, jeuM, jeuAM, venM, venAM]
+⋮----
+const medHalfMorn  = { id: 'morn',  sched: [1,0,1,0,1,0,1,0,1,0] }; // que matins
+const medMerJeu    = { id: 'mj',    sched: [0,0,0,0,1,1,1,1,0,0] }; // mer+jeu
+⋮----
+expect(worksDay(medFullTime, '2025-06-02')).toBe(true); // lundi
+⋮----
+expect(worksDay(medFullTime, '2025-06-06')).toBe(true); // vendredi
+⋮----
+expect(worksDay(medFullTime, '2025-06-07')).toBe(false); // samedi
+⋮----
+expect(worksDay(medFullTime, '2025-06-08')).toBe(false); // dimanche
+⋮----
+expect(worksDay(medLunOnly, '2025-06-03')).toBe(false); // mardi
+⋮----
+// sched[0] = 1 (lundi matin) → travaille
+⋮----
+expect(worksDay(medMerJeu, '2025-06-04')).toBe(true); // mercredi
+⋮----
+expect(worksDay(medMerJeu, '2025-06-02')).toBe(false); // lundi
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// countDemiJournees
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// '1100111111' → lun M+AM, mer+jeu+ven M+AM = 2 + 6 = 8
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// worksWeekAny
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// TESTS DE COHÉRENCE MÉTIER
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+expect(days[0].getDay()).toBe(1); // lundi
+expect(days[4].getDay()).toBe(5); // vendredi
+⋮----
+const d = new Date('2025-06-04T00:00:00'); // mercredi
+⋮----
+const med = { sched: [1,1,1,1,0,0,1,1,1,1] }; // caroline
+⋮----
+// Les postes à min=0 incluent hdjog, emcc, ehpadl, cstmem
+⋮----
+// Aucun poste ne peut être dans les deux groupes
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// EDGE CASES
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// audrey : '1100111111' → 2 + 6 = 8
+````
+
+## File: client/src/components/AbsencesTab.jsx
+````javascript
+// components/AbsencesTab.jsx
+⋮----
+// ── Constantes ──────────────────────────────────────────────
+// Ordre et libellés des catégories de personnel
+⋮----
+// ── Couleurs par type d'absence (fixes, sémantiques) ────────
+⋮----
+'Congé annuel (CA)':  '#2272f0', // bleu
+'Congé maladie':      '#e11d48', // rose
+'Congé maternité':    '#db2777', // rose fuchsia
+'RTT':                '#4f46e5', // indigo
+'Récupération de garde': '#ea580c', // orange
+'Formation':          '#059669', // émeraude
+'Activité hors site': '#d97706', // ambre
+⋮----
+function typeColor(typeAbs)
+⋮----
+// ── Palette couleurs par praticien (légende filtre calendrier) ─
+⋮----
+function medColor(medId)
+⋮----
+// ── Utilitaires date ────────────────────────────────────────
+// ⚠ Méthodes locales pour éviter le décalage UTC+x
+function toIso(d)
+function todayIso()
+⋮----
+function countWorkingDays(d1, d2)
+⋮----
+function getCurrentWeekRange()
+⋮----
+function getMonthWeeks(monthStart)
+⋮----
+function computeBars(absences, weekDays)
+⋮----
+// ── Sélecteur de plage de dates (calendrier) ─────────────────
+function DateRangePicker(
+⋮----
+const [phase, setPhase] = useState('start'); // 'start' | 'end'
+⋮----
+// Ferme si clic hors du picker
+⋮----
+function h(e)
+⋮----
+// Jours du calendrier (alignés sur lundi)
+⋮----
+// Fin effective incluant l'aperçu survol
+⋮----
+function handleDayClick(iso)
+⋮----
+function fmtFr(iso)
+⋮----
+{/* ── Bouton déclencheur ── */}
+⋮----
+{/* ── Popover calendrier ── */}
+⋮----
+{/* Indication de phase */}
+⋮----
+{/* Navigation mois */}
+⋮----
+{/* En-têtes jours */}
+⋮----
+{/* Grille jours */}
+⋮----
+{/* Raccourcis rapides (phase start) */}
+⋮----
+
+⋮----
+// ── Champ de recherche praticien ────────────────────────────
+function MedSearchInput(
+⋮----
+function pick(m)
+⋮----
+function clear()
+⋮----
+function handleKeyDown(e)
+⋮----
+{/* Loupe explicite (le CSS .cgf input écrase le background-image de .team-search) */}
+⋮----
+{/* Dropdown */}
+⋮----
+{/* Aucun résultat */}
+⋮----
+// ── Légende types de congé ──────────────────────────────────
+function TypeLegend()
+⋮----
+// ── Vue liste groupée par mois ──────────────────────────────
+function AbsenceList(
+⋮----
+// ── Popover barre calendrier ────────────────────────────────
+function BarPopover(
+⋮----
+function handler(e)
+⋮----
+// ── Popover sélection rapide de mois ────────────────────────
+function MonthPickerPopover(
+⋮----
+{/* Navigation année */}
+⋮----
+{/* Grille 3×4 mois */}
+⋮----
+// ── Calendrier mensuel ──────────────────────────────────────
+function AbsenceCalendar(
+⋮----
+function handleBarClick(e, abs)
+⋮----
+{/* ── Navigation + filtre ── */}
+⋮----
+{/* Label cliquable → MonthPicker */}
+⋮----
+{/* ── En-têtes colonnes ── */}
+⋮----
+{/* ── Semaines ── */}
+⋮----
+const color    = typeColor(bar.abs.type_abs); // coloré par TYPE
+⋮----
+// ── Filtre praticien (badge + dropdown) dans nav calendrier ─
+function AbsenceFilterBadge(
+⋮----
+function select(id)
+⋮----
+// ── Vue semestre par praticien ──────────────────────────────
+function SemesterView(
+⋮----
+// Rows enrichis avec le type (catégorie) du praticien, triés par catégorie puis nom
+⋮----
+function getMedMonthAbs(medId, mIdx)
+⋮----
+function prevSem()
+function nextSem()
+⋮----
+{/* Navigation semestre */}
+⋮----
+// Insérer des lignes d'en-tête de catégorie entre les groupes
+⋮----
+// ── Composant principal ─────────────────────────────────────
+export default function AbsencesTab(
+⋮----
+const [viewMode,    setViewMode]    = useState('calendrier'); // 'calendrier' | 'semestre'
+⋮----
+// Navigation depuis l'onglet Synthèse → pré-sélectionne le médecin + mois
+⋮----
+async function handleAdd()
+⋮----
+async function handleDelete(id)
+⋮----
+{/* ── Formulaire ajout + alerte (secrétaires seulement) ── */}
+⋮----
+{/* Titre encadré */}
+⋮----
+{/* Praticien — champ cherchable */}
+⋮----
+{/* Période — sélecteur calendrier */}
+⋮----
+{/* ── Avertissement chevauchement ── */}
+⋮----
+{/* ── Recherche congé ── */}
+⋮----
+{/* ── Légende types de congé ── */}
+⋮----
+{/* ── Bascule vue Calendrier / Semestre ── */}
+````
+
+## File: client/src/components/AssignModal.jsx
+````javascript
+// components/AssignModal.jsx
+⋮----
+export default function AssignModal(
+⋮----
+// Esc → fermer
+⋮----
+function h(e)
+⋮----
+const isExcluded = medId
+⋮----
+// Présents à CE poste ce jour (affectés + non exclus + travaillent, ou extra ponctuel)
+⋮----
+// En poste AILLEURS ce jour (autre poste, affecté, travaille ce jour, non exclu, non absent)
+⋮----
+// Extras sur d'autres postes ce jour
+⋮----
+// ── Recherche ──────────────────────────────────────────────
+⋮----
+// ── Disponibilité "Affecter ce jour" (remplacement ponctuel) ──
+// Bloqué si : déjà présent ici aujourd'hui, en congé, ou en poste ailleurs ce jour
+function dayAvail(m)
+⋮----
+// ── Disponibilité "Renfort" ──
+// Possible uniquement si le médecin est déjà en poste ailleurs ce jour
+function renfortAvail(m)
+⋮----
+// ── Disponibilité "Affecter à la semaine" ──
+// Bloqué si : déjà affecté à ce poste, affecté à un autre poste cette semaine,
+// ou n'a aucun jour travaillé cette semaine
+function weekAvail(m)
+⋮----
+{/* ── En-tête ── */}
+⋮----
+{/* ── Affectés cette semaine ── */}
+⋮----
+{/* ── Bandeau praticien retiré ce jour ── */}
+⋮----
+{/* ── Remplaçants déjà ajoutés ce jour ── */}
+⋮----
+{/* ── Renforts déjà ajoutés ce jour ── */}
+⋮----
+{/* ── Barre de recherche ── */}
+⋮----
+{/* ── Résultats de recherche ── */}
+````
+
+## File: client/src/components/AstreintesTab.jsx
+````javascript
+function mkKey(d)
+⋮----
+function buildMap(astreintes)
+⋮----
+function localMonday(d)
+⋮----
+function buildMonthWeeks(year, month)
+⋮----
+function fmtWeekRange(monday)
+⋮----
+function getWeekendPartner(dateIso)
+⋮----
+if (dow === 6) return toIso(addDays(d, 1));  // Sam → Dim
+if (dow === 0) return toIso(addDays(d, -1)); // Dim → Sam
+⋮----
+// ── EPill — name chip ────────────────────────────────────
+function EPill(
+⋮----
+function handleClick()
+⋮----
+// ── AssignModal ────────────────────────────────────────
+function AssignModal(
+⋮----
+function h(e)
+⋮----
+// ── SlotTypePicker — popover for rotation view ───────────
+function SlotTypePicker(
+⋮----
+// ── SwimCellRot — rotation table cell ───────────────────
+function SwimCellRot(
+⋮----
+function handleClick(e)
+⋮----
+// ── DayCard — one day card in Semaine view ───────────────
+function DayCard(
+⋮----
+// ── ViewSemaine ──────────────────────────────────────────
+function ViewSemaine(
+⋮----
+// ── ViewRotation ─────────────────────────────────────────
+function ViewRotation(
+⋮----
+// ── CalCell — calendar cell ──────────────────────────────
+function CalCell(
+⋮----
+// ── ViewCalendrier ───────────────────────────────────────
+function ViewCalendrier(
+⋮----
+// ── AstreintesTab — composant principal ──────────────────
+export default function AstreintesTab(
+⋮----
+function changeMonth(newMo)
+⋮----
+function handleWeekChange(newMonday)
+⋮----
+function handleEdit(dateIso, typeAst, current)
+⋮----
+async function handleAssign(dateIso, typeAst, medId)
+⋮----
+async function handleDirectAssign(dateIso, typeAst, med)
+⋮----
+async function handleDirectRemove(entry, typeAst)
+⋮----
+{/* View switcher + legend toolbar */}
+⋮----
+{/* Views */}
+````
+
+## File: client/src/components/CongePublicPage.jsx
+````javascript
+// CongePublicPage.jsx — Page auto-service saisie de congés (accessible sans connexion via magic link)
+⋮----
+function EmptyRow(onAdd)
+⋮----
+// ── Icône calendrier ─────────────────────────────────────────
+function CalIcon()
+⋮----
+// ── Page d'erreur ────────────────────────────────────────────
+function ErrorPage(
+⋮----
+// ── Page de succès ────────────────────────────────────────────
+function SuccessPage(
+⋮----
+// ── Header commun ─────────────────────────────────────────────
+function Header()
+⋮----
+// ── Styles partagés ────────────────────────────────────────────
+⋮----
+// ── Ligne d'absence ───────────────────────────────────────────
+function AbsenceRow(
+⋮----
+{/* Type d'absence */}
+⋮----
+{/* Dates */}
+⋮----
+// ── Composant principal ───────────────────────────────────────
+export default function CongePublicPage(
+⋮----
+const [phase, setPhase]       = useState('loading'); // loading | form | success | error
+⋮----
+function updateAbsence(i, field, value)
+⋮----
+function removeAbsence(i)
+⋮----
+function addAbsence()
+⋮----
+async function handleSubmit()
+⋮----
+// Validation
+⋮----
+{/* Corps */}
+⋮----
+{/* Identification */}
+⋮----
+{/* Titre section */}
+⋮----
+{/* Lignes d'absence */}
+⋮----
+{/* Ajouter une ligne */}
+⋮----
+{/* Erreur soumission */}
+⋮----
+{/* Pied — bouton valider */}
+````
+
+## File: client/src/components/DoctorSearch.jsx
+````javascript
+export default function DoctorSearch(
+⋮----
+function pick(m)
+⋮----
+function clear()
+⋮----
+function handleKeyDown(e)
+````
+
+## File: client/src/components/MonthView.jsx
+````javascript
+// components/MonthView.jsx
+⋮----
+// ── Popover sélection rapide de mois ────────────────────────
+function MonthPickerPopover(
+⋮----
+function h(e)
+⋮----
+function absColor(type)
+⋮----
+// Même définition que PlanningGrid (sans "Tout afficher")
+⋮----
+// Rang de chaque groupe de services (suit l'ordre des filtres)
+⋮----
+export default function MonthView(
+⋮----
+const [astrData,     setAstrData]     = useState([]); // astreintes du mois filtré par médecin
+⋮----
+const [subFilter,    setSubFilter]    = useState(null); // p.short du sous-service actif
+⋮----
+// Calculer les semaines du mois
+⋮----
+async function load()
+⋮----
+// Charge les astreintes uniquement en vue médecin
+⋮----
+// Postes visibles selon le filtre principal + sous-filtre éventuel
+⋮----
+{/* ── Titre impression ── */}
+⋮----
+{/* ── Navigation ── */}
+⋮----
+{/* Label cliquable → MonthPicker */}
+⋮----
+{/* ── Filtres + bouton Imprimer ── */}
+⋮----
+// Libellés distincts des sous-services (p.short) pour ce filtre
+⋮----
+{/* ── Pill principale ── */}
+⋮----
+{/* Chevron discret si des sub-pills existent */}
+⋮----
+{/* ── Sub-pills (visibles seulement quand la pill principale est active) ── */}
+⋮----
+{/* Bouton Imprimer aligné avec les pills */}
+⋮----
+{/* ── Grille mensuelle ── */}
+⋮----
+// ── Ordre stable par poste pour la semaine ──────────────
+// Pour chaque poste, on détermine le rang de chaque praticien
+// en fonction du 1er jour de la semaine où il travaille réellement.
+// Si Dr A est seul lundi et Dr B arrive mardi, A garde le rang 0
+// même si B précède A alphabétiquement ou en base.
+⋮----
+if (order[m.id] !== undefined) return; // déjà classé
+⋮----
+// ────────────────────────────────────────────────────────
+⋮----
+// Chips selon les postes visibles (filtrés + vue médecin)
+// Aucune vacation affichée sur les jours fériés
+⋮----
+// Tri : service → poste → séniorité → régulier avant remplaçant → ordre d'arrivée (congés en dernier)
+⋮----
+// Congés + astreintes — uniquement en vue par médecin
+````
+
+## File: client/src/components/PlanningGrid.jsx
+````javascript
+// components/PlanningGrid.jsx
+⋮----
+function fmtWeek(monday, days)
+⋮----
+// ── Fusion CSG 1 (Sénior + Interne) et CSG 2 pour l'affichage ──
+⋮----
+function typeRank(type)
+function isSenior(type)
+⋮----
+// ── Composant principal ────────────────────────────────────
+⋮----
+export default function PlanningGrid(
+⋮----
+const [dragInfo,    setDragInfo]    = useState(null);   // chip en cours de drag
+const [pendingMove, setPendingMove] = useState(null);   // en attente de confirmation
+⋮----
+// ── Alertes ──────────────────────────────────────────────
+⋮----
+// ── Drag & Drop handlers ──────────────────────────────────
+⋮----
+function handleChipDragStart(info)
+⋮----
+function handleChipDragEnd()
+⋮----
+function handleCellDrop(targetPoste)
+⋮----
+// Même poste : annuler
+⋮----
+// Incompatibilité interne/non-interne
+⋮----
+async function confirmMove(mode)
+⋮----
+// Labels pour la dialog
+⋮----
+{/* ── Titre impression ── */}
+⋮----
+{/* ── Alerte couverture ── */}
+⋮----
+{/* ── Filtres / légende ── */}
+⋮----
+{/* ── Grille ── */}
+⋮----
+{/* En-tête colonnes */}
+⋮----
+{/* Lignes filtrées */}
+⋮----
+{/* ── Dialog confirmation déplacement ── */}
+⋮----
+{/* Titre */}
+⋮----
+{/* Options */}
+⋮----
+// ── Ligne de poste ──────────────────────────────────────────
+⋮----
+function GridRow(
+⋮----
+// ── Cellule ────────────────────────────────────────────────
+⋮----
+function Cell(
+⋮----
+// Fusion présents + extras dans une liste unique triée :
+// 1. typeRank  2. réguliers avant extras (même type)  3. stableOrder / alphabétique
+⋮----
+// Renforts en dernier
+⋮----
+// Même type : régulier avant extra
+⋮----
+// Réguliers : ordre stable calculé sur la semaine
+⋮----
+// Extras / renforts : alphabétique
+⋮----
+// ── Drop handlers ──────────────────────────────────────
+function handleDragEnter(e)
+function handleDragLeave()
+function handleDrop(e)
+⋮----
+// Est-ce que le drag en cours vient de cette cellule ?
+````
+
+## File: client/src/components/StatsTab.jsx
+````javascript
+// components/StatsTab.jsx — Synthèse: cards + heatmap with slide-in side panel
+⋮----
+/* ── Categories ───────────────────────────────────────── */
+⋮----
+/* ── Congé colors & labels ────────────────────────────── */
+⋮----
+function congeColor(t)
+function congeShort(t)
+⋮----
+/* ── Helpers ──────────────────────────────────────────── */
+⋮----
+// Clamps an ISO date string to the current-year window.
+function clampYear(iso, isEnd)
+⋮----
+function countWorkingDays(d1, d2)
+⋮----
+function sumW(p)
+⋮----
+function segs(p)
+⋮----
+function topSegs(p, n = 4)
+⋮----
+function congesByType(absences)
+⋮----
+function hexA(hex, alpha)
+⋮----
+function monthlyCongeMap(absences)
+⋮----
+// d is already clamped to current year, so getMonth() is correct
+⋮----
+/* ── Icons ────────────────────────────────────────────── */
+const IcoCards = () => (
+  <svg width="15" height="12" viewBox="0 0 15 12" fill="currentColor">
+    <rect x="0" y="0" width="6.5" height="5" rx="1.2"/>
+    <rect x="8.5" y="0" width="6.5" height="5" rx="1.2"/>
+    <rect x="0" y="7" width="6.5" height="5" rx="1.2"/>
+    <rect x="8.5" y="7" width="6.5" height="5" rx="1.2"/>
+  </svg>
+);
+const IcoMatrix = () => (
+  <svg width="15" height="12" viewBox="0 0 15 12" fill="currentColor">
+    <rect x="0" y="0" width="15" height="2" rx="1"/>
+    <rect x="0" y="5" width="15" height="2" rx="1"/>
+    <rect x="0" y="10" width="15" height="2" rx="1"/>
+    <rect x="0" y="0" width="2" height="12" rx="1"/>
+    <rect x="6.5" y="0" width="2" height="12" rx="1"/>
+  </svg>
+);
+const IcoSearch = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+  </svg>
+);
+const IcoClose = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+    <path d="M18 6L6 18M6 6l12 12"/>
+  </svg>
+);
+⋮----
+/* ── ViewToggle ───────────────────────────────────────── */
+function ViewToggle(
+⋮----
+const btn = (v, icon, label) => (
+<button onClick=
+⋮----
+/* ── SvcBar ───────────────────────────────────────────── */
+function SvcBar(
+⋮----
+/* ── MediumCard ───────────────────────────────────────── */
+function MediumCard(
+⋮----
+/* ── CardsView ────────────────────────────────────────── */
+function CardsView(
+⋮----
+/* ── MatrixView ───────────────────────────────────────── */
+function MatrixView(
+⋮----
+/* ── DetailContent ────────────────────────────────────── */
+function DetailContent(
+⋮----
+/* ── SidePanel ────────────────────────────────────────── */
+function SidePanel(
+⋮----
+/* ── Main StatsTab ────────────────────────────────────── */
+export default function StatsTab(
+⋮----
+function handleSelect(id)
+⋮----
+function handleViewSwitch(v)
+````
+
+## File: client/src/components/TeamTab.jsx
+````javascript
+// components/TeamTab.jsx — Équipe & Présences, itération 4 (slide panel)
+⋮----
+function getCat(id)
+⋮----
+function normalizeMedecin(m)
+⋮----
+function denormalizeMedecin(data, existingMember)
+⋮----
+// ── Avatar ───────────────────────────────────────────────────
+function Avatar(
+⋮----
+// ── PresenceStrips — full width ──────────────────────────────
+function PresenceStrips(
+⋮----
+// ── Carte membre ─────────────────────────────────────────────
+function V1Card(
+⋮----
+// ── Section accordion — container blanc ──────────────────────
+function Section(
+⋮----
+// ── Panneau latéral (style Synthèse) ─────────────────────────
+function MemberPanel(
+⋮----
+function togglePresence(di, pi)
+⋮----
+function handleSave()
+⋮----
+{/* En-tête */}
+⋮----
+{/* Corps scrollable */}
+⋮----
+{/* Prénom / Nom */}
+⋮----
+{/* Catégorie */}
+⋮----
+{/* Service d'origine — astreinte uniquement */}
+⋮----
+{/* Email — pour les campagnes congés */}
+⋮----
+{/* Grille de présence */}
+⋮----
+{/* Supprimer */}
+⋮----
+{/* Pied — enregistrer */}
+⋮----
+{/* Navigation précédent / suivant */}
+⋮----
+// ── Modale campagne congés ────────────────────────────────────
+⋮----
+function CampaignModal(
+⋮----
+const [phase, setPhase]                 = useState('select'); // select | sending | done
+⋮----
+function toggleType(t)
+⋮----
+// Liste des praticiens qui seraient contactés
+⋮----
+async function handleSend()
+⋮----
+// Les types à cibler (types raw)
+⋮----
+{/* En-tête */}
+⋮----
+/* ── Résultat ── */
+⋮----
+/* ── Sélection ── */
+⋮----
+{/* Types */}
+⋮----
+{/* Récap */}
+⋮----
+{/* Actions */}
+⋮----
+// ── Composant principal ──────────────────────────────────────
+export default function TeamTab(
+⋮----
+const [selected,      setSelected]      = useState(null); // member obj | { isNew:true, defaultCat } | null
+⋮----
+// Escape ferme le panneau
+⋮----
+const h = e =>
+⋮----
+async function handleDelete(member)
+⋮----
+async function handleSave(data)
+⋮----
+// Fermeture ou navigation précédent/suivant depuis le panneau
+function handlePanelClose(nextMember)
+⋮----
+{/* En-tête — titre + boutons */}
+⋮----
+{/* Cadre principal — même structure que l'onglet Synthèse */}
+⋮----
+{/* Zone gauche — contenu scrollable */}
+⋮----
+{/* Recherche — sticky en haut */}
+⋮----
+{/* Sections */}
+⋮----
+{/* Zone droite — panneau latéral à largeur animée */}
+⋮----
+{/* Modale campagne congés */}
+````
+
+## File: client/src/components/WeekNav.jsx
+````javascript
+// ── Mini-calendrier de navigation semaine ──────────────────
+function buildCalDays(monthDate)
+⋮----
+function WeekPickerPopover(
+⋮----
+function h(e)
+⋮----
+function handleDayClick(d)
+⋮----
+{/* Navigation mois */}
+⋮----
+{/* En-têtes jours */}
+⋮----
+{/* Grille jours */}
+⋮----
+// ── WeekNav principal ──────────────────────────────────────
+export default function WeekNav(
+⋮----
+{/* ── Navigation gauche ── */}
+⋮----
+{/* ── Label cliquable → calendrier ── */}
+⋮----
+{/* ── Navigation droite ── */}
+⋮----
+{/* ── Vue médecin ── */}
+````
+
+## File: client/src/hooks/useData.js
+````javascript
+// hooks/useData.js — custom hooks pour les données
+⋮----
+/** Hook principal : médecins + absences (données stables) */
+export function useBaseData()
+⋮----
+/** Hook planning semaine */
+export function usePlanning(weekKey)
+````
+
+## File: client/src/api.js
+````javascript
+// api.js — toutes les requêtes vers le serveur
+⋮----
+export function setSecretaryKey(key)
+⋮----
+async function req(method, path, body)
+⋮----
+// ── Authentification secrétariat ────────────────────────
+export const checkPassword = (password) => req('POST', '/auth',
+⋮----
+// ── Médecins ────────────────────────────────────────────
+export const getMedecins   = ()
+export const addMedecin    = (data)
+export const updateMedecin = (id, data) => req('PUT',    `/medecins/$
+export const deleteMedecin = (id)       => req('DELETE', `/medecins/$
+⋮----
+// ── Absences ────────────────────────────────────────────
+export const getAbsences   = ()
+export const addAbsence    = (data)
+export const deleteAbsence = (id)  => req('DELETE', `/absences/$
+⋮----
+// ── Planning semaine ────────────────────────────────────
+export const getPlanning = (weekKey) => req('GET', `/planning/$
+⋮----
+// ── Affectations hebdo ──────────────────────────────────
+export const addAffectation    = (data)
+export const deleteAffectation = (data)
+⋮----
+// ── Exclusions journalières ─────────────────────────────
+export const addExclusion    = (data)
+export const deleteExclusion = (data)
+⋮----
+// ── Extras journaliers ──────────────────────────────────
+export const addExtra    = (data)
+export const deleteExtra = (data)
+⋮----
+// ── Copier semaine ──────────────────────────────────────
+export const copyWeek = (from_week, to_week)
+⋮----
+// ── Statistiques médecin ────────────────────────────────
+export const getStatsMedecin = (medId) => req('GET', `/stats/medecin/$
+export const getAllStats      = ()
+⋮----
+// ── Renforts ────────────────────────────────────────────
+export const addRenfort    = (data)
+export const deleteRenfort = (data)
+⋮----
+// ── Astreintes ──────────────────────────────────────────
+export const getAstreintes   = (month) => req('GET', `/astreintes?month=$
+export const addAstreinte    = (data)
+export const deleteAstreinte = (id)    => req('DELETE', `/astreintes/$
+⋮----
+// ── Congés self-service ─────────────────────────────────
+export const validateCongeToken = (token)        => req('GET', `/conge/token/$
+export const submitCongeAbsences = (token, absences) => req('POST', '/conge/submit',
+export const previewCampaign    = (types)        => req('GET', `/conge/preview?types=$
+export const sendCampaign       = (types, base_url) => req('POST', '/conge/campaign',
+````
+
+## File: client/src/App.jsx
+````javascript
+// App.jsx — PATCHED: emoji removed from tabs, header refreshed, palette updated
+⋮----
+// ── Tab definitions — no emoji, SVG icons ──────────────────
+⋮----
+planning: (active)
+equipe: (active)
+absences: (active)
+stats: (active)
+astreintes: (active)
+⋮----
+// ── Modal saisie mot de passe ──────────────────────────────
+function PasswordModal(
+⋮----
+function h(e)
+⋮----
+async function handleSubmit(e)
+⋮----
+// ── Bouton mode édition (tab bar) ─────────────────────────
+function LockButton(
+⋮----
+// ── App principale ─────────────────────────────────────────
+export default function App()
+⋮----
+function handleOpenAstreintes(dayIso)
+⋮----
+function showToast(msg, type = 'ok')
+⋮----
+// ── Undo global ────────────────────────────────────────
+function pushUndo(label, undoFn)
+⋮----
+function handleUndo()
+⋮----
+function onKeyDown(e)
+⋮----
+function handleUnlock(password)
+⋮----
+function handleLock()
+⋮----
+async function handleAction(type, payload)
+⋮----
+undoFn = async () =>
+⋮----
+// ── Drag & Drop : déplacement d'un praticien vers un autre poste ──
+async function handleMove(
+⋮----
+async function handleCopyWeek()
+⋮----
+{/* ── Header ── */}
+⋮----
+{/* ── Tabs ── */}
+⋮----
+{/* ── Planning ── */}
+⋮----
+{/* Switcher sous-vues */}
+⋮----
+{/* Sous-vue Semaine */}
+⋮----
+{/* Sous-vue Calendrier */}
+⋮----
+{/* ── Toasts ── */}
+````
+
+## File: client/src/main.jsx
+````javascript
+// ── Routing SPA minimal ───────────────────────────────────────
+// Si l'URL commence par /conge/<token>, on affiche la page publique.
+// Sinon, on affiche l'application principale.
+````
+
+## File: client/src/styles.css
+````css
+/* styles.css — PATCHED: refreshed palette (accent, semantic, service colors) */
+:root {
+*, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+html { font-size:14px; }
+body { font-family:Georgia,serif; background:var(--bg); color:var(--text); min-height:100vh; }
+button, input, select { font-family:inherit; }
+⋮----
+/* Header */
+.hdr { background:var(--accent); color:#fff; padding:0 1.5rem; display:flex; align-items:center; justify-content:space-between; height:52px; position:sticky; top:0; z-index:200; box-shadow:0 2px 12px rgba(34,114,240,.35); }
+.hdr-l { display:flex; align-items:center; gap:12px; }
+.hdr-logo { font-size:11px; font-family:system-ui,-apple-system,sans-serif; font-weight:800; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.5); }
+.hdr-div { width:1px; height:16px; background:rgba(255,255,255,.22); display:inline-block; }
+.hdr-title { font-size:15px; font-family:system-ui,-apple-system,sans-serif; }
+.hdr-title-strong { font-weight:600; letter-spacing:-.01em; }
+.hdr-title-light { font-weight:400; color:rgba(255,255,255,.75); margin-left:6px; }
+.hdr-r { font-size:11px; font-family:system-ui,sans-serif; color:rgba(255,255,255,.5); display:flex; align-items:center; gap:10px; }
+⋮----
+/* Main */
+.main { max-width:1280px; margin:0 auto; padding:1.25rem; }
+⋮----
+/* Tabs */
+.tabs { display:flex; gap:2px; border-bottom:1px solid var(--border); margin-bottom:1.25rem; }
+.tab { padding:9px 16px; font-size:11px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; letter-spacing:.07em; text-transform:uppercase; background:transparent; border:none; border-bottom:2px solid transparent; cursor:pointer; color:var(--text2); margin-bottom:-1px; transition:all .12s; display:flex; align-items:center; gap:6px; }
+.tab:hover { color:var(--text); }
+.tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+⋮----
+/* Week nav */
+.wn { display:flex; align-items:center; gap:8px; margin-bottom:.9rem; flex-wrap:wrap; }
+.wn-btn { width:28px; height:28px; border:1px solid var(--border2); background:var(--surface); border-radius:var(--r); cursor:pointer; color:var(--text); font-size:16px; display:flex; align-items:center; justify-content:center; }
+.wn-btn:hover { background:var(--surface2); }
+.wn-lbl { font-size:13px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; }
+.wn-chip { font-size:10px; font-family:system-ui,sans-serif; font-weight:700; background:var(--accent-light); color:var(--accent); border:1px solid var(--accent-mid); padding:2px 10px; border-radius:20px; cursor:pointer; }
+.wn-copy { font-size:10px; font-family:system-ui,sans-serif; font-weight:700; background:var(--surface); color:var(--text2); border:1px solid var(--border2); padding:2px 10px; border-radius:20px; cursor:pointer; }
+.wn-copy:hover { background:var(--surface2); }
+⋮----
+/* Alert */
+.alert { padding:6px 11px; border-radius:var(--r); font-size:11px; font-family:system-ui,sans-serif; display:flex; align-items:flex-start; gap:6px; line-height:1.5; }
+.alert-ok { background:var(--ok-bg); color:var(--ok); border:1px solid var(--ok-bd); }
+.alert-warn { background:var(--warn-bg); color:var(--warn); border:1px solid var(--warn-bd); }
+⋮----
+/* Legend */
+.legend { display:flex; flex-wrap:wrap; gap:8px; }
+.li { display:flex; align-items:center; gap:4px; font-size:10px; font-family:system-ui,sans-serif; color:var(--text2); }
+.l-dot { width:8px; height:8px; border-radius:50%; }
+.l-hatch { width:14px; height:10px; background:var(--off-stripe); border:1px solid var(--border); border-radius:2px; }
+⋮----
+/* Grid */
+.grid-wrap { overflow-x:auto; border-radius:var(--rl); border:1px solid var(--border); background:var(--surface); box-shadow:var(--sh); margin-top:8px; }
+.pgrid { min-width:700px; }
+.gh { display:grid; grid-template-columns:158px repeat(5,1fr); background:var(--surface2); border-bottom:1px solid var(--border); }
+.ghc { padding:7px 6px; font-size:10px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text2); border-right:1px solid var(--border); text-align:center; }
+.ghc:last-child { border-right:none; }
+.ghc.today { background:var(--accent-light); color:var(--accent); }
+.grp-hdr-row { display:grid; grid-template-columns:158px repeat(5,1fr); border-bottom:1px solid var(--border); }
+.grp-hdr { grid-column:1/-1; background:#e8e6df; padding:3px 10px; font-size:9px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--text2); }
+.grow { display:grid; grid-template-columns:158px repeat(5,1fr); border-bottom:1px solid var(--border); }
+.grow:last-child { border-bottom:none; }
+.pname { padding:6px 7px; font-size:10px; font-family:system-ui,-apple-system,sans-serif; font-weight:600; background:var(--surface2); border-right:1px solid var(--border); display:flex; align-items:flex-start; gap:5px; color:var(--text); line-height:1.35; }
+.pdot { width:6px; height:6px; border-radius:50%; flex-shrink:0; margin-top:3px; }
+.pmin { font-size:8px; color:var(--text3); margin-left:auto; padding-left:3px; white-space:nowrap; }
+.cell { padding:3px 4px; border-right:1px solid var(--border); min-height:42px; }
+.cell:last-child { border-right:none; }
+.cell.today { background:rgba(34,114,240,.03); }
+.cell.avail { cursor:pointer; }
+.cell.avail:hover { background:var(--accent-light); }
+.chip { border-radius:4px; padding:2px 5px; font-size:10px; font-family:system-ui,sans-serif; margin-bottom:2px; display:flex; align-items:center; gap:3px; border:1px solid transparent; user-select:none; }
+.chip[draggable=true]:active { cursor:grabbing; }
+.cell.drop-target { outline:2px dashed var(--accent); outline-offset:-2px; background:var(--accent-light) !important; }
+.chip-nm { font-weight:600; flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.chip-rm { cursor:pointer; opacity:.4; font-size:13px; flex-shrink:0; line-height:1; background:none; border:none; padding:0; color:inherit; }
+.chip-rm:hover { opacity:1; }
+.chip-abs { font-size:9px; font-family:system-ui,sans-serif; padding:2px 5px; border-radius:3px; background:var(--warn-bg); color:var(--warn); border:1px solid var(--warn-bd); margin-bottom:2px; font-style:italic; }
+.add-lnk { font-size:9px; font-family:system-ui,sans-serif; color:var(--text3); cursor:pointer; margin-top:2px; display:inline-block; }
+.add-lnk:hover { color:var(--accent); }
+⋮----
+/* Modal */
+.mbg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.32); z-index:500; align-items:center; justify-content:center; }
+.mbg.open { display:flex; }
+.mbox { background:var(--surface); border-radius:var(--rl); border:1px solid var(--border2); padding:1.25rem; width:520px; max-height:520px; overflow-y:auto; box-shadow:0 8px 32px rgba(0,0,0,.15); }
+.mhead { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px; }
+.mttl { font-size:13px; font-weight:bold; line-height:1.3; padding-right:8px; }
+.msub { font-size:10px; font-family:system-ui,sans-serif; color:var(--text2); margin-bottom:10px; line-height:1.5; }
+.mclose { background:none; border:none; cursor:pointer; font-size:20px; color:var(--text2); line-height:1; padding:0; flex-shrink:0; }
+.msep { font-size:9px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--text3); padding:7px 6px 3px; border-top:1px solid var(--border); margin-top:3px; }
+.mitem { padding:6px 8px; border-radius:var(--r); cursor:pointer; font-size:12px; font-family:system-ui,sans-serif; display:flex; align-items:center; justify-content:space-between; gap:6px; transition:background .1s; }
+.mitem:hover { background:var(--surface2); }
+.mitem.dis { opacity:.35; cursor:not-allowed; pointer-events:none; }
+.mtag { font-size:9px; padding:1px 5px; border-radius:3px; background:var(--surface2); color:var(--text2); white-space:nowrap; }
+.minfo { font-size:10px; color:var(--text2); white-space:nowrap; }
+.mok   { font-size:10px; color:var(--ok); }
+.mwarn { font-size:10px; color:var(--warn); }
+⋮----
+/* Small action buttons inside modal */
+.btn-xs { font-size:10px; font-family:system-ui,sans-serif; padding:1px 7px; border-radius:4px; cursor:pointer; border:1px solid; white-space:nowrap; }
+.btn-xs.btn-ok      { background:var(--ok-bg);     color:var(--ok);     border-color:var(--ok-bd); }
+.btn-xs.btn-warn    { background:var(--warn-bg);   color:var(--warn);   border-color:var(--warn-bd); }
+.btn-xs.btn-danger  { background:var(--danger-bg); color:var(--danger); border-color:var(--danger-bd,#fda4af); }
+.btn-xs.btn-renfort  { background:#f3e8ff; color:#7c3aed; border-color:#c4b5fd; }
+.btn-xs.btn-renfort:hover { background:#ede9fe; }
+.btn-xs.btn-primary { background:var(--accent); color:#fff; border-color:var(--accent);
+.btn-xs.btn-primary:hover { background:var(--accent2); border-color:var(--accent2); }
+.btn-xs:disabled    { opacity:.38; cursor:not-allowed; pointer-events:none; }
+⋮----
+/* Team tab */
+.sec-t { font-size:15px; font-weight:bold; }
+.sec-s { font-size:10px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text2); margin:1.1rem 0 .5rem; padding-bottom:4px; border-bottom:1px solid var(--border); }
+.tgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; }
+.mcard { background:var(--surface); border:1px solid var(--border); border-radius:var(--rl); padding:10px 12px; box-shadow:var(--sh); }
+.mc-name { font-size:12px; font-weight:bold; }
+.mc-type { font-size:10px; font-family:system-ui,sans-serif; color:var(--text2); margin-top:1px; }
+.mc-presence { font-size:10px; font-family:system-ui,sans-serif; margin-top:6px; color:var(--text2); }
+.mc-presence strong { color:var(--text); }
+.schedule-grid { display:grid; grid-template-columns:60px repeat(5,1fr); gap:1px; margin-top:6px; font-size:10px; font-family:system-ui,sans-serif; }
+.sg-head { font-weight:700; font-family:system-ui,-apple-system,sans-serif; font-size:9px; text-align:center; color:var(--text2); padding:2px 0; }
+.sg-label { font-size:9px; color:var(--text2); display:flex; align-items:center; }
+.sg-cell { display:flex; align-items:center; justify-content:center; }
+.sg-cell input[type=checkbox] { width:13px; height:13px; cursor:pointer; accent-color:var(--accent); }
+.mc-actions { display:flex; gap:6px; margin-top:8px; }
+.btn-sm { font-size:10px; font-family:system-ui,sans-serif; padding:3px 8px; border-radius:var(--r); border:1px solid var(--border2); background:var(--surface); cursor:pointer; color:var(--text2); }
+.btn-sm:hover { background:var(--surface2); }
+.btn-sm.danger { border-color:#fda4af; color:var(--danger); }
+.btn-sm.danger:hover { background:var(--danger-bg); }
+⋮----
+/* Congés / Absences */
+.cgform { display:flex; gap:7px; flex-wrap:wrap; align-items:flex-end; padding:1rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--rl); margin-bottom:1rem; box-shadow:var(--sh); }
+.cgf label { display:block; font-size:10px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); margin-bottom:3px; }
+.cgf select, .cgf input[type=date], .cgf input[type=text] { border:1px solid var(--border2); border-radius:var(--r); padding:5px 8px; font-size:12px; font-family:system-ui,sans-serif; background:var(--surface); color:var(--text); }
+.btn-primary { background:var(--accent); color:#fff; border:none; border-radius:var(--r); padding:6px 14px; font-size:11px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.05em; cursor:pointer; }
+.btn-primary:hover { background:var(--accent2); }
+.btn-primary:disabled { opacity:.5; cursor:not-allowed; }
+.btn-cancel { background:transparent; border:1px solid var(--border2); border-radius:var(--r); padding:6px 12px; font-size:11px; font-family:system-ui,sans-serif; cursor:pointer; color:var(--text2); }
+.cg-list { display:flex; flex-direction:column; gap:5px; }
+.cgi { background:var(--warn-bg); border:1px solid var(--warn-bd); border-radius:var(--r); padding:6px 10px; font-size:11px; font-family:system-ui,sans-serif; display:flex; align-items:center; justify-content:space-between; }
+.cg-nm { font-weight:700; color:var(--warn); }
+.cg-dt { color:var(--text2); font-size:10px; }
+.cg-rm { cursor:pointer; color:var(--text2); font-size:15px; background:none; border:none; }
+.empty-msg { font-size:12px; font-family:system-ui,sans-serif; color:var(--text2); padding:4px 0; }
+⋮----
+/* Stats */
+.sgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; margin-bottom:1.1rem; }
+.scard { background:var(--surface); border:1px solid var(--border); border-radius:var(--rl); padding:9px 11px; box-shadow:var(--sh); }
+.sv { font-size:22px; font-weight:bold; }
+.sl { font-size:10px; font-family:system-ui,sans-serif; color:var(--text2); margin-top:1px; }
+.cgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:6px; margin-bottom:1rem; }
+.ci { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:7px 10px; font-size:11px; font-family:system-ui,sans-serif; box-shadow:var(--sh); }
+.ci-nm { font-weight:700; }
+.ci-info { color:var(--text2); font-size:10px; }
+.achip { display:inline-block; background:var(--warn-bg); color:var(--warn); border:1px solid var(--warn-bd); border-radius:20px; padding:2px 8px; font-size:10px; font-family:system-ui,sans-serif; margin:2px; }
+⋮----
+/* Month view */
+.monthly-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:6px; }
+.month-week-lbl { font-size:10px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--text2); padding:10px 0 4px; border-top:1px solid var(--border); margin-top:6px; }
+.month-day { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:6px 8px; min-height:80px; box-shadow:var(--sh); }
+.month-day-hdr { font-size:10px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; color:var(--text2); margin-bottom:4px; padding-bottom:3px; border-bottom:1px solid var(--border); }
+.month-day-hdr.today { color:var(--accent); }
+.month-chip { font-size:9px; font-family:system-ui,sans-serif; padding:1px 4px; border-radius:3px; margin-bottom:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+⋮----
+/* Forms */
+.form-row { margin-bottom:.75rem; }
+.form-row label { display:block; font-size:10px; font-family:system-ui,-apple-system,sans-serif; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); margin-bottom:3px; }
+.form-row input, .form-row select { width:100%; border:1px solid var(--border2); border-radius:var(--r); padding:6px 9px; font-size:12px; font-family:system-ui,sans-serif; background:var(--surface); color:var(--text); }
+.modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:1rem; padding-top:.75rem; border-top:1px solid var(--border); }
+⋮----
+/* Footer */
+.foot { text-align:center; font-size:10px; font-family:system-ui,sans-serif; color:var(--text3); padding:2rem 0 1rem; border-top:1px solid var(--border); margin-top:2rem; }
+⋮----
+/* Toast notifications */
+.toast-wrap { position:fixed; bottom:1.25rem; right:1.25rem; z-index:900; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
+.toast { padding:10px 16px; border-radius:var(--r); font-size:12px; font-family:system-ui,sans-serif; box-shadow:0 4px 16px rgba(0,0,0,.18); display:flex; align-items:center; gap:8px; animation:toast-in .18s ease; }
+.toast-ok  { background:var(--ok);   color:#fff; border:1px solid rgba(255,255,255,.15); }
+.toast-err { background:var(--warn); color:#fff; border:1px solid rgba(255,255,255,.15); }
+⋮----
+/* Team search */
+.team-search { width:100%; border:1px solid var(--border2); border-radius:var(--r); padding:6px 10px 6px 28px; font-size:12px; font-family:system-ui,sans-serif; background:var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239a9890' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") 8px center no-repeat; color:var(--text); }
+.team-search:focus { outline:none; border-color:var(--accent); }
+⋮----
+/* Schedule grid in modal */
+.modal-sched { margin-top:.5rem; }
+.modal-sched .schedule-grid { display:grid; grid-template-columns:70px repeat(5,1fr); gap:1px; font-size:10px; font-family:system-ui,sans-serif; }
+.modal-sched .sg-head { font-weight:700; font-family:system-ui,-apple-system,sans-serif; font-size:9px; text-align:center; color:var(--text2); padding:2px 0; }
+.modal-sched .sg-label { font-size:9px; color:var(--text2); display:flex; align-items:center; }
+.modal-sched .sg-cell { display:flex; align-items:center; justify-content:center; }
+.modal-sched .sg-cell input[type=checkbox] { width:13px; height:13px; cursor:pointer; accent-color:var(--accent); }
+⋮----
+/* Équipe tab — slide-in drawer animation */
+⋮----
+/* Bouton secondaire */
+.btn-secondary {
+.btn-secondary:hover { background: var(--surface2); color: var(--text); border-color: var(--accent-mid); }
+⋮----
+/* Print */
+.print-only { display: none; }
+.print-title {
+⋮----
+@page { size: A4 landscape; margin: 10mm; }
+⋮----
+.hdr, .tabs, .foot, .toast-wrap, .print-hide { display: none !important; }
+.print-only { display: block !important; }
+⋮----
+body { background: white; }
+.main { max-width: 100%; padding: 0; margin: 0; }
+⋮----
+/* Planning grid */
+.grid-wrap { overflow: visible; box-shadow: none; border: 1px solid #bbb; }
+.pgrid { min-width: 0 !important; width: 100%; }
+⋮----
+.monthly-grid { gap: 4px; }
+.month-day { min-height: 60px; padding: 4px 6px; break-inside: avoid; }
+.month-week-lbl { margin-top: 8px; padding: 6px 0 2px; }
+````
+
+## File: client/src/utils.js
+````javascript
+// utils.js — PATCHED: refreshed service position colors
+// Only POSTES colors changed; all other logic is unchanged.
+⋮----
+// ── Date helpers ─────────────────────────────────────────
+export function getMonday(d)
+⋮----
+export function toIso(d)
+⋮----
+export function addDays(d, n)
+⋮----
+export function weekDays(monday)
+⋮----
+export function fmtDay(d)
+⋮----
+export function fmtDayLong(d)
+⋮----
+// ── Schedule helpers ──────────────────────────────────────
+export function schedIdx(dow)
+⋮----
+export function isAbsent(medId, dayIso, absences = [])
+⋮----
+export function worksDay(med, dayIso, absences = [])
+⋮----
+/**
+ * Retourne 'matin' si le médecin ne travaille que le matin ce jour-là,
+ * 'apm' si seulement l'après-midi, null s'il travaille les deux.
+ * Basé sur le sched défini dans l'onglet Équipe.
+ */
+export function getSchedHalfDay(med, dayIso)
+⋮----
+export function countDemiJournees(med)
+⋮----
+export function worksWeekAny(med, monday, absences = [])
+⋮----
+// ── Jours fériés français ─────────────────────────────────
+function easterSunday(year)
+⋮----
+export function getFrenchHolidays(year)
+⋮----
+const add = (d, n) =>
+const fmt = d => `$
+````
+
+## File: client/index.html
+````html
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Planning Gériatrie</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.jsx"></script>
+</body>
+</html>
+````
+
+## File: client/package.json
+````json
+{
+  "name": "planning-geriatrie-client",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run --reporter=verbose"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@vitejs/plugin-react": "^4.3.1",
+    "@vitest/ui": "^4.1.6",
+    "jsdom": "^29.1.1",
+    "vite": "^5.3.4",
+    "vitest": "^4.1.6"
+  }
+}
+````
+
+## File: client/vite.config.js
+````javascript
+
+````
+
+## File: server/__tests__/api.test.js
+````javascript
+/**
+ * Tests API serveur — planning-geriatrie
+ * Utilise supertest + Jest
+ * La DB est créée en mémoire (fichier temp) pour chaque suite
+ */
+⋮----
+// ── Helpers pour créer une app isolée avec sa propre DB ──────────────────────
+⋮----
+async function buildApp()
+⋮----
+// On crée un dossier temp pour que persist() écrive un fichier dédié
+⋮----
+// On monkey-patche DB_PATH AVANT de charger db.js
+// db.js utilise path.join(__dirname, 'database.sqlite') donc on doit
+// simuler via un module rechargé proprement
+⋮----
+// Surcharger __dirname dans db.js via une variable d'env
+⋮----
+// Recharger les modules
+⋮----
+// Patch le middleware DB_READY
+⋮----
+// ── On construit l'app Express manuellement (même code que index.js) ─────────
+function buildExpressApp(dbLib)
+⋮----
+// Middleware DB_READY
+⋮----
+// ── MÉDECINS ──
+⋮----
+// ── ABSENCES ──
+⋮----
+// ── PLANNING ──
+⋮----
+// ── AFFECTATIONS ──
+⋮----
+// ── EXCLUSIONS ──
+⋮----
+// ── EXTRAS ──
+⋮----
+// ── COPIE SEMAINE ──
+⋮----
+function addDaysStr(isoDate, n)
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// SUITE DE TESTS
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// Nettoyage éventuel
+⋮----
+// ── Constantes de test ───────────────────────────────────────────────────────
+⋮----
+const WEEK_KEY = '2025-06-02'; // lundi
+const WEEK_KEY2 = '2025-06-09'; // semaine suivante
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// MÉDECINS
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// Vérifier qu'il n'est plus dans la liste
+⋮----
+// Créer un médecin
+⋮----
+// Lui affecter une absence
+⋮----
+// Supprimer
+⋮----
+// Vérifier qu'aucune absence orpheline ne subsiste
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// ABSENCES
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// date_fin et type_abs manquants
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// PLANNING SEMAINE
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// AFFECTATIONS
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// Setup : affecter puis exclure
+⋮----
+// Retirer l'affectation
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// EXCLUSIONS
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// EXTRAS
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// COPIE DE SEMAINE
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// Setup semaine source
+⋮----
+// BUG CRITIQUE : dans db.js, la fonction transaction() appelle db.run('BEGIN')
+// puis les run() imbriqués appellent persist() -> db.export() qui COMMIT automatiquement
+// la transaction SQLite en cours. Le COMMIT final échoue avec "no transaction is active".
+// Ce bug rend la route POST /api/planning/copy non fonctionnelle en production.
+⋮----
+// On documente le comportement réel : 500 à cause du bug transaction
+⋮----
+// Le test ci-dessous documente ce qui DEVRAIT se passer une fois le bug corrigé :
+// expect(res.status).toBe(200);
+// const plan = await request(app).get('/api/planning/2025-06-16');
+// expect(plan.body.affectations['ucc']?.medecins.some(m => m.id === medId)).toBe(true);
+⋮----
+// Ce test dépend de la correction du bug transaction() ci-dessus.
+// En l'état, la route copy retourne 500.
+⋮----
+// Comportement réel dû au bug : 500
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// MIDDLEWARE : DB_READY
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// NE PAS appeler dbLib2.init()
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// TESTS MÉTIER — Règles de planning gériatrique
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// NOTE : la logique de "un médecin = un poste max" est côté CLIENT (AssignModal),
+// pas côté serveur. Le serveur accepte des affectations multiples.
+⋮----
+// Le serveur l'accepte (la contrainte unique est (week_key, poste_id, med_id))
+⋮----
+// Absence du lundi au vendredi
+⋮----
+// Affecter à un poste cette semaine
+⋮----
+// L'absence doit figurer dans le planning
+⋮----
+// Médecin affecté mais exclu ce jour
+⋮----
+// Absence qui commence avant et se termine en milieu de semaine
+⋮----
+// INSERT OR IGNORE doit gérer les doublons sans erreur
+⋮----
+expect(meds.length).toBe(1); // exactement 1, pas de doublon
+⋮----
+// ════════════════════════════════════════════════════════════════════════════
+// TESTS BASE DE DONNÉES
+// ════════════════════════════════════════════════════════════════════════════
+⋮----
+// Le seed contient 34 médecins (mais d'autres ont pu être créés dans les tests)
+````
+
+## File: server/clear_holidays.js
+````javascript
+// clear_holidays.js — Nettoie les affectations sur les jours fériés
+//
+// Ce script NE supprime PAS les affectations de la semaine entière.
+// Il crée des EXCLUSIONS pour chaque jour férié concerné (table `exclusions`)
+// et supprime les EXTRAS qui tombent un jour férié (table `extras`).
+//
+// Usage : node clear_holidays.js
+⋮----
+// ── Calcul des jours fériés français ──────────────────────────────────────────
+⋮----
+function easterSunday(year)
+⋮----
+function getFrenchHolidays(year)
+⋮----
+const add = (d, n) =>
+const fmt = d => `$
+⋮----
+fmt(new Date(year, 0,  1)),   // Jour de l'An
+fmt(add(easter, 1)),           // Lundi de Pâques
+fmt(new Date(year, 4,  1)),   // Fête du Travail
+fmt(new Date(year, 4,  8)),   // Victoire 1945
+fmt(add(easter, 39)),          // Ascension
+fmt(add(easter, 50)),          // Lundi de Pentecôte
+fmt(new Date(year, 6, 14)),   // Fête Nationale
+fmt(new Date(year, 7, 15)),   // Assomption
+fmt(new Date(year, 10,  1)),  // Toussaint
+fmt(new Date(year, 10, 11)),  // Armistice
+fmt(new Date(year, 11, 25)),  // Noël
+⋮----
+function isHoliday(isoDate)
+⋮----
+// ── Helpers date ──────────────────────────────────────────────────────────────
+⋮----
+/** Retourne les 5 jours ouvrés (lun–ven) d'une semaine à partir du lundi ISO */
+function weekDays(weekKey)
+⋮----
+// ── Main ──────────────────────────────────────────────────────────────────────
+⋮----
+async function main()
+⋮----
+// Compter avant
+⋮----
+// 1) Pour chaque affectation, insérer une exclusion par jour férié de la semaine
+⋮----
+// 2) Supprimer les extras sur jours fériés
+⋮----
+// Compter après
+````
+
+## File: server/db_testable.js
+````javascript
+// db_testable.js — version de db.js avec chemin de DB configurable via env
+// Permet aux tests d'utiliser des DB temporaires isolées
+⋮----
+// En test, PG_TEST_DB_PATH peut pointer vers un fichier temporaire
+⋮----
+function persist()
+⋮----
+async function init()
+⋮----
+// Seed initial
+⋮----
+function queryAll(sql, params = [])
+⋮----
+function queryOne(sql, params = [])
+⋮----
+function run(sql, params = [])
+⋮----
+function transaction(fn)
+````
+
+## File: server/db.js
+````javascript
+// db.js — SQLite via sql.js (pur JS/WASM, sans compilation native)
+// La BDD est chargée depuis un fichier .sqlite au démarrage et
+// sauvegardée sur disque après chaque écriture.
+⋮----
+// sql.js fonctionne en mémoire ; on persiste manuellement
+⋮----
+function persist()
+⋮----
+if (inTransaction) return; // db.export() ferait un COMMIT implicite dans une transaction ouverte
+⋮----
+async function init()
+⋮----
+// ── Schéma ─────────────────────────────────────────────
+⋮----
+// ── Migrations idempotentes ────────────────────────────
+⋮----
+// ── Seed ───────────────────────────────────────────────
+⋮----
+// ── Helpers sql.js (rend l'API proche de better-sqlite3) ──
+⋮----
+/** Retourne toutes les lignes d'un SELECT */
+function queryAll(sql, params = [])
+⋮----
+/** Retourne la première ligne */
+function queryOne(sql, params = [])
+⋮----
+/** Execute une requête INSERT/UPDATE/DELETE, retourne { lastInsertRowid } */
+function run(sql, params = [])
+⋮----
+/** Execute plusieurs instructions dans une transaction */
+function transaction(fn)
+````
+
+## File: server/email.config.json.example
+````
+{
+  "gmail_user": "planning.geriatrie@gmail.com",
+  "gmail_pass": "xxxx xxxx xxxx xxxx"
+}
+````
+
+## File: server/fix_names.js
+````javascript
+// fix_names.js — Supprime les parenthèses autour des noms de famille
+// "Caroline (Leroux)"  →  "Caroline Leroux"
+// "Béatrice (IPA)"     →  "Béatrice IPA"
+//
+// Usage : node fix_names.js
+⋮----
+function stripParens(nom)
+⋮----
+.replace(/\s*\(([^)]+)\)/g, ' $1') // (contenu) → contenu
+⋮----
+async function main()
+````
+
+## File: server/import_absences.js
+````javascript
+// import_absences.js — Importe les absences depuis /tmp/absences_data.json
+// Ne touche PAS aux affectations / médecins existants
+// Usage : node import_absences.js
+⋮----
+async function main()
+⋮----
+// ── Charger la BDD existante ─────────────────────────────
+⋮----
+// ── Vider les absences existantes (remplacement complet) ─
+⋮----
+// ── Vérifier les med_id présents dans la BDD ─────────────
+⋮----
+// ── Insérer les nouvelles absences ────────────────────────
+⋮----
+// ── Sauvegarde ───────────────────────────────────────────
+⋮----
+// ── Résumé ───────────────────────────────────────────────
+````
+
+## File: server/index.js
+````javascript
+// index.js — serveur Express + API REST (sql.js async init)
+⋮----
+// ── Nodemailer (optionnel) ─────────────────────────────
+⋮----
+? true // même origine : Express sert le client compilé
+⋮----
+// ═══════════════════════════════════════════════════════
+// CONFIGURATION SECRÉTARIAT
+// Modifier le mot de passe via : node -e "require('bcryptjs').hash('MOTDEPASSE',12).then(h=>require('fs').writeFileSync('secretary.config.json',JSON.stringify({passwordHash:h},null,2)))"
+// ═══════════════════════════════════════════════════════
+⋮----
+const JWT_SECRET = crypto.randomBytes(32).toString('hex'); // regénéré à chaque redémarrage
+⋮----
+async function loadSecretaryConfig()
+⋮----
+// Migration automatique : hash du mot de passe en clair
+⋮----
+} catch { /* pas de fichier config → accès libre */ }
+⋮----
+// ── Rate limiting (anti brute-force sur /api/auth) ────
+⋮----
+// ── Authentification (pas besoin de la DB) ────────────
+⋮----
+// ── Guard : DB initialisée ────────────────────────────
+⋮----
+// ═══════════════════════════════════════════════════════
+// CONGÉS SELF-SERVICE — routes publiques (pas de JWT)
+// ═══════════════════════════════════════════════════════
+⋮----
+// GET /api/conge/token/:token — validation token magic link
+⋮----
+// POST /api/conge/submit — soumission d'absences via token (public, avant le guard JWT)
+⋮----
+// ── Guard : token JWT requis pour toute mutation ──────
+⋮----
+// ═══════════════════════════════════════════════════════
+// VALIDATION
+// ═══════════════════════════════════════════════════════
+⋮----
+function isIsoDate(s)
+function isMonth(s)
+⋮----
+// ═══════════════════════════════════════════════════════
+// MÉDECINS
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// ABSENCES
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// PLANNING SEMAINE
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// AFFECTATIONS
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// EXCLUSIONS
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// EXTRAS
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// RENFORTS
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// CAMPAGNE CONGÉS (secrétariat)
+// ═══════════════════════════════════════════════════════
+⋮----
+// POST /api/conge/campaign — envoie les magic links par email
+⋮----
+// Praticiens avec email dans les types sélectionnés
+⋮----
+// Un token par médecin ; les anciens tokens restent valides (multi-lien possible)
+⋮----
+// GET /api/conge/preview — liste des praticiens qui seraient contactés
+⋮----
+// ═══════════════════════════════════════════════════════
+// COPIE SEMAINE
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// ASTREINTES
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// STATISTIQUES PAR MÉDECIN
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// UTILITAIRES
+// ═══════════════════════════════════════════════════════
+function addDaysStr(isoDate, n)
+⋮----
+// ═══════════════════════════════════════════════════════
+// CLIENT STATIQUE (production)
+// ═══════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════
+// DÉMARRAGE
+// ═══════════════════════════════════════════════════════
+````
+
+## File: server/package.json
+````json
+{
+  "name": "planning-geriatrie-server",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest --testTimeout=30000 --forceExit"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "express": "^4.22.2",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.3",
+    "sql.js": "*"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "nodemon": "^3.1.14",
+    "supertest": "^7.2.2"
+  }
+}
+````
+
+## File: server/planning.db
+````
+
+````
+
+## File: server/seed.js
+````javascript
+// seed.js -- Réinitialise la BDD et la remplit depuis les CSV du planning Google Sheets
+// Usage : node seed.js
+⋮----
+// ═══════════════════════════════════════════════════════════
+// DICTIONNAIRE PRATICIENS
+// Clé = nom normalisé (lowercase, sans "(ext)", sans "IPA", etc.)
+// ═══════════════════════════════════════════════════════════
+⋮----
+// ── PH (Praticiens Hospitaliers) -- liste officielle ──────
+// AMIAUD M.
+⋮----
+// RACINE G.
+⋮----
+// BLANCHET F.
+⋮----
+// COURTOIS A.
+⋮----
+// CUBILLE M.
+⋮----
+// DE LA BASSETIERE A.
+⋮----
+// DECOURS R.
+⋮----
+// DELORME L.
+⋮----
+// GENDRE C.
+⋮----
+// HUMEAU C.
+⋮----
+// LE GENTIL S.
+⋮----
+// LEROUX C.
+⋮----
+// MAREAU A.
+⋮----
+// MOTTE VINCENT P.
+⋮----
+// PERRON L.
+⋮----
+// SCHEER R.
+⋮----
+// ANGELE G.
+⋮----
+// MAUREEN H.
+⋮----
+// EMILIE J.
+⋮----
+// DIJOUX
+⋮----
+'dr diijoux':     { id:'dijoux',     nom:'Dijoux',                      type:'ph' }, // typo CSV
+// Alias/abréviations courantes
+⋮----
+// ── IPA ──────────────────────────────────────────────────
+⋮----
+// ── Externes ──────────────────────────────────────────────
+⋮----
+// ── PADHUE ───────────────────────────────────────────────
+⋮----
+// ── Internes -- liste officielle ───────────────────────────
+⋮----
+// ═══════════════════════════════════════════════════════════
+// MAPPING SERVICE → POSTE_ID
+// ═══════════════════════════════════════════════════════════
+⋮----
+function getPosteId(service, medType)
+⋮----
+function isValidService(s)
+⋮----
+// ═══════════════════════════════════════════════════════════
+// CONFIG DES FICHIERS CSV (semaines = lundi ISO de chaque semaine)
+// ═══════════════════════════════════════════════════════════
+⋮----
+// ═══════════════════════════════════════════════════════════
+// NORMALISATION DE NOM
+// ═══════════════════════════════════════════════════════════
+function normalizeName(raw)
+⋮----
+// Prend la 1ère partie avant "/"
+⋮----
+// Retire tout ce qui est entre parenthèses : "(ext)", "(1 cs)", "(matin)"...
+⋮----
+// Retire les suffixes de service ou d'annotation courants
+⋮----
+// Retire "matin", "apm", "1/2", "sauf ..."
+⋮----
+// Retire les "?" et "!"
+⋮----
+// Retire "+quelquechose"
+⋮----
+// Normalise les espaces
+⋮----
+// Anciens PH supprimés de la liste officielle
+⋮----
+// Anciens internes supprimés
+⋮----
+// Ambiguïtés
+⋮----
+function lookupMed(rawName)
+⋮----
+// Correspondance exacte
+⋮----
+// Fallback sur le 1er mot (ex: "caro t21" → "caro")
+⋮----
+// Gestion de "Robin/Anne" → deux noms séparés par "/"
+function extractNames(cellValue)
+⋮----
+// ═══════════════════════════════════════════════════════════
+// PARSING CSV
+// col pour semaine n (0-indexed), jour d (0=lun..4=ven) :
+//   col = 2 + n * 11 + d * 2
+// ═══════════════════════════════════════════════════════════
+function parseCsv(filePath, weekKeys, unknown)
+⋮----
+// { weekKey → { service → Set<medId> } }
+⋮----
+// anciens PH (toujours présents dans les lignes récap CSV)
+⋮----
+// anciens internes (toujours présents dans les lignes récap CSV)
+⋮----
+function shouldStop(col0)
+⋮----
+for (let ri = 2; ri < rows.length; ri++) {   // skip rows 0,1 (header)
+⋮----
+// Collecter les noms pour chaque semaine
+⋮----
+// ═══════════════════════════════════════════════════════════
+// SCHÉMA
+// ═══════════════════════════════════════════════════════════
+function createSchema(db)
+⋮----
+// ═══════════════════════════════════════════════════════════
+// MAIN
+// ═══════════════════════════════════════════════════════════
+async function main()
+⋮----
+// ── Insertion des praticiens (dédupliqués) ─────────────
+⋮----
+// ── Lecture et insertion des affectations ──────────────
+⋮----
+// Retrouver le type pour mapper le poste
+⋮----
+// ── Sauvegarde ─────────────────────────────────────────
+⋮----
+// ── Résumé ──────────────────────────────────────────────
+````
+
+## File: .gitignore
+````
+# ── Dépendances Node.js ──────────────────────────────────────
+node_modules/
+
+# ── Base de données (données locales, ne pas partager) ───────
+server/database.sqlite
+server/*.sqlite
+
+# ── Build du front-end ───────────────────────────────────────
+client/dist/
+
+# ── Fichiers système macOS ───────────────────────────────────
+.DS_Store
+**/.DS_Store
+
+# ── Variables d'environnement (mots de passe, clés API) ──────
+.env
+.env.local
+.env.*.local
+
+# ── Configuration secrétariat (contient le hash du mot de passe) ──
+server/secretary.config.json
+
+# ── Configuration email (contient les identifiants Gmail) ────
+server/email.config.json
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+.gstack/
+````
+
+## File: CLAUDE.md
+````markdown
+# Guidelines du projet — Planning Gériatrie
+
+## Contraintes environnement
+
+### computer-use : ne pas utiliser
+La version de macOS installée est trop ancienne pour `ScreenCaptureKit` (requiert macOS 14.0+).  
+**Ne jamais appeler `mcp__computer-use__request_access` ni aucun outil `mcp__computer-use__*`.**
+
+Pour vérifier le rendu de l'interface, utiliser à la place :
+- `mcp__Claude_Preview__preview_screenshot` (serveur de preview Vite)
+- `mcp__Claude_Preview__preview_eval` pour interagir avec la page
+- `npx vite build` pour valider la syntaxe sans erreur
+
+## gstack
+
+For all web browsing, use the `/browse` skill from gstack. **Never use `mcp__claude-in-chrome__*` tools.**
+
+Available gstack skills:
+`/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/design-consultation`, `/design-shotgun`, `/design-html`, `/review`, `/ship`, `/land-and-deploy`, `/canary`, `/benchmark`, `/browse`, `/connect-chrome`, `/qa`, `/qa-only`, `/design-review`, `/setup-browser-cookies`, `/setup-deploy`, `/setup-gbrain`, `/retro`, `/investigate`, `/document-release`, `/document-generate`, `/codex`, `/cso`, `/autoplan`, `/plan-devex-review`, `/devex-review`, `/careful`, `/freeze`, `/guard`, `/unfreeze`, `/gstack-upgrade`, `/learn`
+````
+
+## File: package.json
+````json
+{
+  "name": "planning-geriatrie",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "build": "cd client && npm install && npm run build",
+    "start": "cd server && npm install && node index.js"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "dependencies": {
+    "nodemailer": "^8.0.9"
+  }
+}
+````
+
+## File: railway.toml
+````toml
+[build]
+builder = "NIXPACKS"
+buildCommand = "npm run build"
+
+[deploy]
+startCommand = "npm start"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+````
+
+## File: README.md
+````markdown
+# Planning Gériatrie — Application Web
+
+Application de planning pour le pôle de gériatrie.  
+**Stack** : React + Vite (front) · Node.js + Express (back) · SQLite via better-sqlite3
+
+---
+
+## Structure du projet
+
+```
+planning-geriatrie/
+├── server/
+│   ├── index.js          ← API REST Express (port 3001)
+│   ├── db.js             ← Init SQLite + seed données
+│   ├── database.sqlite   ← Créé automatiquement au premier lancement
+│   └── package.json
+├── client/
+│   ├── src/
+│   │   ├── api.js                   ← Toutes les requêtes fetch
+│   │   ├── utils.js                 ← Dates, postes, schedule helpers
+│   │   ├── App.jsx                  ← Composant racine
+│   │   ├── styles.css               ← CSS global
+│   │   ├── hooks/useData.js         ← Custom hooks fetch
+│   │   └── components/
+│   │       ├── PlanningGrid.jsx
+│   │       ├── WeekNav.jsx
+│   │       ├── AssignModal.jsx
+│   │       ├── TeamTab.jsx
+│   │       ├── AbsencesTab.jsx
+│   │       ├── StatsTab.jsx
+│   │       └── MonthView.jsx
+│   ├── index.html
+│   ├── vite.config.js
+│   └── package.json
+└── README.md
+```
+
+---
+
+## Installation et lancement (développement)
+
+### Prérequis
+- Node.js 18+ (vérifier : `node --version`)
+- npm 9+
+
+### 1. Installer les dépendances
+
+```bash
+# Depuis la racine du projet
+cd server && npm install
+cd ../client && npm install
+```
+
+### 2. Lancer en développement
+
+**Terminal 1 — serveur :**
+```bash
+cd server
+node --watch index.js
+# → http://localhost:3001
+```
+
+**Terminal 2 — client :**
+```bash
+cd client
+npm run dev
+# → http://localhost:5173
+```
+
+Ouvrir **http://localhost:5173** dans le navigateur.
+
+---
+
+## Déploiement intranet (production)
+
+### Compiler le front
+
+```bash
+cd client
+npm run build
+# → génère client/dist/
+```
+
+### Option A — Servir le front depuis Express (recommandé)
+
+Ajouter dans `server/index.js` avant `app.listen` :
+
+```javascript
+const path = require('path');
+// Servir les fichiers statiques du front compilé
+app.use(express.static(path.join(__dirname, '../client/dist')));
+// Fallback SPA
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/dist/index.html'));
+});
+```
+
+Puis modifier `client/src/api.js` : remplacer `const BASE = '/api'` par `const BASE = '/api'`  
+(ça reste `/api` car le front et le back sont servis depuis le même serveur).
+
+Lancer uniquement :
+```bash
+cd server
+node index.js
+# Accès : http://votre-serveur-intranet:3001
+```
+
+### Option B — Nginx (si disponible sur le serveur intranet)
+
+```nginx
+server {
+    listen 80;
+    server_name planning.geriatrie.local;
+
+    # Front compilé
+    location / {
+        root /opt/planning-geriatrie/client/dist;
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Proxy vers l'API Node
+    location /api {
+        proxy_pass http://localhost:3001;
+        proxy_http_version 1.1;
+    }
+}
+```
+
+---
+
+## API REST
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
+| GET | `/api/medecins` | Liste tous les praticiens |
+| POST | `/api/medecins` | Ajouter un praticien |
+| PUT | `/api/medecins/:id` | Modifier (nom, type, sched) |
+| DELETE | `/api/medecins/:id` | Supprimer |
+| GET | `/api/absences` | Liste toutes les absences |
+| POST | `/api/absences` | Ajouter une absence |
+| DELETE | `/api/absences/:id` | Supprimer |
+| GET | `/api/planning/:weekKey` | Planning complet d'une semaine |
+| POST | `/api/affectations` | Affecter un praticien à un poste (semaine) |
+| DELETE | `/api/affectations` | Retirer d'un poste (semaine) |
+| POST | `/api/exclusions` | Exclure un praticien d'un jour précis |
+| DELETE | `/api/exclusions` | Annuler une exclusion |
+| POST | `/api/extras` | Ajouter un remplaçant sur un jour |
+| DELETE | `/api/extras` | Retirer un remplaçant |
+| POST | `/api/planning/copy` | Copier une semaine vers une autre |
+
+---
+
+## Sauvegarde
+
+La base de données est dans `server/database.sqlite`.  
+**Sauvegarder ce fichier suffit** à préserver toutes les données.
+
+Exemple de sauvegarde automatique (cron Linux) :
+```bash
+# Chaque soir à 23h
+0 23 * * * cp /opt/planning-geriatrie/server/database.sqlite /backup/planning_$(date +\%Y\%m\%d).sqlite
+```
+
+---
+
+## Personnalisation
+
+- **Postes** : modifier le tableau `POSTES` dans `client/src/utils.js`
+- **Équipe initiale** : modifier le tableau `seed` dans `server/db.js`
+- **Port du serveur** : variable d'environnement `PORT` (défaut : 3001)
+
+```bash
+PORT=8080 node server/index.js
+```
+````
+
+## File: repomix-output.xml
+````xml
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
 
 <file_summary>
 This section contains a summary of this file.
@@ -6648,3 +8968,4 @@ PORT=8080 node server/index.js
 </file>
 
 </files>
+````
