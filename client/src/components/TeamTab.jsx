@@ -33,6 +33,7 @@ function normalizeMedecin(m) {
     id: m.id, prenom, nom, cat,
     service: isAstreinte ? m.service : undefined,
     tel: m.tel,
+    email: m.email || '',
     presence: isAstreinte ? undefined : presence,
     _rawNom: m.nom, _rawType: m.type, _rawSched: [...sched], _rawService: m.service,
   };
@@ -44,7 +45,7 @@ function denormalizeMedecin(data, existingMember) {
   const isAstreinte = data.cat === 'astreinte';
   const sched = isAstreinte ? Array(10).fill(0) : data.presence.flat();
   const service = isAstreinte ? (data.service || '') : 'geriatrie';
-  return { nom, type, sched, service, tel: existingMember?.tel || '' };
+  return { nom, type, sched, service, tel: existingMember?.tel || '', email: data.email || '' };
 }
 
 // ── Avatar ───────────────────────────────────────────────────
@@ -231,6 +232,7 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
   const [nom,      setNom]      = useState(member?.nom     || '');
   const [cat,      setCat]      = useState(member?.cat     || selected?.defaultCat || 'ph');
   const [service,  setService]  = useState(member?.service || '');
+  const [email,    setEmail]    = useState(member?.email   || '');
   const [presence, setPresence] = useState(
     member?.presence || Array.from({ length: 5 }, () => [1, 1])
   );
@@ -250,7 +252,10 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
 
   function handleSave() {
     if (!nom.trim()) { onToast('Le nom est requis', 'err'); return; }
-    onSave({ prenom: prenom.trim(), nom: nom.trim(), cat, service: service.trim(), presence });
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      onToast('Adresse email invalide', 'err'); return;
+    }
+    onSave({ prenom: prenom.trim(), nom: nom.trim(), cat, service: service.trim(), presence, email: email.trim() });
   }
 
   return (
@@ -321,6 +326,17 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
             <input type="text" value={service} onChange={e => setService(e.target.value)} placeholder="Ex. Cardiologie" />
           </div>
         )}
+
+        {/* Email — pour les campagnes congés */}
+        <div className="form-row">
+          <label>Email <span style={{ fontSize:9, color:'var(--text3)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>— utilisé pour les campagnes congés</span></label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="prenom.nom@chu.fr"
+          />
+        </div>
 
         {/* Grille de présence */}
         {!isAstreinte && (
@@ -409,10 +425,172 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
   );
 }
 
+// ── Modale campagne congés ────────────────────────────────────
+const TYPE_OPTIONS = [
+  { type:'ph',      label:'Praticiens Hospitaliers' },
+  { type:'padhue',  label:'PADHUE' },
+  { type:'ipa',     label:'IPA' },
+  { type:'interne', label:'Internes' },
+  { type:'externe', label:'Externes' },
+];
+
+function CampaignModal({ medecins, onClose, onToast }) {
+  const [selectedTypes, setSelectedTypes] = useState(['ph', 'padhue', 'ipa']);
+  const [phase, setPhase]                 = useState('select'); // select | sending | done
+  const [result, setResult]               = useState(null);
+
+  function toggleType(t) {
+    setSelectedTypes(prev =>
+      prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+    );
+  }
+
+  // Liste des praticiens qui seraient contactés
+  const previewed = medecins.filter(m => {
+    const rawType = m._rawType || m.type;
+    return selectedTypes.includes(rawType);
+  });
+  const withEmail    = previewed.filter(m => m.email);
+  const withoutEmail = previewed.filter(m => !m.email);
+
+  async function handleSend() {
+    if (withEmail.length === 0) {
+      onToast('Aucun praticien avec email dans la sélection', 'err');
+      return;
+    }
+    setPhase('sending');
+    try {
+      const data = await api.sendCampaign(
+        // Les types à cibler (types raw)
+        selectedTypes,
+        window.location.origin
+      );
+      setResult(data);
+      setPhase('done');
+      if (data.sent > 0) onToast(`${data.sent} email${data.sent > 1 ? 's' : ''} envoyé${data.sent > 1 ? 's' : ''}`);
+    } catch(e) {
+      setPhase('select');
+      onToast(e.message || 'Erreur lors de l\'envoi', 'err');
+    }
+  }
+
+  return (
+    <div className="mbg open" onClick={e => e.target.classList.contains('mbg') && onClose()}>
+      <div className="mbox" style={{ width: 440, maxHeight: '80vh' }}>
+
+        {/* En-tête */}
+        <div className="mhead">
+          <div className="mttl">Campagne congés</div>
+          <button className="mclose" onClick={onClose}>×</button>
+        </div>
+
+        {phase === 'done' ? (
+          /* ── Résultat ── */
+          <div style={{ padding: '20px 20px 8px' }}>
+            <div style={{
+              padding: '14px 16px', borderRadius: 8, marginBottom: 14,
+              background: result?.sent > 0 ? '#f0fdf4' : '#fef2f2',
+              border: `1px solid ${result?.sent > 0 ? '#86efac' : '#fca5a5'}`,
+            }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: result?.sent > 0 ? '#16a34a' : '#dc2626', marginBottom: 4 }}>
+                {result?.sent > 0
+                  ? `✓ ${result.sent} email${result.sent > 1 ? 's' : ''} envoyé${result.sent > 1 ? 's' : ''} avec succès`
+                  : '⚠ Aucun email envoyé'
+                }
+              </div>
+              {result?.errors?.length > 0 && (
+                <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>
+                  {result.errors.map((e, i) => (
+                    <div key={i}>{e.nom} — {e.error}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ padding: '0 0 14px', textAlign: 'right' }}>
+              <button className="btn-primary" onClick={onClose}>Fermer</button>
+            </div>
+          </div>
+        ) : (
+          /* ── Sélection ── */
+          <div style={{ padding: '16px 20px 8px' }}>
+            <p style={{ fontSize: 12, fontFamily: 'system-ui,sans-serif', color: 'var(--text2)', margin: '0 0 14px', lineHeight: 1.6 }}>
+              Chaque praticien recevra un lien personnel (valable 72h) pour saisir ses congés.
+            </p>
+
+            {/* Types */}
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Catégories</div>
+              {TYPE_OPTIONS.map(({ type, label }) => {
+                const count = medecins.filter(m => (m._rawType || m.type) === type).length;
+                const withMail = medecins.filter(m => (m._rawType || m.type) === type && m.email).length;
+                const checked = selectedTypes.includes(type);
+                return (
+                  <label key={type} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '7px 10px', borderRadius: 7, marginBottom: 4,
+                    cursor: 'pointer', userSelect: 'none',
+                    background: checked ? 'var(--accent-light, #eef3ff)' : 'transparent',
+                    border: `1px solid ${checked ? 'var(--accent, #2272f0)' : 'var(--border)'}`,
+                    transition: 'all .12s',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleType(type)}
+                      style={{ accentColor: 'var(--accent, #2272f0)', width: 14, height: 14 }}
+                    />
+                    <span style={{ flex: 1, fontSize: 12, fontFamily: 'system-ui,sans-serif', color: 'var(--text)', fontWeight: checked ? 700 : 400 }}>
+                      {label}
+                    </span>
+                    <span style={{ fontSize: 10, color: withMail > 0 ? 'var(--text2)' : 'var(--text3)' }}>
+                      {withMail}/{count} avec email
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+
+            {/* Récap */}
+            {selectedTypes.length > 0 && (
+              <div style={{
+                padding: '10px 12px', borderRadius: 7, marginBottom: 14,
+                background: '#f9f8f6', border: '1px solid var(--border)',
+                fontSize: 12, fontFamily: 'system-ui,sans-serif',
+              }}>
+                <div style={{ color: 'var(--text)', marginBottom: withoutEmail.length ? 4 : 0 }}>
+                  <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ {withEmail.length} praticien{withEmail.length !== 1 ? 's' : ''}</span> recevront un email
+                </div>
+                {withoutEmail.length > 0 && (
+                  <div style={{ color: 'var(--text3)' }}>
+                    ⚠ {withoutEmail.length} sans adresse email (non contacté{withoutEmail.length !== 1 ? 's' : ''})
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="modal-actions" style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
+              <button className="btn-cancel" onClick={onClose}>Annuler</button>
+              <button
+                className="btn-primary"
+                onClick={handleSend}
+                disabled={phase === 'sending' || withEmail.length === 0}
+              >
+                {phase === 'sending' ? 'Envoi…' : `Envoyer ${withEmail.length} email${withEmail.length !== 1 ? 's' : ''}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Composant principal ──────────────────────────────────────
 export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPushUndo = () => {} }) {
-  const [selected, setSelected] = useState(null); // member obj | { isNew:true, defaultCat } | null
-  const [search,   setSearch]   = useState('');
+  const [selected,      setSelected]      = useState(null); // member obj | { isNew:true, defaultCat } | null
+  const [search,        setSearch]        = useState('');
+  const [campaignOpen,  setCampaignOpen]  = useState(false);
 
   const members = useMemo(() => medecins.map(normalizeMedecin), [medecins]);
 
@@ -451,7 +629,8 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
       } else {
         const oldData = {
           nom: selected._rawNom, type: selected._rawType,
-          sched: selected._rawSched, service: selected._rawService, tel: selected.tel,
+          sched: selected._rawSched, service: selected._rawService,
+          tel: selected.tel, email: selected.email || '',
         };
         const medId = selected.id;
         await api.updateMedecin(medId, apiData);
@@ -476,13 +655,29 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
 
   return (
     <div>
-      {/* En-tête — titre + bouton ajouter */}
+      {/* En-tête — titre + boutons */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
         <div className="sec-t">Équipe &amp; présences</div>
         {isSecretary && (
-          <button className="btn-primary" onClick={() => setSelected({ isNew: true, defaultCat: 'ph' })}>
-            + Ajouter un personnel
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              className="btn-secondary"
+              onClick={() => setCampaignOpen(true)}
+              title="Envoyer des liens de saisie de congés aux praticiens"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 13px', fontSize: 12,
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1.5 2.5h11l-5 6v3.5l-2-1.2V8.5l-4-6z" strokeLinejoin="round"/>
+              </svg>
+              Campagne congés
+            </button>
+            <button className="btn-primary" onClick={() => setSelected({ isNew: true, defaultCat: 'ph' })}>
+              + Ajouter un personnel
+            </button>
+          </div>
         )}
       </div>
 
@@ -585,6 +780,15 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
           )}
         </div>
       </div>
+
+      {/* Modale campagne congés */}
+      {campaignOpen && (
+        <CampaignModal
+          medecins={members}
+          onClose={() => setCampaignOpen(false)}
+          onToast={onToast}
+        />
+      )}
     </div>
   );
 }
