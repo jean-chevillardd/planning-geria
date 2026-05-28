@@ -1,6 +1,6 @@
 // components/MonthView.jsx
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, getFrenchHolidays } from '../utils';
+import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, getHalfDayAbsence, getFrenchHolidays } from '../utils';
 import * as api from '../api';
 import DoctorSearch from './DoctorSearch';
 
@@ -378,7 +378,8 @@ export default function MonthView({ medecins, absences }) {
                       if (doctorFilter && m.id !== doctorFilter) return;
                       chips.push({ nom: m.nom, short: p.short, c: p.c, key: p.id + m.id,
                                    type: m.type, grpRank, posteIdx: pi,
-                                   assignIdx: posteOrder[m.id] ?? 9999, isExtra: false });
+                                   assignIdx: posteOrder[m.id] ?? 9999, isExtra: false,
+                                   halfDay: getHalfDayAbsence(m.id, di, absences) });
                     });
                     extras.filter(e => e.poste_id === p.id).forEach((e, ei) => {
                       if (doctorFilter && e.med_id !== doctorFilter) return;
@@ -442,9 +443,18 @@ export default function MonthView({ medecins, absences }) {
                       <div key={ch.key} className="month-chip"
                         style={{ background: ch.c+'22', color: ch.c, border:`1px solid ${ch.c}44` }}>
                         {ch.nom
-                          ? <span style={{ fontWeight: ch.type === 'ph' ? 700 : 400, fontStyle: ch.type === 'ph' ? 'normal' : 'italic' }}>
+                          ? <span style={{ fontWeight: ch.type === 'ph' ? 700 : 400, fontStyle: ch.type === 'ph' ? 'normal' : 'italic', display:'inline-flex', alignItems:'center', gap:3 }}>
                               {ch.nom}
                               {ch.short && <em style={{ fontStyle:'italic', fontWeight:400, opacity:0.75 }}> — {ch.short}</em>}
+                              {ch.halfDay && (
+                                <span style={{
+                                  fontSize:7, borderRadius:3, padding:'0 3px',
+                                  background:'#d9770618', border:'1px solid #d9770644',
+                                  color:'#b45309', fontWeight:700, fontStyle:'normal', flexShrink:0,
+                                }}>
+                                  {ch.halfDay === 'matin' ? '½M' : '½AM'}
+                                </span>
+                              )}
                             </span>
                           : <em style={{ fontStyle:'italic' }}>{ch.short}</em>
                         }

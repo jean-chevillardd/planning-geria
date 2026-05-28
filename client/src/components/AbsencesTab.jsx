@@ -543,6 +543,15 @@ function AbsenceList({ absences, isSecretary, onDelete }) {
                     <span className="cg-nm" style={{ color: col }}>{a.med_nom}</span>
                     <span className="cg-dt">
                       — {a.type_abs} · {a.date_debut} → {a.date_fin}
+                      {a.demi_journee && (
+                        <span style={{
+                          marginLeft:4, fontSize:9, borderRadius:3, padding:'1px 4px',
+                          background:'#d9770618', border:'1px solid #d9770644',
+                          color:'#b45309', fontWeight:700,
+                        }}>
+                          {a.demi_journee === 'matin' ? '½M' : '½AM'}
+                        </span>
+                      )}
                       {' '}
                       <span style={{ fontSize:9, color:'var(--text3)' }}>
                         ({countWorkingDays(a.date_debut, a.date_fin)} j. ouvrés)
@@ -589,7 +598,18 @@ function BarPopover({ abs, x, y, isSecretary, onClose, onDelete }) {
         <span style={{ fontSize:12, fontWeight:'bold', color:'var(--text)' }}>{abs.med_nom}</span>
       </div>
       <div style={{ fontSize:10, fontFamily:'sans-serif', color:'var(--text2)', lineHeight:1.7 }}>
-        <div style={{ color, fontWeight:600 }}>{abs.type_abs}</div>
+        <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+          <span style={{ color, fontWeight:600 }}>{abs.type_abs}</span>
+          {abs.demi_journee && (
+            <span style={{
+              fontSize:8, borderRadius:3, padding:'1px 5px',
+              background: '#d9770618', border:'1px solid #d9770655',
+              color:'#b45309', fontWeight:700,
+            }}>
+              {abs.demi_journee === 'matin' ? 'Matin absent' : 'Après-midi absent'}
+            </span>
+          )}
+        </div>
         <div>{abs.date_debut} → {abs.date_fin}</div>
         <div style={{ color:'var(--text3)' }}>{days} jour{days > 1 ? 's' : ''} ouvré{days > 1 ? 's' : ''}</div>
       </div>
@@ -836,8 +856,18 @@ function AbsenceCalendar({ absences, isSecretary, onDelete, initialMonth }) {
                         <span style={{
                           fontSize:10, fontFamily:'sans-serif', fontWeight:600,
                           color, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
+                          display:'flex', alignItems:'center', gap:4,
                         }}>
                           {bar.abs.med_nom}
+                          {bar.abs.demi_journee && (
+                            <span style={{
+                              fontSize:8, borderRadius:3, padding:'1px 4px',
+                              background: 'rgba(0,0,0,.12)', fontWeight:700,
+                              flexShrink:0,
+                            }}>
+                              {bar.abs.demi_journee === 'matin' ? '½M' : '½AM'}
+                            </span>
+                          )}
                         </span>
                       </div>
                     );
@@ -1150,11 +1180,18 @@ function SemesterView({ absences, medecins, isSecretary, onDelete }) {
 }
 
 // ── Composant principal ─────────────────────────────────────
+const DEMI_JOURNEE_OPTS = [
+  { val: null,    label: 'Journée entière' },
+  { val: 'matin', label: 'Matin absent' },
+  { val: 'apm',   label: 'Après-midi absent' },
+];
+
 export default function AbsencesTab({ medecins, absences, isSecretary, onReload, onToast, onPushUndo = () => {}, initNav }) {
   const [medId,       setMedId]       = useState('');
   const [dateD,       setDateD]       = useState(() => todayIso());
   const [dateF,       setDateF]       = useState(() => todayIso());
   const [typeAbs,     setTypeAbs]     = useState(TYPES_ABS[0]);
+  const [demiJournee, setDemiJournee] = useState(null);
   const [saving,      setSaving]      = useState(false);
   const [searchMedId, setSearchMedId] = useState('');
   const [viewMode,    setViewMode]    = useState('calendrier'); // 'calendrier' | 'semestre'
@@ -1188,11 +1225,12 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
     if (dateF < dateD) { onToast('La date de fin doit être après le début', 'err'); return; }
     setSaving(true);
     try {
-      const result = await api.addAbsence({ med_id:medId, date_debut:dateD, date_fin:dateF, type_abs:typeAbs });
+      const result = await api.addAbsence({ med_id:medId, date_debut:dateD, date_fin:dateF, type_abs:typeAbs, demi_journee:demiJournee });
       const absId = result.id;
       onPushUndo('Ajout congé', async () => { await api.deleteAbsence(absId); onReload(); });
       setMedId('');
       setDateD(todayIso()); setDateF(todayIso());
+      setDemiJournee(null);
       onReload();
       onToast('Absence enregistrée');
     } catch(e) {
@@ -1261,6 +1299,33 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
                 ))}
               </select>
             </div>
+
+            {/* ── Demi-journée ── */}
+            <div className="cgf">
+              <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+                {DEMI_JOURNEE_OPTS.map(opt => {
+                  const active = demiJournee === opt.val;
+                  return (
+                    <button
+                      key={String(opt.val)}
+                      type="button"
+                      onClick={() => setDemiJournee(opt.val)}
+                      style={{
+                        padding:'2px 10px', fontSize:10, borderRadius:12, cursor:'pointer',
+                        fontFamily:'system-ui,sans-serif', fontWeight: active ? 700 : 500,
+                        border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border2)'}`,
+                        background: active ? 'var(--accent-light)' : 'transparent',
+                        color: active ? 'var(--accent)' : 'var(--text2)',
+                        transition:'all .1s',
+                      }}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             <div className="cgf" style={{ display:'flex', alignItems:'center', gap:8 }}>
               <button type="submit" className="btn-primary" disabled={saving}
                 style={{ height:30, boxSizing:'border-box' }}>

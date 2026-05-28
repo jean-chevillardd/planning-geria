@@ -1,6 +1,6 @@
 // components/PlanningGrid.jsx
 import { useMemo, useState, useRef } from 'react';
-import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getFrenchHolidays } from '../utils';
+import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getHalfDayAbsence, getFrenchHolidays } from '../utils';
 
 function fmtWeek(monday, days) {
   const opts = { day: 'numeric', month: 'long', year: 'numeric' };
@@ -496,6 +496,7 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
       isExtra: false,
       color: m._color || poste.c,
       srcPid: poste.id,
+      halfDay: getHalfDayAbsence(m.id, dayIso, absences),
     })),
     ...dayExtras.map(e => ({
       key: e.med_id + '-x',
@@ -577,6 +578,15 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
               {chip.nom}
               {!senior && TYPE_LABEL[chip.type] && <em style={{ fontStyle:'italic', opacity:.75 }}> — {TYPE_LABEL[chip.type]}</em>}
               {isExtra && <span style={{ fontSize:8, opacity:.7 }}> (remplac.)</span>}
+              {chip.halfDay && (
+                <span style={{
+                  marginLeft:3, fontSize:7, borderRadius:3, padding:'0 3px',
+                  background:'#d9770618', border:'1px solid #d9770644',
+                  color:'#b45309', fontWeight:700, flexShrink:0,
+                }}>
+                  {chip.halfDay === 'matin' ? '½M' : '½AM'}
+                </span>
+              )}
             </span>
           </div>
         );

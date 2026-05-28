@@ -81,6 +81,7 @@ async function init() {
   // ── Migrations idempotentes ────────────────────────────
   try { db.run(`ALTER TABLE medecins ADD COLUMN service TEXT DEFAULT 'geriatrie'`); } catch(_) {}
   try { db.run(`ALTER TABLE medecins ADD COLUMN tel TEXT DEFAULT ''`); } catch(_) {}
+  try { db.run(`ALTER TABLE absences ADD COLUMN demi_journee TEXT DEFAULT NULL`); } catch(_) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS astreintes (

@@ -151,7 +151,7 @@ app.delete('/api/medecins/:id', (req, res) => {
 // ═══════════════════════════════════════════════════════
 app.get('/api/absences', (req, res) => {
   const rows = dbLib.queryAll(`
-    SELECT a.id, a.med_id, a.date_debut, a.date_fin, a.type_abs, m.nom as med_nom
+    SELECT a.id, a.med_id, a.date_debut, a.date_fin, a.type_abs, a.demi_journee, m.nom as med_nom
     FROM absences a JOIN medecins m ON a.med_id=m.id
     ORDER BY a.date_debut DESC
   `);
@@ -159,7 +159,7 @@ app.get('/api/absences', (req, res) => {
 });
 
 app.post('/api/absences', (req, res) => {
-  const { med_id, date_debut, date_fin, type_abs } = req.body;
+  const { med_id, date_debut, date_fin, type_abs, demi_journee } = req.body;
   if (!med_id || !date_debut || !date_fin || !type_abs)
     return res.status(400).json({ error: 'Champs manquants' });
   if (!isIsoDate(date_debut) || !isIsoDate(date_fin))
@@ -167,11 +167,14 @@ app.post('/api/absences', (req, res) => {
   if (!ABS_TYPES.has(type_abs))
     return res.status(400).json({ error: 'type_abs invalide' });
   if (date_fin < date_debut) return res.status(400).json({ error: 'date_fin < date_debut' });
+  if (demi_journee != null && !['matin', 'apm'].includes(demi_journee))
+    return res.status(400).json({ error: 'demi_journee invalide (matin, apm ou null)' });
+  const dj = demi_journee || null;
   const result = dbLib.run(
-    'INSERT INTO absences (med_id,date_debut,date_fin,type_abs) VALUES (?,?,?,?)',
-    [med_id, date_debut, date_fin, type_abs]
+    'INSERT INTO absences (med_id,date_debut,date_fin,type_abs,demi_journee) VALUES (?,?,?,?,?)',
+    [med_id, date_debut, date_fin, type_abs, dj]
   );
-  res.json({ id: result.lastInsertRowid, med_id, date_debut, date_fin, type_abs });
+  res.json({ id: result.lastInsertRowid, med_id, date_debut, date_fin, type_abs, demi_journee: dj });
 });
 
 app.delete('/api/absences/:id', (req, res) => {
