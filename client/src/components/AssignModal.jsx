@@ -227,6 +227,16 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                       {m.nom} <span className="mtag">{TYPE_LBL[m.type]}</span>
                     </span>
                     <span style={{ display:'flex', gap:5, alignItems:'center', flexShrink:0 }}>
+                      {(renfortAvail(m).ok || takenToday.has(m.id)) && (() => { const ra = renfortAvail(m); return (
+                        <button
+                          className="btn-xs btn-renfort"
+                          disabled={!ra.ok}
+                          title={ra.ok ? 'Ajouter en double tâche (déjà en poste ailleurs ce jour)' : ra.reason}
+                          onClick={ra.ok ? () => onAction('add_renfort', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso }) : undefined}
+                        >
+                          Renfort
+                        </button>
+                      ); })()}
                       <button
                         className="btn-xs btn-primary"
                         disabled={!da.ok}
@@ -235,22 +245,6 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                       >
                         Ce jour
                       </button>
-                      {(() => { const ra = renfortAvail(m); return ra.ok || takenToday.has(m.id) ? (
-                        <button
-                          className="btn-xs"
-                          disabled={!ra.ok}
-                          title={ra.ok ? 'Ajouter en double tâche (déjà en poste ailleurs ce jour)' : ra.reason}
-                          onClick={ra.ok ? () => onAction('add_renfort', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso }) : undefined}
-                          style={{
-                            background: ra.ok ? '#d9770618' : 'transparent',
-                            border: `1px solid ${ra.ok ? '#d9770655' : 'var(--border2)'}`,
-                            color: ra.ok ? '#b45309' : 'var(--text3)',
-                            fontWeight:700,
-                          }}
-                        >
-                          Renfort
-                        </button>
-                      ) : null; })()}
                       <button
                         className="btn-xs btn-primary"
                         disabled={!wa.ok}

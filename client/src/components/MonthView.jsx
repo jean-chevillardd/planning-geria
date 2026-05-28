@@ -361,6 +361,7 @@ export default function MonthView({ medecins, absences }) {
                 const isToday     = di === toIso(new Date());
                 const byPoste     = data?.affectations || {};
                 const extras      = (data?.extras      || []).filter(e => e.jour === di);
+                const renforts    = (data?.renforts    || []).filter(r => r.jour === di);
                 const excls       = (data?.exclusions  || []).map(e => e.med_id);
                 const holidayName = getFrenchHolidays(day.getFullYear()).get(di);
 
@@ -385,7 +386,13 @@ export default function MonthView({ medecins, absences }) {
                       if (doctorFilter && e.med_id !== doctorFilter) return;
                       chips.push({ nom: e.nom, short: p.short, c: p.c, key: p.id + e.med_id + 'x',
                                    type: e.type, grpRank, posteIdx: pi,
-                                   assignIdx: 9999 + ei, isExtra: true });
+                                   assignIdx: 9999 + ei, isExtra: true, isRenfort: false });
+                    });
+                    renforts.filter(r => r.poste_id === p.id).forEach((r, ri) => {
+                      if (doctorFilter && r.med_id !== doctorFilter) return;
+                      chips.push({ nom: r.nom, short: p.short, c: '#d97706', key: p.id + r.med_id + 'r',
+                                   type: r.type, grpRank, posteIdx: pi,
+                                   assignIdx: 99999 + ri, isExtra: false, isRenfort: true });
                     });
                   });
                 }
@@ -441,11 +448,22 @@ export default function MonthView({ medecins, absences }) {
                     </div>
                     {chips.slice(0, 8).map(ch => (
                       <div key={ch.key} className="month-chip"
-                        style={{ background: ch.c+'22', color: ch.c, border:`1px solid ${ch.c}44` }}>
+                        style={{
+                          background: ch.isRenfort ? '#d9770610' : ch.c+'22',
+                          color:      ch.isRenfort ? '#b45309'   : ch.c,
+                          border:     ch.isRenfort ? '1px dashed #d9770655' : `1px solid ${ch.c}44`,
+                        }}>
                         {ch.nom
                           ? <span style={{ fontWeight: ch.type === 'ph' ? 700 : 400, fontStyle: ch.type === 'ph' ? 'normal' : 'italic', display:'inline-flex', alignItems:'center', gap:3 }}>
                               {ch.nom}
                               {ch.short && <em style={{ fontStyle:'italic', fontWeight:400, opacity:0.75 }}> — {ch.short}</em>}
+                              {ch.isRenfort && (
+                                <span style={{
+                                  fontSize:7, borderRadius:3, padding:'0 3px',
+                                  background:'#d9770618', border:'1px solid #d9770644',
+                                  color:'#b45309', fontWeight:700, fontStyle:'normal', flexShrink:0,
+                                }}>renfort</span>
+                              )}
                               {ch.halfDay && (
                                 <span style={{
                                   fontSize:7, borderRadius:3, padding:'0 3px',
