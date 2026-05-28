@@ -14,7 +14,10 @@ const app  = express();
 const PORT = process.env.PORT || 3001;
 
 app.use(helmet());
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3001'] }));
+const corsOrigins = process.env.NODE_ENV === 'production'
+  ? true // même origine : Express sert le client compilé
+  : ['http://localhost:5173', 'http://localhost:3001'];
+app.use(cors({ origin: corsOrigins }));
 app.use(express.json());
 
 // ═══════════════════════════════════════════════════════
@@ -414,6 +417,17 @@ function addDaysStr(isoDate, n) {
   const d = new Date(isoDate + 'T12:00:00');
   d.setDate(d.getDate() + n);
   return d.toISOString().split('T')[0];
+}
+
+// ═══════════════════════════════════════════════════════
+// CLIENT STATIQUE (production)
+// ═══════════════════════════════════════════════════════
+if (process.env.NODE_ENV === 'production') {
+  const clientDist = path.join(__dirname, '../client/dist');
+  app.use(express.static(clientDist));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(clientDist, 'index.html'));
+  });
 }
 
 // ═══════════════════════════════════════════════════════
