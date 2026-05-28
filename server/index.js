@@ -212,6 +212,12 @@ app.get('/api/planning/:weekKey', (req, res) => {
     FROM absences a WHERE a.date_debut<=? AND a.date_fin>=?
   `, [weekEnd, weekKey]);
 
+  const renfortRows = dbLib.queryAll(`
+    SELECT r.poste_id, r.med_id, r.jour, m.nom, m.type
+    FROM renforts r JOIN medecins m ON r.med_id=m.id
+    WHERE r.week_key=?
+  `, [weekKey]);
+
   const byPoste = {};
   affRows.forEach(a => {
     if (!byPoste[a.poste_id]) byPoste[a.poste_id] = { medecins: [] };
@@ -221,7 +227,7 @@ app.get('/api/planning/:weekKey', (req, res) => {
     });
   });
 
-  res.json({ affectations: byPoste, exclusions, extras: extraRows, absences });
+  res.json({ affectations: byPoste, exclusions, extras: extraRows, renforts: renfortRows, absences });
 });
 
 // ═══════════════════════════════════════════════════════
@@ -286,6 +292,29 @@ app.delete('/api/extras', (req, res) => {
   if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
   if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
   dbLib.run('DELETE FROM extras WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
+    [week_key, poste_id, med_id, jour]);
+  res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
+// RENFORTS
+// ═══════════════════════════════════════════════════════
+app.post('/api/renforts', (req, res) => {
+  const { week_key, poste_id, med_id, jour } = req.body;
+  if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+  if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+  if (!week_key || !poste_id || !med_id || !jour)
+    return res.status(400).json({ error: 'Champs manquants' });
+  dbLib.run('INSERT OR IGNORE INTO renforts (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
+    [week_key, poste_id, med_id, jour]);
+  res.json({ ok: true });
+});
+
+app.delete('/api/renforts', (req, res) => {
+  const { week_key, poste_id, med_id, jour } = req.body;
+  if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+  if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+  dbLib.run('DELETE FROM renforts WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
     [week_key, poste_id, med_id, jour]);
   res.json({ ok: true });
 });

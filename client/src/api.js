@@ -56,6 +56,10 @@ export const copyWeek = (from_week, to_week) =>
 export const getStatsMedecin = (medId) => req('GET', `/stats/medecin/${medId}`);
 export const getAllStats      = ()      => req('GET', '/stats/all');
 
+// ── Renforts ────────────────────────────────────────────
+export const addRenfort    = (data) => req('POST',   '/renforts', data);
+export const deleteRenfort = (data) => req('DELETE', '/renforts', data);
+
 // ── Astreintes ──────────────────────────────────────────
 export const getAstreintes   = (month) => req('GET', `/astreintes?month=${month}`);
 export const addAstreinte    = (data)  => req('POST', '/astreintes', data);

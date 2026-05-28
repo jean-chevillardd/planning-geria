@@ -63,6 +63,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
   const byPoste    = planningData?.affectations || {};
   const exclusions = planningData?.exclusions   || [];
   const extras     = planningData?.extras       || [];
+  const renforts   = planningData?.renforts     || [];
 
   // ── Alertes ──────────────────────────────────────────────
   const alerts = useMemo(() => {
@@ -307,7 +308,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                     return (
                       <GridRow key={p.id} poste={p} days={days} todayIso={todayIso}
                         assigned={assigned}
-                        exclusions={exclusions} extras={extras} absences={absences}
+                        exclusions={exclusions} extras={extras} renforts={renforts} absences={absences}
                         doctorFilter={doctorFilter} holidays={holidays}
                         isSecretary={isSecretary} onCellClick={onCellClick}
                         dragInfo={dragInfo}
@@ -409,7 +410,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
 
 // ── Ligne de poste ──────────────────────────────────────────
 
-function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences, doctorFilter, holidays, isSecretary, onCellClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop }) {
+function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts, absences, doctorFilter, holidays, isSecretary, onCellClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop }) {
   const daysPresent = {};
   assigned.forEach(m => {
     daysPresent[m.id] = days.filter(d => worksDay(m, toIso(d), absences)).length;
@@ -438,7 +439,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
         return (
           <Cell key={di} poste={poste} dayIso={di} isToday={di === todayIso}
             assigned={assigned} stableOrder={stableOrder}
-            exclusions={exclusions} extras={extras} absences={absences}
+            exclusions={exclusions} extras={extras} renforts={renforts} absences={absences}
             doctorFilter={doctorFilter} isHoliday={holidays.has(di)}
             isSecretary={isSecretary} onClick={() => onCellClick(poste, di)}
             dragInfo={dragInfo}
@@ -454,7 +455,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, absences
 
 // ── Cellule ────────────────────────────────────────────────
 
-function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, extras, absences, doctorFilter, isHoliday, isSecretary, onClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop }) {
+function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, extras, renforts, absences, doctorFilter, isHoliday, isSecretary, onClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop }) {
   const [isOver,  setIsOver]  = useState(false);
   const dragCounter           = useRef(0);
 
@@ -473,14 +474,17 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
     .filter(e => allPosteIds.includes(e.poste_id) && e.jour === dayIso)
     .map(e => e.med_id);
 
-  const dayExtras = extras
+  const dayExtras   = extras
     .filter(e => allPosteIds.includes(e.poste_id) && e.jour === dayIso)
     .map(e => ({ ...e, _color: e.poste_id !== poste.id ? (POSTES_MAP[e.poste_id]?.c || poste.c) : null }));
+
+  const dayRenforts = (renforts || [])
+    .filter(r => allPosteIds.includes(r.poste_id) && r.jour === dayIso);
 
   const present = assigned.filter(m => worksDay(m, dayIso, absences) && !excl.includes(m.id));
   const absent  = assigned.filter(m => isAbsent(m.id, dayIso, absences) && !excl.includes(m.id));
 
-  const anyoneToday = present.length > 0 || dayExtras.length > 0;
+  const anyoneToday = present.length > 0 || dayExtras.length > 0 || dayRenforts.length > 0;
   const isOff = assigned.length > 0 && !anyoneToday && absent.length === 0;
 
   const cellBg = isOff
@@ -501,18 +505,29 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
     ...dayExtras.map(e => ({
       key: e.med_id + '-x',
       id: e.med_id, nom: e.nom, type: e.type,
-      isExtra: true,
+      isExtra: true, isRenfort: false,
       color: e._color || poste.c,
       srcPid: e.poste_id,
+      halfDay: null,
+    })),
+    ...dayRenforts.map(r => ({
+      key: r.med_id + '-r',
+      id: r.med_id, nom: r.nom, type: r.type,
+      isExtra: false, isRenfort: true,
+      color: poste.c,
+      srcPid: poste.id,
+      halfDay: null,
     })),
   ].sort((a, b) => {
     const ra = typeRank(a.type ?? ''), rb = typeRank(b.type ?? '');
     if (ra !== rb) return ra - rb;
+    // Renforts en dernier
+    if (a.isRenfort !== b.isRenfort) return a.isRenfort ? 1 : -1;
     // Même type : régulier avant extra
     if (a.isExtra !== b.isExtra) return a.isExtra ? 1 : -1;
     // Réguliers : ordre stable calculé sur la semaine
-    if (!a.isExtra) return (stableOrder[a.id] ?? 9999) - (stableOrder[b.id] ?? 9999);
-    // Extras : alphabétique
+    if (!a.isExtra && !a.isRenfort) return (stableOrder[a.id] ?? 9999) - (stableOrder[b.id] ?? 9999);
+    // Extras / renforts : alphabétique
     return a.nom.localeCompare(b.nom, 'fr');
   });
 
@@ -550,34 +565,42 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
         const highlighted = doctorFilter === chip.id;
         const senior      = isSenior(chip.type);
         const dragging    = dragInfo?.medId === chip.id;
-        const { color, isExtra } = chip;
+        const { color, isExtra, isRenfort } = chip;
         return (
           <div
             key={chip.key}
             className="chip"
-            draggable={isSecretary ? true : undefined}
-            onDragStart={isSecretary ? e => {
+            draggable={isSecretary && !isRenfort ? true : undefined}
+            onDragStart={isSecretary && !isRenfort ? e => {
               e.stopPropagation();
               onChipDragStart({ medId: chip.id, medNom: chip.nom, medType: chip.type, sourcePid: chip.srcPid, dayIso, isExtra });
             } : undefined}
-            onDragEnd={isSecretary ? onChipDragEnd : undefined}
+            onDragEnd={isSecretary && !isRenfort ? onChipDragEnd : undefined}
             style={{
-              background:  color + (highlighted ? '33' : senior ? '18' : '0d'),
-              borderColor: color + (highlighted ? 'cc' : senior ? '55' : '2e'),
+              background:  isRenfort ? '#d9770610' : color + (highlighted ? '33' : senior ? '18' : '0d'),
+              borderColor: isRenfort ? '#d9770655' : color + (highlighted ? 'cc' : senior ? '55' : '2e'),
+              borderStyle: isRenfort ? 'dashed' : 'solid',
               boxShadow:   highlighted ? `0 0 0 2px ${color}55` : 'none',
               opacity:     dragging ? 0.35 : 1,
-              cursor:      isSecretary ? 'grab' : 'default',
+              cursor:      isSecretary && !isRenfort ? 'grab' : 'default',
               transition:  'opacity .15s',
             }}
           >
             <span className="chip-nm" style={{
-              color:      color + (highlighted || senior ? '' : 'a0'),
+              color:      isRenfort ? '#b45309' : color + (highlighted || senior ? '' : 'a0'),
               fontWeight: senior ? 700 : 400,
               fontStyle:  senior ? 'normal' : 'italic',
             }}>
               {chip.nom}
               {!senior && TYPE_LABEL[chip.type] && <em style={{ fontStyle:'italic', opacity:.75 }}> — {TYPE_LABEL[chip.type]}</em>}
               {isExtra && <span style={{ fontSize:8, opacity:.7 }}> (remplac.)</span>}
+              {isRenfort && (
+                <span style={{
+                  marginLeft:4, fontSize:7, borderRadius:3, padding:'0 4px',
+                  background:'#d9770618', border:'1px solid #d9770644',
+                  color:'#b45309', fontWeight:700, fontStyle:'normal',
+                }}>renfort</span>
+              )}
               {chip.halfDay && (
                 <span style={{
                   marginLeft:3, fontSize:7, borderRadius:3, padding:'0 3px',

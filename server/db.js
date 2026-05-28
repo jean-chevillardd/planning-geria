@@ -84,6 +84,17 @@ async function init() {
   try { db.run(`ALTER TABLE absences ADD COLUMN demi_journee TEXT DEFAULT NULL`); } catch(_) {}
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS renforts (
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      week_key TEXT NOT NULL,
+      poste_id TEXT NOT NULL,
+      med_id   TEXT NOT NULL,
+      jour     TEXT NOT NULL,
+      UNIQUE(week_key, poste_id, med_id, jour)
+    )
+  `);
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS astreintes (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
       date_iso  TEXT NOT NULL,

@@ -289,6 +289,16 @@ export default function App() {
           undoLabel = 'Suppression extra';
           undoFn = async () => { await api.addExtra(payload); reloadPlan(); };
           break;
+        case 'add_renfort':
+          await api.addRenfort(payload);
+          undoLabel = 'Ajout renfort';
+          undoFn = async () => { await api.deleteRenfort(payload); reloadPlan(); };
+          break;
+        case 'del_renfort':
+          await api.deleteRenfort(payload);
+          undoLabel = 'Suppression renfort';
+          undoFn = async () => { await api.addRenfort(payload); reloadPlan(); };
+          break;
         default: console.warn('Action inconnue:', type);
       }
       if (undoFn) pushUndo(undoLabel, undoFn);

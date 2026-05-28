@@ -9,6 +9,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   const byPoste    = planningData?.affectations || {};
   const exclusions = planningData?.exclusions   || [];
   const extras     = planningData?.extras       || [];
+  const renforts   = planningData?.renforts     || [];
 
   const assigned = byPoste[poste?.id]?.medecins || [];
 
@@ -34,6 +35,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
 
   const excludedToday = assigned.filter(m => isExcluded(m.id));
   const extrasToday   = extras.filter(e => e.poste_id === poste.id && e.jour === dayIso);
+  const renfortsToday = renforts.filter(r => r.poste_id === poste.id && r.jour === dayIso);
 
   // Présents à CE poste ce jour (affectés + non exclus + travaillent, ou extra ponctuel)
   const presentToday = new Set([
@@ -65,7 +67,17 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   function dayAvail(m) {
     if (presentToday.has(m.id))           return { ok:false, reason:'Déjà présent à ce poste aujourd\'hui' };
     if (isAbsent(m.id, dayIso, absences)) return { ok:false, reason:'En congé ce jour' };
-    if (takenToday.has(m.id))             return { ok:false, reason:'Déjà en poste ailleurs ce jour' };
+    if (takenToday.has(m.id))             return { ok:false, reason:'Déjà en poste ailleurs — utiliser Renfort' };
+    return { ok:true };
+  }
+
+  // ── Disponibilité "Renfort" ──
+  // Possible uniquement si le médecin est déjà en poste ailleurs ce jour
+  function renfortAvail(m) {
+    if (!takenToday.has(m.id))            return { ok:false, reason:'Le médecin doit déjà être en poste ce jour' };
+    if (presentToday.has(m.id))           return { ok:false, reason:'Déjà présent à ce poste aujourd\'hui' };
+    if (isAbsent(m.id, dayIso, absences)) return { ok:false, reason:'En congé ce jour' };
+    if (renfortsToday.some(r => r.med_id === m.id)) return { ok:false, reason:'Déjà en renfort ici ce jour' };
     return { ok:true };
   }
 
@@ -157,6 +169,28 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
           </>
         )}
 
+        {/* ── Renforts déjà ajoutés ce jour ── */}
+        {renfortsToday.length > 0 && (
+          <>
+            <div className="msep" style={{ color:'#d97706' }}>Renforts ce jour</div>
+            {renfortsToday.map(r => (
+              <div key={r.med_id} className="mitem" style={{ cursor:'default' }}>
+                <span style={{ fontSize:12 }}>
+                  {r.nom}
+                  <span style={{
+                    marginLeft:5, fontSize:9, borderRadius:3, padding:'1px 5px',
+                    background:'#d9770618', border:'1px solid #d9770655', color:'#b45309', fontWeight:700,
+                  }}>renfort</span>
+                </span>
+                <button className="btn-xs btn-danger"
+                  onClick={() => onAction('del_renfort', { week_key:weekKey, poste_id:poste.id, med_id:r.med_id, jour:dayIso })}>
+                  Retirer
+                </button>
+              </div>
+            ))}
+          </>
+        )}
+
         {/* ── Barre de recherche ── */}
         <div style={{ padding:'8px 0 4px', position:'relative' }}>
           <input
@@ -201,6 +235,22 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                       >
                         Ce jour
                       </button>
+                      {(() => { const ra = renfortAvail(m); return ra.ok || takenToday.has(m.id) ? (
+                        <button
+                          className="btn-xs"
+                          disabled={!ra.ok}
+                          title={ra.ok ? 'Ajouter en double tâche (déjà en poste ailleurs ce jour)' : ra.reason}
+                          onClick={ra.ok ? () => onAction('add_renfort', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso }) : undefined}
+                          style={{
+                            background: ra.ok ? '#d9770618' : 'transparent',
+                            border: `1px solid ${ra.ok ? '#d9770655' : 'var(--border2)'}`,
+                            color: ra.ok ? '#b45309' : 'var(--text3)',
+                            fontWeight:700,
+                          }}
+                        >
+                          Renfort
+                        </button>
+                      ) : null; })()}
                       <button
                         className="btn-xs btn-primary"
                         disabled={!wa.ok}
