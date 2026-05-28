@@ -10,6 +10,14 @@ const jwt       = require('jsonwebtoken');
 const crypto    = require('crypto');
 const dbLib     = require('./db');
 
+// ── Nodemailer (optionnel) ─────────────────────────────
+let nodemailer;
+try { nodemailer = require('nodemailer'); } catch(e) { console.warn('nodemailer non disponible'); }
+
+const EMAIL_CFG_PATH = path.join(__dirname, 'email.config.json');
+let emailConfig = null;
+try { emailConfig = JSON.parse(fs.readFileSync(EMAIL_CFG_PATH, 'utf8')); } catch(_) {}
+
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
@@ -68,6 +76,55 @@ app.use((req, res, next) => {
   next();
 });
 
+// ═══════════════════════════════════════════════════════
+// CONGÉS SELF-SERVICE — routes publiques (pas de JWT)
+// ═══════════════════════════════════════════════════════
+
+// GET /api/conge/token/:token — validation token magic link
+app.get('/api/conge/token/:token', (req, res) => {
+  const { token } = req.params;
+  if (!token || token.length > 128) return res.status(400).json({ error: 'Token invalide' });
+  const now = new Date().toISOString();
+  const row = dbLib.queryOne('SELECT * FROM conge_tokens WHERE token=?', [token]);
+  if (!row) return res.status(404).json({ error: 'Lien invalide ou expiré' });
+  if (row.expires_at < now) return res.status(410).json({ error: 'Ce lien a expiré (72h)' });
+  const med = dbLib.queryOne('SELECT id, nom, type FROM medecins WHERE id=?', [row.med_id]);
+  if (!med) return res.status(404).json({ error: 'Praticien introuvable' });
+  res.json({ valid: true, med_id: med.id, nom: med.nom, type: med.type });
+});
+
+// POST /api/conge/submit — soumission d'absences via token (public, avant le guard JWT)
+app.post('/api/conge/submit', (req, res) => {
+  const { token, absences } = req.body;
+  if (!token) return res.status(400).json({ error: 'Token manquant' });
+  const now = new Date().toISOString();
+  const row = dbLib.queryOne('SELECT * FROM conge_tokens WHERE token=?', [token]);
+  if (!row) return res.status(404).json({ error: 'Lien invalide' });
+  if (row.expires_at < now) return res.status(410).json({ error: 'Ce lien a expiré' });
+  if (!Array.isArray(absences) || absences.length === 0)
+    return res.status(400).json({ error: 'Aucune absence fournie' });
+  if (absences.length > 20)
+    return res.status(400).json({ error: 'Trop d\'absences (max 20)' });
+  for (const abs of absences) {
+    const { date_debut, date_fin, type_abs } = abs;
+    if (!isIsoDate(date_debut) || !isIsoDate(date_fin))
+      return res.status(400).json({ error: 'Date invalide' });
+    if (!ABS_TYPES.has(type_abs))
+      return res.status(400).json({ error: 'Type d\'absence invalide' });
+    if (date_fin < date_debut)
+      return res.status(400).json({ error: 'date_fin antérieure à date_debut' });
+  }
+  let count = 0;
+  for (const abs of absences) {
+    dbLib.run(
+      'INSERT INTO absences (med_id,date_debut,date_fin,type_abs) VALUES (?,?,?,?)',
+      [row.med_id, abs.date_debut, abs.date_fin, abs.type_abs]
+    );
+    count++;
+  }
+  res.json({ ok: true, count });
+});
+
 // ── Guard : token JWT requis pour toute mutation ──────
 app.use((req, res, next) => {
   if (!['POST', 'PUT', 'DELETE'].includes(req.method)) return next();
@@ -106,19 +163,20 @@ app.get('/api/medecins', (req, res) => {
 });
 
 app.post('/api/medecins', (req, res) => {
-  const { nom, type, sched, service, tel } = req.body;
+  const { nom, type, sched, service, tel, email } = req.body;
   if (!nom || !type) return res.status(400).json({ error: 'nom et type requis' });
   if (!MED_TYPES.has(type)) return res.status(400).json({ error: 'type invalide' });
   const id = 'm_' + Date.now();
   const schedStr = (sched || Array(10).fill(1)).join('');
   const svc   = service || 'geriatrie';
   const phone = tel || '';
-  dbLib.run('INSERT INTO medecins (id,nom,type,sched,service,tel) VALUES (?,?,?,?,?,?)', [id, nom, type, schedStr, svc, phone]);
-  res.json({ id, nom, type, sched: schedStr.split('').map(Number), service: svc, tel: phone });
+  const mail  = email || null;
+  dbLib.run('INSERT INTO medecins (id,nom,type,sched,service,tel,email) VALUES (?,?,?,?,?,?,?)', [id, nom, type, schedStr, svc, phone, mail]);
+  res.json({ id, nom, type, sched: schedStr.split('').map(Number), service: svc, tel: phone, email: mail });
 });
 
 app.put('/api/medecins/:id', (req, res) => {
-  const { nom, type, sched, service, tel } = req.body;
+  const { nom, type, sched, service, tel, email } = req.body;
   const { id } = req.params;
   if (type !== undefined && !MED_TYPES.has(type))
     return res.status(400).json({ error: 'type invalide' });
@@ -130,6 +188,7 @@ app.put('/api/medecins/:id', (req, res) => {
   }
   if (service !== undefined) dbLib.run('UPDATE medecins SET service=? WHERE id=?', [service, id]);
   if (tel     !== undefined) dbLib.run('UPDATE medecins SET tel=?     WHERE id=?', [tel, id]);
+  if (email   !== undefined) dbLib.run('UPDATE medecins SET email=?   WHERE id=?', [email || null, id]);
   const updated = dbLib.queryOne('SELECT * FROM medecins WHERE id=?', [id]);
   if (!updated) return res.status(404).json({ error: 'Médecin non trouvé' });
   res.json({ ...updated, sched: updated.sched.split('').map(Number) });
@@ -317,6 +376,109 @@ app.delete('/api/renforts', (req, res) => {
   dbLib.run('DELETE FROM renforts WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
     [week_key, poste_id, med_id, jour]);
   res.json({ ok: true });
+});
+
+// ═══════════════════════════════════════════════════════
+// CAMPAGNE CONGÉS (secrétariat)
+// ═══════════════════════════════════════════════════════
+
+// POST /api/conge/campaign — envoie les magic links par email
+app.post('/api/conge/campaign', async (req, res) => {
+  const { types, base_url } = req.body;
+  if (!Array.isArray(types) || types.length === 0)
+    return res.status(400).json({ error: 'types requis (tableau de types de médecins)' });
+
+  if (!emailConfig || !emailConfig.gmail_user || !emailConfig.gmail_pass)
+    return res.status(503).json({ error: 'Configuration email manquante — créez server/email.config.json (voir email.config.json.example)' });
+  if (!nodemailer)
+    return res.status(503).json({ error: 'nodemailer non installé' });
+
+  // Praticiens avec email dans les types sélectionnés
+  const placeholders = types.map(() => '?').join(',');
+  const medecins = dbLib.queryAll(
+    `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) AND email IS NOT NULL AND TRIM(email) != ''`,
+    types
+  );
+  if (medecins.length === 0)
+    return res.status(400).json({ error: 'Aucun praticien avec adresse email dans les catégories sélectionnées' });
+
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: emailConfig.gmail_user, pass: emailConfig.gmail_pass },
+  });
+
+  const appUrl   = (base_url || 'http://localhost:5173').replace(/\/$/, '');
+  const now      = new Date();
+  const createdAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + 72 * 60 * 60 * 1000).toISOString();
+
+  let sent = 0;
+  const errors = [];
+
+  for (const med of medecins) {
+    const token = crypto.randomBytes(32).toString('hex');
+    // Un token par médecin ; les anciens tokens restent valides (multi-lien possible)
+    dbLib.run(
+      'INSERT INTO conge_tokens (token,med_id,created_at,expires_at) VALUES (?,?,?,?)',
+      [token, med.id, createdAt, expiresAt]
+    );
+
+    const link      = `${appUrl}/conge/${token}`;
+    const firstName = med.nom.split(' ')[0];
+
+    try {
+      await transporter.sendMail({
+        from: `"Planning Gériatrie" <${emailConfig.gmail_user}>`,
+        to:   med.email,
+        subject: 'Saisissez vos congés — Planning Pôle Gériatrie',
+        html: `
+          <div style="font-family:system-ui,Arial,sans-serif;max-width:500px;margin:auto;padding:24px">
+            <div style="background:#1858c8;color:#fff;padding:18px 24px;border-radius:10px 10px 0 0">
+              <strong style="font-size:16px">Planning Pôle Gériatrie</strong>
+            </div>
+            <div style="border:1px solid #ddd;border-top:none;padding:28px 24px;border-radius:0 0 10px 10px;background:#fff">
+              <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a">Bonjour <strong>${firstName}</strong>,</p>
+              <p style="margin:0 0 24px;font-size:14px;color:#444;line-height:1.6">
+                Vous pouvez saisir vos demandes de congés en cliquant sur le bouton ci-dessous.<br>
+                Ce lien est <strong>personnel</strong> et valable <strong>72 heures</strong>.
+              </p>
+              <p style="text-align:center;margin:28px 0">
+                <a href="${link}"
+                   style="background:#2272f0;color:#fff;padding:14px 32px;border-radius:9px;
+                          text-decoration:none;font-weight:700;font-size:15px;display:inline-block">
+                  Saisir mes congés
+                </a>
+              </p>
+              <p style="font-size:12px;color:#999;margin:24px 0 0">
+                Si le bouton ne fonctionne pas, copiez ce lien dans votre navigateur :<br>
+                <span style="color:#2272f0">${link}</span>
+              </p>
+              <hr style="border:none;border-top:1px solid #eee;margin:20px 0">
+              <p style="font-size:11px;color:#bbb;margin:0">CHU · Pôle Gériatrie — Planning interne</p>
+            </div>
+          </div>
+        `,
+        text: `Bonjour ${firstName},\n\nSaisissez vos congés via ce lien personnel (valable 72h) :\n${link}\n\nCHU · Pôle Gériatrie`,
+      });
+      sent++;
+    } catch(e) {
+      errors.push({ nom: med.nom, email: med.email, error: e.message });
+    }
+  }
+
+  res.json({ ok: true, sent, total: medecins.length, errors });
+});
+
+// GET /api/conge/preview — liste des praticiens qui seraient contactés
+app.get('/api/conge/preview', (req, res) => {
+  const types = (req.query.types || '').split(',').filter(Boolean);
+  if (types.length === 0) return res.json([]);
+  const placeholders = types.map(() => '?').join(',');
+  const rows = dbLib.queryAll(
+    `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) ORDER BY nom`,
+    types
+  );
+  res.json(rows.map(r => ({ id: r.id, nom: r.nom, type: r.type, email: r.email || null })));
 });
 
 // ═══════════════════════════════════════════════════════

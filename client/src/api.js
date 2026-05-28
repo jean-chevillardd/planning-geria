@@ -64,3 +64,9 @@ export const deleteRenfort = (data) => req('DELETE', '/renforts', data);
 export const getAstreintes   = (month) => req('GET', `/astreintes?month=${month}`);
 export const addAstreinte    = (data)  => req('POST', '/astreintes', data);
 export const deleteAstreinte = (id)    => req('DELETE', `/astreintes/${id}`);
+
+// ── Congés self-service ─────────────────────────────────
+export const validateCongeToken = (token)        => req('GET', `/conge/token/${token}`);
+export const submitCongeAbsences = (token, absences) => req('POST', '/conge/submit', { token, absences });
+export const previewCampaign    = (types)        => req('GET', `/conge/preview?types=${types.join(',')}`);
+export const sendCampaign       = (types, base_url) => req('POST', '/conge/campaign', { types, base_url });

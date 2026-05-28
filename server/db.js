@@ -81,6 +81,7 @@ async function init() {
   // ── Migrations idempotentes ────────────────────────────
   try { db.run(`ALTER TABLE medecins ADD COLUMN service TEXT DEFAULT 'geriatrie'`); } catch(_) {}
   try { db.run(`ALTER TABLE medecins ADD COLUMN tel TEXT DEFAULT ''`); } catch(_) {}
+  try { db.run(`ALTER TABLE medecins ADD COLUMN email TEXT DEFAULT NULL`); } catch(_) {}
   try { db.run(`ALTER TABLE absences ADD COLUMN demi_journee TEXT DEFAULT NULL`); } catch(_) {}
 
   db.run(`
@@ -91,6 +92,15 @@ async function init() {
       med_id   TEXT NOT NULL,
       jour     TEXT NOT NULL,
       UNIQUE(week_key, poste_id, med_id, jour)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS conge_tokens (
+      token      TEXT PRIMARY KEY,
+      med_id     TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
     )
   `);
 

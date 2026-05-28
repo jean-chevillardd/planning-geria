@@ -2,6 +2,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import * as api from '../api';
 
+const TYPE_LABEL = { ph:'Praticiens Hospitaliers', ipa:'IPA', padhue:'PADHUE', interne:'Internes', externe:'Externes' };
+
 const CATS = [
   { id:'ph',        label:'Praticiens Hospitaliers', color:'#2272f0', bg:'#eef3ff' },
   { id:'padhue',    label:'PADHUE',                  color:'#7c3aed', bg:'#f5f0ff' },

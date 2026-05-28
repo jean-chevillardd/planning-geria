@@ -20,6 +20,9 @@ client/dist/
 # ── Configuration secrétariat (contient le hash du mot de passe) ──
 server/secretary.config.json
 
+# ── Configuration email (contient les identifiants Gmail) ────
+server/email.config.json
+
 # ── Logs ─────────────────────────────────────────────────────
 *.log
 npm-debug.log*
