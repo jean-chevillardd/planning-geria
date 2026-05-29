@@ -2,6 +2,9 @@
   "name": "planning-geriatrie",
   "version": "1.0.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "install:all": "cd server && npm install && cd ../client && npm install",
     "dev": "concurrently -n server,client -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
