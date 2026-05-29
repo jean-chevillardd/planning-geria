@@ -1,3 +1,15 @@
 {
-  "plugins": ["gstack"]
+  "plugins": ["gstack"],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git -C '/Users/jeanchevillard/Documents/tests de code/planning-geriatrie' pull --ff-only -q 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
 }
