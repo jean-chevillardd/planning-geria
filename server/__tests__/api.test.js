@@ -1,244 +1,27 @@
 /**
  * Tests API serveur — planning-geriatrie
  * Utilise supertest + Jest
- * La DB est créée en mémoire (fichier temp) pour chaque suite
+ * La DB est créée en mémoire pour chaque suite (db_testable + :memory:)
  */
 
-const request  = require('supertest');
-const express  = require('express');
-const cors     = require('cors');
-const path     = require('path');
-const fs       = require('fs');
-const os       = require('os');
-
-// ── Helpers pour créer une app isolée avec sa propre DB ──────────────────────
-
-async function buildApp() {
-  // On crée un dossier temp pour que persist() écrive un fichier dédié
-  const tmpDir  = fs.mkdtempSync(path.join(os.tmpdir(), 'pg-test-'));
-  const dbPath  = path.join(tmpDir, 'database.sqlite');
-
-  // On monkey-patche DB_PATH AVANT de charger db.js
-  // db.js utilise path.join(__dirname, 'database.sqlite') donc on doit
-  // simuler via un module rechargé proprement
-  jest.resetModules();
-
-  // Surcharger __dirname dans db.js via une variable d'env
-  process.env.PG_TEST_DB_PATH = dbPath;
-
-  // Recharger les modules
-  const dbLib = require('../db_testable');
-  const app   = buildExpressApp(dbLib);
-
-  await dbLib.init();
-  app.locals.DB_READY = true;
-
-  // Patch le middleware DB_READY
-  app._dbReady = true;
-
-  return { app, dbPath, tmpDir };
-}
-
-// ── On construit l'app Express manuellement (même code que index.js) ─────────
-function buildExpressApp(dbLib) {
-  const app = express();
-  app.use(cors());
-  app.use(express.json());
-
-  // Middleware DB_READY
-  app.use((req, res, next) => {
-    if (!app._dbReady) return res.status(503).json({ error: 'Base de données en cours d\'initialisation' });
-    next();
-  });
-
-  // ── MÉDECINS ──
-  app.get('/api/medecins', (req, res) => {
-    const rows = dbLib.queryAll('SELECT * FROM medecins ORDER BY type, nom');
-    res.json(rows.map(r => ({ ...r, sched: r.sched.split('').map(Number) })));
-  });
-
-  app.post('/api/medecins', (req, res) => {
-    const { nom, type, sched } = req.body;
-    if (!nom || !type) return res.status(400).json({ error: 'nom et type requis' });
-    const id = 'm_' + Date.now();
-    const schedStr = (sched || Array(10).fill(1)).join('');
-    dbLib.run('INSERT INTO medecins (id,nom,type,sched) VALUES (?,?,?,?)', [id, nom, type, schedStr]);
-    res.json({ id, nom, type, sched: schedStr.split('').map(Number) });
-  });
-
-  app.put('/api/medecins/:id', (req, res) => {
-    const { nom, type, sched } = req.body;
-    const { id } = req.params;
-    if (nom  !== undefined) dbLib.run('UPDATE medecins SET nom=?  WHERE id=?', [nom, id]);
-    if (type !== undefined) dbLib.run('UPDATE medecins SET type=? WHERE id=?', [type, id]);
-    if (sched !== undefined) {
-      const s = Array.isArray(sched) ? sched.join('') : sched;
-      dbLib.run('UPDATE medecins SET sched=? WHERE id=?', [s, id]);
-    }
-    const updated = dbLib.queryOne('SELECT * FROM medecins WHERE id=?', [id]);
-    if (!updated) return res.status(404).json({ error: 'Médecin non trouvé' });
-    res.json({ ...updated, sched: updated.sched.split('').map(Number) });
-  });
-
-  app.delete('/api/medecins/:id', (req, res) => {
-    const { id } = req.params;
-    dbLib.run('DELETE FROM absences    WHERE med_id=?', [id]);
-    dbLib.run('DELETE FROM affectations WHERE med_id=?', [id]);
-    dbLib.run('DELETE FROM exclusions  WHERE med_id=?', [id]);
-    dbLib.run('DELETE FROM extras      WHERE med_id=?', [id]);
-    dbLib.run('DELETE FROM medecins    WHERE id=?', [id]);
-    res.json({ ok: true });
-  });
-
-  // ── ABSENCES ──
-  app.get('/api/absences', (req, res) => {
-    const rows = dbLib.queryAll(`
-      SELECT a.id, a.med_id, a.date_debut, a.date_fin, a.type_abs, m.nom as med_nom
-      FROM absences a JOIN medecins m ON a.med_id=m.id
-      ORDER BY a.date_debut DESC
-    `);
-    res.json(rows);
-  });
-
-  app.post('/api/absences', (req, res) => {
-    const { med_id, date_debut, date_fin, type_abs } = req.body;
-    if (!med_id || !date_debut || !date_fin || !type_abs)
-      return res.status(400).json({ error: 'Champs manquants' });
-    if (date_fin < date_debut) return res.status(400).json({ error: 'date_fin < date_debut' });
-    const result = dbLib.run(
-      'INSERT INTO absences (med_id,date_debut,date_fin,type_abs) VALUES (?,?,?,?)',
-      [med_id, date_debut, date_fin, type_abs]
-    );
-    res.json({ id: result.lastInsertRowid, med_id, date_debut, date_fin, type_abs });
-  });
-
-  app.delete('/api/absences/:id', (req, res) => {
-    dbLib.run('DELETE FROM absences WHERE id=?', [req.params.id]);
-    res.json({ ok: true });
-  });
-
-  // ── PLANNING ──
-  app.get('/api/planning/:weekKey', (req, res) => {
-    const { weekKey } = req.params;
-    const affRows = dbLib.queryAll(`
-      SELECT a.poste_id, a.med_id, m.nom, m.type, m.sched
-      FROM affectations a JOIN medecins m ON a.med_id=m.id
-      WHERE a.week_key=?
-    `, [weekKey]);
-    const exclusions = dbLib.queryAll(
-      'SELECT poste_id, med_id, jour FROM exclusions WHERE week_key=?', [weekKey]
-    );
-    const extraRows = dbLib.queryAll(`
-      SELECT e.poste_id, e.med_id, e.jour, m.nom, m.type
-      FROM extras e JOIN medecins m ON e.med_id=m.id
-      WHERE e.week_key=?
-    `, [weekKey]);
-    const weekEnd = addDaysStr(weekKey, 4);
-    const absences = dbLib.queryAll(`
-      SELECT a.med_id, a.date_debut, a.date_fin, a.type_abs
-      FROM absences a WHERE a.date_debut<=? AND a.date_fin>=?
-    `, [weekEnd, weekKey]);
-    const byPoste = {};
-    affRows.forEach(a => {
-      if (!byPoste[a.poste_id]) byPoste[a.poste_id] = { medecins: [] };
-      byPoste[a.poste_id].medecins.push({
-        id: a.med_id, nom: a.nom, type: a.type,
-        sched: a.sched.split('').map(Number)
-      });
-    });
-    res.json({ affectations: byPoste, exclusions, extras: extraRows, absences });
-  });
-
-  // ── AFFECTATIONS ──
-  app.post('/api/affectations', (req, res) => {
-    const { week_key, poste_id, med_id } = req.body;
-    if (!week_key || !poste_id || !med_id) return res.status(400).json({ error: 'Champs manquants' });
-    try {
-      dbLib.run('INSERT OR IGNORE INTO affectations (week_key,poste_id,med_id) VALUES (?,?,?)',
-        [week_key, poste_id, med_id]);
-      res.json({ ok: true });
-    } catch(e) { res.status(500).json({ error: e.message }); }
-  });
-
-  app.delete('/api/affectations', (req, res) => {
-    const { week_key, poste_id, med_id } = req.body;
-    dbLib.run('DELETE FROM affectations WHERE week_key=? AND poste_id=? AND med_id=?', [week_key, poste_id, med_id]);
-    dbLib.run('DELETE FROM exclusions   WHERE week_key=? AND poste_id=? AND med_id=?', [week_key, poste_id, med_id]);
-    res.json({ ok: true });
-  });
-
-  // ── EXCLUSIONS ──
-  app.post('/api/exclusions', (req, res) => {
-    const { week_key, poste_id, med_id, jour } = req.body;
-    dbLib.run('INSERT OR IGNORE INTO exclusions (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
-      [week_key, poste_id, med_id, jour]);
-    res.json({ ok: true });
-  });
-
-  app.delete('/api/exclusions', (req, res) => {
-    const { week_key, poste_id, med_id, jour } = req.body;
-    dbLib.run('DELETE FROM exclusions WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
-      [week_key, poste_id, med_id, jour]);
-    res.json({ ok: true });
-  });
-
-  // ── EXTRAS ──
-  app.post('/api/extras', (req, res) => {
-    const { week_key, poste_id, med_id, jour } = req.body;
-    dbLib.run('INSERT OR IGNORE INTO extras (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
-      [week_key, poste_id, med_id, jour]);
-    res.json({ ok: true });
-  });
-
-  app.delete('/api/extras', (req, res) => {
-    const { week_key, poste_id, med_id, jour } = req.body;
-    dbLib.run('DELETE FROM extras WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
-      [week_key, poste_id, med_id, jour]);
-    res.json({ ok: true });
-  });
-
-  // ── COPIE SEMAINE ──
-  app.post('/api/planning/copy', (req, res) => {
-    const { from_week, to_week } = req.body;
-    if (!from_week || !to_week) return res.status(400).json({ error: 'from_week et to_week requis' });
-    dbLib.transaction(() => {
-      dbLib.run('DELETE FROM affectations WHERE week_key=?', [to_week]);
-      dbLib.run('DELETE FROM exclusions   WHERE week_key=?', [to_week]);
-      dbLib.run('DELETE FROM extras       WHERE week_key=?', [to_week]);
-      const affs = dbLib.queryAll('SELECT poste_id, med_id FROM affectations WHERE week_key=?', [from_week]);
-      affs.forEach(r => dbLib.run('INSERT OR IGNORE INTO affectations (week_key,poste_id,med_id) VALUES (?,?,?)',
-        [to_week, r.poste_id, r.med_id]));
-      const excls = dbLib.queryAll('SELECT poste_id, med_id, jour FROM exclusions WHERE week_key=?', [from_week]);
-      excls.forEach(r => dbLib.run('INSERT OR IGNORE INTO exclusions (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
-        [to_week, r.poste_id, r.med_id, r.jour]));
-      const exts = dbLib.queryAll('SELECT poste_id, med_id, jour FROM extras WHERE week_key=?', [from_week]);
-      exts.forEach(r => dbLib.run('INSERT OR IGNORE INTO extras (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
-        [to_week, r.poste_id, r.med_id, r.jour]));
-    });
-    res.json({ ok: true });
-  });
-
-  return app;
-}
-
-function addDaysStr(isoDate, n) {
-  const d = new Date(isoDate + 'T12:00:00');
-  d.setDate(d.getDate() + n);
-  return d.toISOString().split('T')[0];
-}
+const request = require('supertest');
 
 // ════════════════════════════════════════════════════════════════════════════
 // SUITE DE TESTS
 // ════════════════════════════════════════════════════════════════════════════
 
-let app, tmpDir, dbLib;
+let app, dbLib;
 
 beforeAll(async () => {
   jest.resetModules();
+  process.env.PG_TEST_DB_PATH = ':memory:';
+
   dbLib = require('../db_testable');
   await dbLib.init();
-  app = buildExpressApp(dbLib);
-  app._dbReady = true;
+
+  const { createApp } = require('../index');
+  app = createApp(dbLib);
+  app._setDbReady();
 }, 30000);
 
 afterAll(() => {
@@ -708,9 +491,9 @@ describe('Middleware DB_READY', () => {
   test('retourne 503 si DB non prête', async () => {
     jest.resetModules();
     const dbLib2 = require('../db_testable');
-    // NE PAS appeler dbLib2.init()
-    const app2 = buildExpressApp(dbLib2);
-    app2._dbReady = false;
+    // NE PAS appeler dbLib2.init() ni app2._setDbReady()
+    const { createApp } = require('../index');
+    const app2 = createApp(dbLib2);
     const res = await request(app2).get('/api/medecins');
     expect(res.status).toBe(503);
     expect(res.body.error).toMatch(/initialisation/);
