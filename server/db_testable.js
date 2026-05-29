@@ -89,6 +89,18 @@ async function init() {
       UNIQUE(date_iso, type_ast)
     )
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id        TEXT,
+      action         TEXT NOT NULL,
+      table_name     TEXT NOT NULL,
+      record_id      TEXT,
+      payload_before TEXT,
+      payload_after  TEXT,
+      created_at     TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
 
   // Seed pour les tests — couvre tous les types de praticiens
   const count = queryOne('SELECT COUNT(*) as n FROM medecins').n;

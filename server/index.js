@@ -73,6 +73,22 @@ function createApp(dbLib) {
   const checkMedExists = (med_id) =>
     !!dbLib.queryOne('SELECT 1 FROM medecins WHERE id=?', [med_id]);
 
+  function logAudit(action, tableName, recordId, payloadBefore, payloadAfter) {
+    try {
+      dbLib.run(
+        `INSERT INTO audit_log (action, table_name, record_id, payload_before, payload_after)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          action,
+          tableName,
+          recordId != null ? String(recordId) : null,
+          payloadBefore != null ? JSON.stringify(payloadBefore) : null,
+          payloadAfter  != null ? JSON.stringify(payloadAfter)  : null,
+        ]
+      );
+    } catch(_) { /* audit ne doit jamais faire échouer la requête principale */ }
+  }
+
   app.use(helmet());
   const corsOrigins = process.env.NODE_ENV === 'production'
     ? true
@@ -185,6 +201,7 @@ function createApp(dbLib) {
     const phone = tel || '';
     const mail  = email || null;
     dbLib.run('INSERT INTO medecins (id,nom,type,sched,service,tel,email) VALUES (?,?,?,?,?,?,?)', [id, nom, type, schedStr, svc, phone, mail]);
+    logAudit('CREATE', 'medecins', id, null, { id, nom, type });
     res.json({ id, nom, type, sched: schedStr.split('').map(Number), service: svc, tel: phone, email: mail });
   });
 
@@ -209,9 +226,10 @@ function createApp(dbLib) {
 
   app.patch('/api/medecins/:id/archiver', (req, res) => {
     const { id } = req.params;
-    const med = dbLib.queryOne('SELECT id FROM medecins WHERE id=?', [id]);
+    const med = dbLib.queryOne('SELECT id, nom, type FROM medecins WHERE id=?', [id]);
     if (!med) return res.status(404).json({ error: 'Médecin non trouvé' });
     dbLib.run('UPDATE medecins SET actif=0 WHERE id=?', [id]);
+    logAudit('DELETE', 'medecins', id, med, null);
     res.json({ ok: true });
   });
 
@@ -244,11 +262,14 @@ function createApp(dbLib) {
       'INSERT INTO absences (med_id,date_debut,date_fin,type_abs,demi_journee) VALUES (?,?,?,?,?)',
       [med_id, date_debut, date_fin, type_abs, dj]
     );
+    logAudit('CREATE', 'absences', result.lastInsertRowid, null, { med_id, date_debut, date_fin, type_abs });
     res.json({ id: result.lastInsertRowid, med_id, date_debut, date_fin, type_abs, demi_journee: dj });
   });
 
   app.delete('/api/absences/:id', (req, res) => {
+    const before = dbLib.queryOne('SELECT * FROM absences WHERE id=?', [req.params.id]);
     dbLib.run('DELETE FROM absences WHERE id=?', [req.params.id]);
+    if (before) logAudit('DELETE', 'absences', req.params.id, before, null);
     res.json({ ok: true });
   });
 
@@ -543,6 +564,7 @@ function createApp(dbLib) {
     if (!AST_TYPES.has(type_ast))
       return res.status(400).json({ error: 'type_ast invalide' });
     try {
+      const before = dbLib.queryOne('SELECT * FROM astreintes WHERE date_iso=? AND type_ast=?', [date_iso, type_ast]);
       dbLib.run('DELETE FROM astreintes WHERE date_iso=? AND type_ast=?', [date_iso, type_ast]);
       const result = dbLib.run(
         'INSERT INTO astreintes (date_iso,type_ast,med_id) VALUES (?,?,?)',
@@ -552,12 +574,15 @@ function createApp(dbLib) {
         SELECT a.id, a.date_iso, a.type_ast, a.med_id, m.nom as med_nom, m.tel as med_tel
         FROM astreintes a JOIN medecins m ON a.med_id=m.id WHERE a.id=?
       `, [result.lastInsertRowid]);
+      logAudit('CREATE', 'astreintes', result.lastInsertRowid, before || null, { date_iso, type_ast, med_id });
       res.json(row);
     } catch(e) { res.status(500).json({ error: e.message }); }
   });
 
   app.delete('/api/astreintes/:id', (req, res) => {
+    const before = dbLib.queryOne('SELECT * FROM astreintes WHERE id=?', [req.params.id]);
     dbLib.run('DELETE FROM astreintes WHERE id=?', [req.params.id]);
+    if (before) logAudit('DELETE', 'astreintes', req.params.id, before, null);
     res.json({ ok: true });
   });
 
