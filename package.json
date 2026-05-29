@@ -11,7 +11,7 @@
     "dev:server": "cd server && npm run dev",
     "dev:client": "cd client && npm run dev",
     "build": "cd client && npm install && npm run build",
-    "start": "cd server && npm install && node index.js"
+    "start": "cd server && node index.js"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
