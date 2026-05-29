@@ -668,32 +668,25 @@ describe('POST /api/planning/copy', () => {
     await request(app).post('/api/exclusions').send({ week_key: '2025-05-26', poste_id: 'ucc', med_id: medId, jour: '2025-05-27' });
   });
 
-  test('[BUG CONNU] happy path — copie affectations + exclusions — ECHOUE car db.export() rompt la transaction', async () => {
-    // BUG CRITIQUE : dans db.js, la fonction transaction() appelle db.run('BEGIN')
-    // puis les run() imbriqués appellent persist() -> db.export() qui COMMIT automatiquement
-    // la transaction SQLite en cours. Le COMMIT final échoue avec "no transaction is active".
-    // Ce bug rend la route POST /api/planning/copy non fonctionnelle en production.
+  test('happy path — copie affectations + exclusions de la semaine source', async () => {
     const res = await request(app).post('/api/planning/copy').send({
       from_week: '2025-05-26', to_week: '2025-06-16'
     });
-    // On documente le comportement réel : 500 à cause du bug transaction
-    expect(res.status).toBe(500);
-    // Le test ci-dessous documente ce qui DEVRAIT se passer une fois le bug corrigé :
-    // expect(res.status).toBe(200);
-    // const plan = await request(app).get('/api/planning/2025-06-16');
-    // expect(plan.body.affectations['ucc']?.medecins.some(m => m.id === medId)).toBe(true);
+    expect(res.status).toBe(200);
+    const plan = await request(app).get('/api/planning/2025-06-16');
+    expect(plan.body.affectations['ucc']?.medecins.some(m => m.id === medId)).toBe(true);
   });
 
-  test('[BUG CONNU] écrase les affectations de la semaine cible — non testable car route cassée', async () => {
-    // Ce test dépend de la correction du bug transaction() ci-dessus.
-    // En l'état, la route copy retourne 500.
+  test('écrase les affectations existantes de la semaine cible', async () => {
     const r2 = await request(app).post('/api/medecins').send({ nom: 'Dr ToOverwrite', type: 'ipa' });
     await request(app).post('/api/affectations').send({ week_key: '2025-06-23', poste_id: 'emg', med_id: r2.body.id });
+    // Copier depuis semaine vide : la semaine cible doit être effacée
     const res = await request(app).post('/api/planning/copy').send({
       from_week: '2020-01-06', to_week: '2025-06-23'
     });
-    // Comportement réel dû au bug : 500
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(200);
+    const plan = await request(app).get('/api/planning/2025-06-23');
+    expect(plan.body.affectations['emg']).toBeUndefined();
   });
 
   test('400 si from_week manquant', async () => {

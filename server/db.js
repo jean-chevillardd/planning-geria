@@ -1,54 +1,42 @@
-// db.js — SQLite via sql.js (pur JS/WASM, sans compilation native)
-// La BDD est chargée depuis un fichier .sqlite au démarrage et
-// sauvegardée sur disque après chaque écriture.
+// db.js — SQLite via better-sqlite3 (synchrone, écriture directe sur disque)
+// Remplace sql.js/WASM : plus de persist(), plus de inTransaction flag.
 
-const initSqlJs = require('sql.js');
-const fs        = require('fs');
-const path      = require('path');
+const Database = require('better-sqlite3');
+const path     = require('path');
 
 const DB_PATH = path.join(__dirname, 'database.sqlite');
 
-// sql.js fonctionne en mémoire ; on persiste manuellement
 let db;
-let inTransaction = false;
-
-function persist() {
-  if (inTransaction) return; // db.export() ferait un COMMIT implicite dans une transaction ouverte
-  const data = db.export();
-  fs.writeFileSync(DB_PATH, Buffer.from(data));
-}
 
 async function init() {
-  const SQL = await initSqlJs();
+  db = new Database(DB_PATH);
 
-  if (fs.existsSync(DB_PATH)) {
-    const fileBuffer = fs.readFileSync(DB_PATH);
-    db = new SQL.Database(fileBuffer);
-  } else {
-    db = new SQL.Database();
-  }
+  db.pragma('foreign_keys = ON');
+  db.pragma('journal_mode = WAL');
 
-  // ── Schéma ─────────────────────────────────────────────
-  db.run(`PRAGMA foreign_keys = ON`);
-
-  db.run(`
+  // ── Schéma complet (inclut les colonnes ajoutées via ALTER TABLE) ──────────
+  db.exec(`
     CREATE TABLE IF NOT EXISTS medecins (
-      id    TEXT PRIMARY KEY,
-      nom   TEXT NOT NULL,
-      type  TEXT NOT NULL,
-      sched TEXT NOT NULL DEFAULT '1111111111'
+      id      TEXT PRIMARY KEY,
+      nom     TEXT NOT NULL,
+      type    TEXT NOT NULL,
+      sched   TEXT NOT NULL DEFAULT '1111111111',
+      service TEXT DEFAULT 'geriatrie',
+      tel     TEXT DEFAULT '',
+      email   TEXT DEFAULT NULL
     )
   `);
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS absences (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      med_id     TEXT NOT NULL,
-      date_debut TEXT NOT NULL,
-      date_fin   TEXT NOT NULL,
-      type_abs   TEXT NOT NULL
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      med_id       TEXT NOT NULL,
+      date_debut   TEXT NOT NULL,
+      date_fin     TEXT NOT NULL,
+      type_abs     TEXT NOT NULL,
+      demi_journee TEXT DEFAULT NULL
     )
   `);
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS affectations (
       id       INTEGER PRIMARY KEY AUTOINCREMENT,
       week_key TEXT NOT NULL,
@@ -57,7 +45,7 @@ async function init() {
       UNIQUE(week_key, poste_id, med_id)
     )
   `);
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS exclusions (
       id       INTEGER PRIMARY KEY AUTOINCREMENT,
       week_key TEXT NOT NULL,
@@ -67,7 +55,7 @@ async function init() {
       UNIQUE(week_key, poste_id, med_id, jour)
     )
   `);
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS extras (
       id       INTEGER PRIMARY KEY AUTOINCREMENT,
       week_key TEXT NOT NULL,
@@ -77,14 +65,7 @@ async function init() {
       UNIQUE(week_key, poste_id, med_id, jour)
     )
   `);
-
-  // ── Migrations idempotentes ────────────────────────────
-  try { db.run(`ALTER TABLE medecins ADD COLUMN service TEXT DEFAULT 'geriatrie'`); } catch(_) {}
-  try { db.run(`ALTER TABLE medecins ADD COLUMN tel TEXT DEFAULT ''`); } catch(_) {}
-  try { db.run(`ALTER TABLE medecins ADD COLUMN email TEXT DEFAULT NULL`); } catch(_) {}
-  try { db.run(`ALTER TABLE absences ADD COLUMN demi_journee TEXT DEFAULT NULL`); } catch(_) {}
-
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS renforts (
       id       INTEGER PRIMARY KEY AUTOINCREMENT,
       week_key TEXT NOT NULL,
@@ -94,8 +75,7 @@ async function init() {
       UNIQUE(week_key, poste_id, med_id, jour)
     )
   `);
-
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS conge_tokens (
       token      TEXT PRIMARY KEY,
       med_id     TEXT NOT NULL,
@@ -103,18 +83,23 @@ async function init() {
       expires_at TEXT NOT NULL
     )
   `);
-
-  db.run(`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS astreintes (
-      id        INTEGER PRIMARY KEY AUTOINCREMENT,
-      date_iso  TEXT NOT NULL,
-      type_ast  TEXT NOT NULL,
-      med_id    TEXT NOT NULL,
+      id       INTEGER PRIMARY KEY AUTOINCREMENT,
+      date_iso TEXT NOT NULL,
+      type_ast TEXT NOT NULL,
+      med_id   TEXT NOT NULL,
       UNIQUE(date_iso, type_ast)
     )
   `);
 
-  // ── Seed ───────────────────────────────────────────────
+  // ── Migrations idempotentes (bases existantes avant la refacto schéma) ─────
+  try { db.exec(`ALTER TABLE medecins ADD COLUMN service TEXT DEFAULT 'geriatrie'`); } catch(_) {}
+  try { db.exec(`ALTER TABLE medecins ADD COLUMN tel TEXT DEFAULT ''`); } catch(_) {}
+  try { db.exec(`ALTER TABLE medecins ADD COLUMN email TEXT DEFAULT NULL`); } catch(_) {}
+  try { db.exec(`ALTER TABLE absences ADD COLUMN demi_journee TEXT DEFAULT NULL`); } catch(_) {}
+
+  // ── Seed ──────────────────────────────────────────────────────────────────
   const count = queryOne('SELECT COUNT(*) as n FROM medecins').n;
   if (count === 0) {
     const medecins = [
@@ -135,7 +120,7 @@ async function init() {
       ['melissa',   'Mélissa Lidec',        'ph',     '1100111111'],
       ['pauline',   'Pauline',              'ph',     '1111111111'],
       ['dubrez',    'Dr Dubrez',            'ph',     '1111111111'],
-      ['flora',     'Flora',               'ph',     '1111111111'],
+      ['flora',     'Flora',                'ph',     '1111111111'],
       ['maureen',   'Maureen H.',           'ph',     '1111111111'],
       ['beatrice',  'Béatrice',             'ipa',    '1111111111'],
       ['maurane',   'Maurane',              'ipa',    '1111111111'],
@@ -144,65 +129,45 @@ async function init() {
       ['int3',      'Interne 3',            'interne','1111111111'],
       ['int4',      'Interne 4',            'interne','1111111111'],
       ['int5',      'Interne 5',            'interne','1111111111'],
-      ['julia',     'Julia',                 'externe','1111111111'],
+      ['julia',     'Julia',                'externe','1111111111'],
       ['ext2',      'Externe 2',            'externe','1111111111'],
       ['ext3',      'Externe 3',            'externe','1111111111'],
       ['ext4',      'Externe 4',            'externe','1111111111'],
-      ['samira',    'Samira Khalef',         'padhue', '1111111111'],
-      ['fatima',    'Fatima Manseur',        'padhue', '1111111111'],
-      ['ali',       'Ali Hamadouche',        'padhue', '1111111111'],
-      ['nelson',    'Nelson Manisha',        'padhue', '1111111111'],
+      ['samira',    'Samira Khalef',        'padhue', '1111111111'],
+      ['fatima',    'Fatima Manseur',       'padhue', '1111111111'],
+      ['ali',       'Ali Hamadouche',       'padhue', '1111111111'],
+      ['nelson',    'Nelson Manisha',       'padhue', '1111111111'],
     ];
-    medecins.forEach(([id, nom, type, sched]) => {
-      db.run('INSERT INTO medecins (id,nom,type,sched) VALUES (?,?,?,?)', [id, nom, type, sched]);
+    const insertMed = db.prepare('INSERT INTO medecins (id,nom,type,sched) VALUES (?,?,?,?)');
+    const insertAll = db.transaction((meds) => {
+      for (const [id, nom, type, sched] of meds) {
+        insertMed.run(id, nom, type, sched);
+      }
     });
-    persist();
+    insertAll(medecins);
     console.log('✓ Base initialisée avec', medecins.length, 'praticiens');
   }
 
   return db;
 }
 
-// ── Helpers sql.js (rend l'API proche de better-sqlite3) ──
+// ── API (interface identique à l'ancienne pour index.js) ──────────────────────
 
-/** Retourne toutes les lignes d'un SELECT */
 function queryAll(sql, params = []) {
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const rows = [];
-  while (stmt.step()) rows.push(stmt.getAsObject());
-  stmt.free();
-  return rows;
+  return db.prepare(sql).all(...params);
 }
 
-/** Retourne la première ligne */
 function queryOne(sql, params = []) {
-  const rows = queryAll(sql, params);
-  return rows[0] || null;
+  return db.prepare(sql).get(...params) || null;
 }
 
-/** Execute une requête INSERT/UPDATE/DELETE, retourne { lastInsertRowid } */
 function run(sql, params = []) {
-  db.run(sql, params);
-  const id = db.exec('SELECT last_insert_rowid() as id')[0]?.values[0][0];
-  persist();
-  return { lastInsertRowid: id };
+  const info = db.prepare(sql).run(...params);
+  return { lastInsertRowid: info.lastInsertRowid };
 }
 
-/** Execute plusieurs instructions dans une transaction */
 function transaction(fn) {
-  db.run('BEGIN');
-  inTransaction = true;
-  try {
-    fn();
-    inTransaction = false;
-    db.run('COMMIT');
-    persist();
-  } catch(e) {
-    inTransaction = false;
-    try { db.run('ROLLBACK'); } catch(_) {}
-    throw e;
-  }
+  db.transaction(fn)();
 }
 
 module.exports = { init, queryAll, queryOne, run, transaction };
