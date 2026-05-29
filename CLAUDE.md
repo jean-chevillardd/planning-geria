@@ -11,11 +11,15 @@ Pour vérifier le rendu de l'interface, utiliser à la place :
 - `mcp__Claude_Preview__preview_eval` pour interagir avec la page
 - `npx vite build` pour valider la syntaxe sans erreur
 
+## Langue de travail
+
+**Toujours répondre et travailler en français**, même si le prompt est rédigé en anglais. Cela s'applique aux réponses, aux commentaires de code, aux messages de commit, et à toute communication avec l'utilisateur.
+
 ## gstack
 
-For all web browsing, use the `/browse` skill from gstack. **Never use `mcp__claude-in-chrome__*` tools.**
+Pour toute navigation web, utiliser le skill `/browse` de gstack. **Ne jamais utiliser les outils `mcp__claude-in-chrome__*`.**
 
-Available gstack skills:
+Skills gstack disponibles :
 `/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/design-consultation`, `/design-shotgun`, `/design-html`, `/review`, `/ship`, `/land-and-deploy`, `/canary`, `/benchmark`, `/browse`, `/connect-chrome`, `/qa`, `/qa-only`, `/design-review`, `/setup-browser-cookies`, `/setup-deploy`, `/setup-gbrain`, `/retro`, `/investigate`, `/document-release`, `/document-generate`, `/codex`, `/cso`, `/autoplan`, `/plan-devex-review`, `/devex-review`, `/careful`, `/freeze`, `/guard`, `/unfreeze`, `/gstack-upgrade`, `/learn`
 
 ## Mémoire — mise à jour en fin de session
