@@ -608,12 +608,12 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
 
   async function handleDelete(member) {
     const fullName = [member.prenom, member.nom].filter(Boolean).join(' ');
-    if (!confirm(`Supprimer ${fullName} ? Toutes ses affectations seront retirées.`)) return;
+    if (!confirm(`Archiver ${fullName} ? Le praticien n'apparaîtra plus dans le planning mais son historique sera conservé.`)) return;
     try {
-      await api.deleteMedecin(member.id);
+      await api.archiveMedecin(member.id);
       setSelected(null);
       onReload();
-      onToast(`${member.nom} supprimé(e)`);
+      onToast(`${member.nom} archivé(e)`);
     } catch(e) {
       onToast(e.message || 'Erreur lors de la suppression', 'err');
     }
@@ -625,7 +625,7 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
     try {
       if (isNew) {
         const newMed = await api.addMedecin(apiData);
-        onPushUndo('Ajout personnel', async () => { await api.deleteMedecin(newMed.id); onReload(); });
+        onPushUndo('Ajout personnel', async () => { await api.archiveMedecin(newMed.id); onReload(); });
       } else {
         const oldData = {
           nom: selected._rawNom, type: selected._rawType,

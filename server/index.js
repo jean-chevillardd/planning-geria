@@ -171,7 +171,7 @@ function createApp(dbLib) {
 
   // ── Guard : token JWT requis pour toute mutation ────
   app.use((req, res, next) => {
-    if (!['POST', 'PUT', 'DELETE'].includes(req.method)) return next();
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
     if (!SECRETARY_HASH) return next();
     const token = req.headers['x-secretary-key'];
     if (!token) return res.status(403).json({ error: 'Accès réservé aux secrétaires' });
