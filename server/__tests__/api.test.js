@@ -146,38 +146,34 @@ describe('PUT /api/medecins/:id', () => {
   });
 });
 
-describe('DELETE /api/medecins/:id', () => {
-  test('supprime un médecin existant', async () => {
-    const create = await request(app).post('/api/medecins').send({ nom: 'Dr ToDelete', type: 'externe' });
+describe('PATCH /api/medecins/:id/archiver', () => {
+  test('archive un médecin — il disparaît de la liste active', async () => {
+    const create = await request(app).post('/api/medecins').send({ nom: 'Dr ToArchive', type: 'externe' });
     const id = create.body.id;
-    const del = await request(app).delete(`/api/medecins/${id}`);
-    expect(del.status).toBe(200);
-    expect(del.body.ok).toBe(true);
+    const res = await request(app).patch(`/api/medecins/${id}/archiver`);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
 
-    // Vérifier qu'il n'est plus dans la liste
+    // N'apparaît plus dans GET /api/medecins (filtre actif=1)
     const list = await request(app).get('/api/medecins');
     expect(list.body.find(m => m.id === id)).toBeUndefined();
   });
 
-  test('supprime aussi les données associées (cascade manuelle)', async () => {
-    // Créer un médecin
-    const cr = await request(app).post('/api/medecins').send({ nom: 'Dr Cascade', type: 'ph' });
+  test('les données historiques (absences) sont préservées après archivage', async () => {
+    const cr = await request(app).post('/api/medecins').send({ nom: 'Dr Historique', type: 'ph' });
     const id = cr.body.id;
-    // Lui affecter une absence
     await request(app).post('/api/absences').send({
       med_id: id, date_debut: '2025-06-02', date_fin: '2025-06-06', type_abs: 'Congé annuel (CA)'
     });
-    // Supprimer
-    await request(app).delete(`/api/medecins/${id}`);
-    // Vérifier qu'aucune absence orpheline ne subsiste
+    await request(app).patch(`/api/medecins/${id}/archiver`);
+    // L'absence est conservée (traçabilité historique)
     const abs = await request(app).get('/api/absences');
-    expect(abs.body.find(a => a.med_id === id)).toBeUndefined();
+    expect(abs.body.find(a => a.med_id === id)).toBeDefined();
   });
 
-  test('ID inexistant — retourne quand même ok:true (idempotent)', async () => {
-    const res = await request(app).delete('/api/medecins/id_fantome');
-    expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
+  test('ID inexistant — retourne 404', async () => {
+    const res = await request(app).patch('/api/medecins/id_fantome/archiver');
+    expect(res.status).toBe(404);
   });
 });
 

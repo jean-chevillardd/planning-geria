@@ -23,7 +23,8 @@ async function init() {
       sched   TEXT NOT NULL DEFAULT '1111111111',
       service TEXT DEFAULT 'geriatrie',
       tel     TEXT DEFAULT '',
-      email   TEXT DEFAULT NULL
+      email   TEXT DEFAULT NULL,
+      actif   INTEGER NOT NULL DEFAULT 1
     )
   `);
   db.exec(`
@@ -98,6 +99,7 @@ async function init() {
   try { db.exec(`ALTER TABLE medecins ADD COLUMN tel TEXT DEFAULT ''`); } catch(_) {}
   try { db.exec(`ALTER TABLE medecins ADD COLUMN email TEXT DEFAULT NULL`); } catch(_) {}
   try { db.exec(`ALTER TABLE absences ADD COLUMN demi_journee TEXT DEFAULT NULL`); } catch(_) {}
+  try { db.exec(`ALTER TABLE medecins ADD COLUMN actif INTEGER NOT NULL DEFAULT 1`); } catch(_) {}
 
   // ── Seed ──────────────────────────────────────────────────────────────────
   const count = queryOne('SELECT COUNT(*) as n FROM medecins').n;

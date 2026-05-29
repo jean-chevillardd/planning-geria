@@ -70,6 +70,9 @@ function createApp(dbLib) {
   app._setDbReady       = ()  => { DB_READY = true; };
   app._setSecretaryHash = (h) => { SECRETARY_HASH = h; };
 
+  const checkMedExists = (med_id) =>
+    !!dbLib.queryOne('SELECT 1 FROM medecins WHERE id=?', [med_id]);
+
   app.use(helmet());
   const corsOrigins = process.env.NODE_ENV === 'production'
     ? true
@@ -138,13 +141,15 @@ function createApp(dbLib) {
         return res.status(400).json({ error: 'date_fin antérieure à date_debut' });
     }
     let count = 0;
-    for (const abs of absences) {
-      dbLib.run(
-        'INSERT INTO absences (med_id,date_debut,date_fin,type_abs) VALUES (?,?,?,?)',
-        [row.med_id, abs.date_debut, abs.date_fin, abs.type_abs]
-      );
-      count++;
-    }
+    dbLib.transaction(() => {
+      for (const abs of absences) {
+        dbLib.run(
+          'INSERT INTO absences (med_id,date_debut,date_fin,type_abs) VALUES (?,?,?,?)',
+          [row.med_id, abs.date_debut, abs.date_fin, abs.type_abs]
+        );
+        count++;
+      }
+    });
     res.json({ ok: true, count });
   });
 
@@ -166,7 +171,7 @@ function createApp(dbLib) {
   // MÉDECINS
   // ═══════════════════════════════════════════════════════
   app.get('/api/medecins', (req, res) => {
-    const rows = dbLib.queryAll('SELECT * FROM medecins ORDER BY type, nom');
+    const rows = dbLib.queryAll('SELECT * FROM medecins WHERE actif=1 ORDER BY type, nom');
     res.json(rows.map(r => ({ ...r, sched: r.sched.split('').map(Number) })));
   });
 
@@ -202,14 +207,11 @@ function createApp(dbLib) {
     res.json({ ...updated, sched: updated.sched.split('').map(Number) });
   });
 
-  app.delete('/api/medecins/:id', (req, res) => {
+  app.patch('/api/medecins/:id/archiver', (req, res) => {
     const { id } = req.params;
-    dbLib.run('DELETE FROM absences     WHERE med_id=?', [id]);
-    dbLib.run('DELETE FROM affectations WHERE med_id=?', [id]);
-    dbLib.run('DELETE FROM exclusions   WHERE med_id=?', [id]);
-    dbLib.run('DELETE FROM extras       WHERE med_id=?', [id]);
-    dbLib.run('DELETE FROM astreintes   WHERE med_id=?', [id]);
-    dbLib.run('DELETE FROM medecins     WHERE id=?',     [id]);
+    const med = dbLib.queryOne('SELECT id FROM medecins WHERE id=?', [id]);
+    if (!med) return res.status(404).json({ error: 'Médecin non trouvé' });
+    dbLib.run('UPDATE medecins SET actif=0 WHERE id=?', [id]);
     res.json({ ok: true });
   });
 
@@ -229,6 +231,7 @@ function createApp(dbLib) {
     const { med_id, date_debut, date_fin, type_abs, demi_journee } = req.body;
     if (!med_id || !date_debut || !date_fin || !type_abs)
       return res.status(400).json({ error: 'Champs manquants' });
+    if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     if (!isIsoDate(date_debut) || !isIsoDate(date_fin))
       return res.status(400).json({ error: 'Format de date invalide (YYYY-MM-DD attendu)' });
     if (!ABS_TYPES.has(type_abs))
@@ -304,6 +307,7 @@ function createApp(dbLib) {
     const { week_key, poste_id, med_id } = req.body;
     if (!week_key || !poste_id || !med_id) return res.status(400).json({ error: 'Champs manquants' });
     if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+    if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     try {
       dbLib.run(
         'INSERT OR IGNORE INTO affectations (week_key,poste_id,med_id) VALUES (?,?,?)',
@@ -328,6 +332,7 @@ function createApp(dbLib) {
     const { week_key, poste_id, med_id, jour } = req.body;
     if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
     if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+    if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     dbLib.run('INSERT OR IGNORE INTO exclusions (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
       [week_key, poste_id, med_id, jour]);
     res.json({ ok: true });
@@ -349,6 +354,7 @@ function createApp(dbLib) {
     const { week_key, poste_id, med_id, jour } = req.body;
     if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
     if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+    if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     dbLib.run('INSERT OR IGNORE INTO extras (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
       [week_key, poste_id, med_id, jour]);
     res.json({ ok: true });
@@ -368,10 +374,11 @@ function createApp(dbLib) {
   // ═══════════════════════════════════════════════════════
   app.post('/api/renforts', (req, res) => {
     const { week_key, poste_id, med_id, jour } = req.body;
-    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
-    if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
     if (!week_key || !poste_id || !med_id || !jour)
       return res.status(400).json({ error: 'Champs manquants' });
+    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+    if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+    if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     dbLib.run('INSERT OR IGNORE INTO renforts (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
       [week_key, poste_id, med_id, jour]);
     res.json({ ok: true });
@@ -402,7 +409,7 @@ function createApp(dbLib) {
 
     const placeholders = types.map(() => '?').join(',');
     const medecins = dbLib.queryAll(
-      `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) AND email IS NOT NULL AND TRIM(email) != ''`,
+      `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) AND actif=1 AND email IS NOT NULL AND TRIM(email) != ''`,
       types
     );
     if (medecins.length === 0)
@@ -479,7 +486,7 @@ function createApp(dbLib) {
     if (types.length === 0) return res.json([]);
     const placeholders = types.map(() => '?').join(',');
     const rows = dbLib.queryAll(
-      `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) ORDER BY nom`,
+      `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) AND actif=1 ORDER BY nom`,
       types
     );
     res.json(rows.map(r => ({ id: r.id, nom: r.nom, type: r.type, email: r.email || null })));
@@ -530,6 +537,7 @@ function createApp(dbLib) {
     const { date_iso, type_ast, med_id } = req.body;
     if (!date_iso || !type_ast || !med_id)
       return res.status(400).json({ error: 'date_iso, type_ast, med_id requis' });
+    if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     if (!isIsoDate(date_iso))
       return res.status(400).json({ error: 'date_iso invalide (YYYY-MM-DD attendu)' });
     if (!AST_TYPES.has(type_ast))
@@ -585,25 +593,40 @@ function createApp(dbLib) {
     const fromKey = `${year}-01-01`;
     const toKey   = `${year}-12-31`;
 
+    const affRows = dbLib.queryAll(`
+      SELECT med_id, poste_id, COUNT(DISTINCT week_key) AS semaines
+      FROM affectations
+      WHERE week_key >= ? AND week_key <= ?
+      GROUP BY med_id, poste_id
+      ORDER BY med_id, semaines DESC
+    `, [fromKey, toKey]);
+
+    const absRows = dbLib.queryAll(`
+      SELECT med_id, date_debut, date_fin, type_abs
+      FROM absences
+      WHERE date_fin >= ? AND date_debut <= ?
+      ORDER BY med_id, date_debut
+    `, [fromKey, toKey]);
+
     const medecins = dbLib.queryAll('SELECT id FROM medecins ORDER BY id');
-    const result = medecins.map(({ id }) => {
-      const affectations = dbLib.queryAll(`
-        SELECT poste_id, COUNT(DISTINCT week_key) AS semaines
-        FROM affectations
-        WHERE med_id = ? AND week_key >= ? AND week_key <= ?
-        GROUP BY poste_id
-        ORDER BY semaines DESC
-      `, [id, fromKey, toKey]);
 
-      const absences = dbLib.queryAll(`
-        SELECT date_debut, date_fin, type_abs
-        FROM absences
-        WHERE med_id = ? AND date_fin >= ? AND date_debut <= ?
-        ORDER BY date_debut
-      `, [id, fromKey, toKey]);
+    const affByMed = {};
+    for (const r of affRows) {
+      if (!affByMed[r.med_id]) affByMed[r.med_id] = [];
+      affByMed[r.med_id].push({ poste_id: r.poste_id, semaines: r.semaines });
+    }
 
-      return { med_id: id, affectations, absences };
-    });
+    const absByMed = {};
+    for (const r of absRows) {
+      if (!absByMed[r.med_id]) absByMed[r.med_id] = [];
+      absByMed[r.med_id].push({ date_debut: r.date_debut, date_fin: r.date_fin, type_abs: r.type_abs });
+    }
+
+    const result = medecins.map(({ id }) => ({
+      med_id: id,
+      affectations: affByMed[id] || [],
+      absences:     absByMed[id] || [],
+    }));
 
     res.json(result);
   });

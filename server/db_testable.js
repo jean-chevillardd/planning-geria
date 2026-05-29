@@ -19,7 +19,8 @@ async function init() {
       sched   TEXT NOT NULL DEFAULT '1111111111',
       service TEXT DEFAULT 'geriatrie',
       tel     TEXT DEFAULT '',
-      email   TEXT DEFAULT NULL
+      email   TEXT DEFAULT NULL,
+      actif   INTEGER NOT NULL DEFAULT 1
     )
   `);
   db.exec(`
