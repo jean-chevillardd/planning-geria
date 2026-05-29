@@ -593,3 +593,289 @@ describe('Base de données — init et seed', () => {
     });
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// RENFORTS
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('Renforts CRUD', () => {
+  let medId;
+
+  beforeAll(async () => {
+    const res = await request(app).post('/api/medecins').send({ nom: 'Dr Renfort', type: 'ph' });
+    medId = res.body.id;
+  });
+
+  test('POST /api/renforts — happy path', async () => {
+    const res = await request(app).post('/api/renforts').send({
+      week_key: WEEK_KEY, poste_id: 'ssr1', med_id: medId, jour: '2025-06-02'
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  test('POST /api/renforts — idempotent', async () => {
+    const res = await request(app).post('/api/renforts').send({
+      week_key: WEEK_KEY, poste_id: 'ssr1', med_id: medId, jour: '2025-06-02'
+    });
+    expect(res.status).toBe(200);
+  });
+
+  test('POST /api/renforts — 400 si champs manquants', async () => {
+    const res = await request(app).post('/api/renforts').send({ week_key: WEEK_KEY });
+    expect(res.status).toBe(400);
+  });
+
+  test('Planning contient le renfort', async () => {
+    const res = await request(app).get(`/api/planning/${WEEK_KEY}`);
+    expect(Array.isArray(res.body.renforts)).toBe(true);
+    expect(res.body.renforts.some(r => r.med_id === medId)).toBe(true);
+  });
+
+  test('DELETE /api/renforts — supprime', async () => {
+    const res = await request(app).delete('/api/renforts').send({
+      week_key: WEEK_KEY, poste_id: 'ssr1', med_id: medId, jour: '2025-06-02'
+    });
+    expect(res.status).toBe(200);
+    const plan = await request(app).get(`/api/planning/${WEEK_KEY}`);
+    expect(plan.body.renforts.some(r => r.med_id === medId)).toBe(false);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// ASTREINTES
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('Astreintes CRUD', () => {
+  let medId;
+
+  beforeAll(async () => {
+    const res = await request(app).post('/api/medecins').send({ nom: 'Dr Astreinte', type: 'ph' });
+    medId = res.body.id;
+  });
+
+  test('GET /api/astreintes — 400 si month manquant', async () => {
+    const res = await request(app).get('/api/astreintes');
+    expect(res.status).toBe(400);
+  });
+
+  test('GET /api/astreintes — 400 si format invalide', async () => {
+    const res = await request(app).get('/api/astreintes?month=2025/06');
+    expect(res.status).toBe(400);
+  });
+
+  test('GET /api/astreintes — retourne tableau vide pour mois sans astreinte', async () => {
+    const res = await request(app).get('/api/astreintes?month=2020-01');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBe(0);
+  });
+
+  test('POST /api/astreintes — happy path', async () => {
+    const res = await request(app).post('/api/astreintes').send({
+      date_iso: '2025-08-11', type_ast: 'astreinte', med_id: medId
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('id');
+    expect(res.body.med_id).toBe(medId);
+    expect(res.body.med_nom).toBe('Dr Astreinte');
+  });
+
+  test('POST /api/astreintes — remplace une astreinte existante sur même date+type', async () => {
+    const r2 = await request(app).post('/api/medecins').send({ nom: 'Dr Remplace', type: 'ph' });
+    const id2 = r2.body.id;
+    const res = await request(app).post('/api/astreintes').send({
+      date_iso: '2025-08-11', type_ast: 'astreinte', med_id: id2
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.med_id).toBe(id2);
+  });
+
+  test('POST /api/astreintes — 400 si champs manquants', async () => {
+    const res = await request(app).post('/api/astreintes').send({ date_iso: '2025-08-12' });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/astreintes — 400 si type_ast invalide', async () => {
+    const res = await request(app).post('/api/astreintes').send({
+      date_iso: '2025-08-12', type_ast: 'INCONNU', med_id: medId
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('GET /api/astreintes — contient l\'astreinte créée', async () => {
+    // Réinitialiser : créer une astreinte connue
+    await request(app).post('/api/astreintes').send({
+      date_iso: '2025-09-15', type_ast: 'csg1', med_id: medId
+    });
+    const res = await request(app).get('/api/astreintes?month=2025-09');
+    expect(res.status).toBe(200);
+    const row = res.body.find(r => r.med_id === medId && r.type_ast === 'csg1');
+    expect(row).toBeDefined();
+    expect(row.med_nom).toBe('Dr Astreinte');
+  });
+
+  test('DELETE /api/astreintes/:id — supprime', async () => {
+    const create = await request(app).post('/api/astreintes').send({
+      date_iso: '2025-10-01', type_ast: 'pont_rouge', med_id: medId
+    });
+    const id = create.body.id;
+    const del = await request(app).delete(`/api/astreintes/${id}`);
+    expect(del.status).toBe(200);
+    expect(del.body.ok).toBe(true);
+    const list = await request(app).get('/api/astreintes?month=2025-10');
+    expect(list.body.find(r => r.id === id)).toBeUndefined();
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// STATISTIQUES
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('Statistiques', () => {
+  let medId;
+
+  beforeAll(async () => {
+    const res = await request(app).post('/api/medecins').send({ nom: 'Dr Stats', type: 'ph' });
+    medId = res.body.id;
+    const year = new Date().getFullYear();
+    await request(app).post('/api/affectations').send({
+      week_key: `${year}-03-03`, poste_id: 'ssr1', med_id: medId
+    });
+    await request(app).post('/api/absences').send({
+      med_id: medId, date_debut: `${year}-04-01`, date_fin: `${year}-04-05`, type_abs: 'RTT'
+    });
+  });
+
+  test('GET /api/stats/medecin/:medId — retourne affectations et absences', async () => {
+    const res = await request(app).get(`/api/stats/medecin/${medId}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.affectations)).toBe(true);
+    expect(Array.isArray(res.body.absences)).toBe(true);
+    expect(res.body.affectations.some(a => a.poste_id === 'ssr1')).toBe(true);
+    expect(res.body.absences.some(a => a.type_abs === 'RTT')).toBe(true);
+  });
+
+  test('GET /api/stats/medecin/:medId — médecin inexistant retourne des tableaux vides', async () => {
+    const res = await request(app).get('/api/stats/medecin/id_fantome');
+    expect(res.status).toBe(200);
+    expect(res.body.affectations).toEqual([]);
+    expect(res.body.absences).toEqual([]);
+  });
+
+  test('GET /api/stats/all — retourne un tableau avec au moins 34 entrées', async () => {
+    const res = await request(app).get('/api/stats/all');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.length).toBeGreaterThanOrEqual(34);
+    // Chaque entrée a med_id, affectations, absences
+    const entry = res.body[0];
+    expect(entry).toHaveProperty('med_id');
+    expect(Array.isArray(entry.affectations)).toBe(true);
+    expect(Array.isArray(entry.absences)).toBe(true);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// CONGÉS SELF-SERVICE
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('Congés self-service', () => {
+  let medId, validToken;
+
+  beforeAll(async () => {
+    const res = await request(app).post('/api/medecins').send({ nom: 'Dr Conge', type: 'ph' });
+    medId = res.body.id;
+    // Insérer directement un token valide via dbLib
+    const now = new Date();
+    validToken = 'test_token_valide_' + Date.now();
+    const expires = new Date(now.getTime() + 72 * 60 * 60 * 1000).toISOString();
+    dbLib.run(
+      'INSERT INTO conge_tokens (token,med_id,created_at,expires_at) VALUES (?,?,?,?)',
+      [validToken, medId, now.toISOString(), expires]
+    );
+  });
+
+  test('GET /api/conge/token/:token — token valide → 200 avec infos médecin', async () => {
+    const res = await request(app).get(`/api/conge/token/${validToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.valid).toBe(true);
+    expect(res.body.med_id).toBe(medId);
+    expect(res.body.nom).toBe('Dr Conge');
+  });
+
+  test('GET /api/conge/token/:token — token inconnu → 404', async () => {
+    const res = await request(app).get('/api/conge/token/token_inexistant');
+    expect(res.status).toBe(404);
+  });
+
+  test('POST /api/conge/submit — happy path', async () => {
+    const res = await request(app).post('/api/conge/submit').send({
+      token: validToken,
+      absences: [{ date_debut: '2025-09-01', date_fin: '2025-09-05', type_abs: 'Congé annuel (CA)' }]
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.count).toBe(1);
+  });
+
+  test('POST /api/conge/submit — 400 si token manquant', async () => {
+    const res = await request(app).post('/api/conge/submit').send({
+      absences: [{ date_debut: '2025-09-01', date_fin: '2025-09-05', type_abs: 'RTT' }]
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/conge/submit — 400 si absences vide', async () => {
+    const res = await request(app).post('/api/conge/submit').send({
+      token: validToken, absences: []
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('GET /api/conge/preview — retourne praticiens actifs du type sélectionné', async () => {
+    const res = await request(app).get('/api/conge/preview?types=ph');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    // Dr Conge est actif et de type ph
+    expect(res.body.some(r => r.id === medId)).toBe(true);
+  });
+
+  test('GET /api/conge/preview — types vide → tableau vide', async () => {
+    const res = await request(app).get('/api/conge/preview');
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// VALIDATION P1.3 — med_id inexistant
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('Validation P1.3 — med_id inconnu', () => {
+  const MED_ID_FANTOME = 'med_fantome_xyz';
+
+  test('POST /api/absences — med_id inconnu → 400', async () => {
+    const res = await request(app).post('/api/absences').send({
+      med_id: MED_ID_FANTOME, date_debut: '2025-06-02', date_fin: '2025-06-06', type_abs: 'RTT'
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/med_id inconnu/);
+  });
+
+  test('POST /api/affectations — med_id inconnu → 400', async () => {
+    const res = await request(app).post('/api/affectations').send({
+      week_key: WEEK_KEY, poste_id: 'ssr1', med_id: MED_ID_FANTOME
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/med_id inconnu/);
+  });
+
+  test('POST /api/astreintes — med_id inconnu → 400', async () => {
+    const res = await request(app).post('/api/astreintes').send({
+      date_iso: '2025-08-15', type_ast: 'astreinte', med_id: MED_ID_FANTOME
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/med_id inconnu/);
+  });
+});
