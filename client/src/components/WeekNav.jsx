@@ -60,7 +60,7 @@ function WeekPickerPopover({ monday, onChange, onClose }) {
         <button className="wn-btn"
           onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth()-1, 1))}>‹</button>
         <span style={{ flex:1, textAlign:'center', fontSize:12,
-          fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:700 }}>
+          fontFamily:'inherit', fontWeight:700 }}>
           {month.toLocaleDateString('fr-FR', { month:'long', year:'numeric' })}
         </span>
         <button className="wn-btn"

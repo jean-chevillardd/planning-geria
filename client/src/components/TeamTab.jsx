@@ -5,7 +5,7 @@ import * as api from '../api';
 const TYPE_LABEL = { ph:'Praticiens Hospitaliers', ipa:'IPA', padhue:'PADHUE', interne:'Internes', externe:'Externes' };
 
 const CATS = [
-  { id:'ph',        label:'Praticiens Hospitaliers', color:'#2272f0', bg:'#eef3ff' },
+  { id:'ph',        label:'Praticiens Hospitaliers', color:'#2563eb', bg:'#eff6ff' },
   { id:'padhue',    label:'PADHUE',                  color:'#7c3aed', bg:'#f5f0ff' },
   { id:'internes',  label:'Internes',                color:'#ea580c', bg:'#fff4ed' },
   { id:'ipa',       label:'IPA',                     color:'#059669', bg:'#edfdf5' },
@@ -58,7 +58,7 @@ function Avatar({ member, size = 36 }) {
       background: cat.bg, border: `1.5px solid ${cat.color}30`,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: Math.round(size * 0.33), fontWeight: 800, color: cat.color,
-      fontFamily: 'system-ui,sans-serif', flexShrink: 0, userSelect: 'none',
+      fontFamily: 'inherit', flexShrink: 0, userSelect: 'none',
     }}>
       {initials}
     </div>
@@ -70,7 +70,7 @@ function PresenceStrips({ presence, color }) {
   const count = presence.flat().reduce((a, b) => a + b, 0);
   const pct   = Math.round(count / 10 * 100);
   return (
-    <div style={{ fontFamily: 'system-ui,sans-serif', width: '100%' }}>
+    <div style={{ fontFamily: 'inherit', width: '100%' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '14px repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
         <div />
         {DAYS_SHORT.map(d => (
@@ -130,17 +130,17 @@ function V1Card({ member, isSecretary, onEdit, isSelected }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <Avatar member={member} size={32} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? 'var(--accent)' : 'var(--text)', lineHeight: 1.3, fontFamily: 'system-ui,sans-serif', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: isSelected ? 'var(--accent)' : 'var(--text)', lineHeight: 1.3, fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {fullName}
           </div>
-          <div style={{ fontSize: 9, color: 'var(--text2)', fontFamily: 'system-ui,sans-serif', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: 9, color: 'var(--text2)', fontFamily: 'inherit', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {cat.label}{member.service ? ` · ${member.service}` : ''}
           </div>
         </div>
       </div>
       <div style={{ borderTop: '1px solid var(--border)', paddingTop: 7 }}>
         {isAstreinte ? (
-          <div style={{ fontSize: 9, fontStyle: 'italic', color: 'var(--text3)', fontFamily: 'system-ui,sans-serif', lineHeight: 1.5 }}>
+          <div style={{ fontSize: 9, fontStyle: 'italic', color: 'var(--text3)', fontFamily: 'inherit', lineHeight: 1.5 }}>
             Astreinte uniquement
           </div>
         ) : (
@@ -180,11 +180,11 @@ function Section({ catId, members, isSecretary, selectedId, onAdd, onEdit }) {
         }}
       >
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
-        <span style={{ flex: 1, fontSize: 10, fontFamily: 'system-ui,sans-serif', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: cat.color }}>
+        <span style={{ flex: 1, fontSize: 10, fontFamily: 'inherit', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: cat.color }}>
           {cat.label}
         </span>
         <span style={{
-          fontSize: 9, fontFamily: 'system-ui,sans-serif', fontWeight: 700,
+          fontSize: 9, fontFamily: 'inherit', fontWeight: 700,
           background: cat.bg, color: cat.color, padding: '1px 8px', borderRadius: 20,
           border: `1px solid ${cat.color}44`,
         }}>
@@ -271,11 +271,11 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
             {!isNew && member && <Avatar member={member} size={44} />}
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', lineHeight: 1.3, fontFamily: 'system-ui,sans-serif' }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', lineHeight: 1.3, fontFamily: 'inherit' }}>
                 {isNew ? 'Nouveau membre' : fullName}
               </div>
               {!isNew && member && (
-                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, fontFamily: 'system-ui,sans-serif' }}>
+                <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 4, fontFamily: 'inherit' }}>
                   {getCat(member.cat).label}{member.service ? ` · ${member.service}` : ''}
                 </div>
               )}
@@ -346,12 +346,12 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
               <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(5, 1fr)', gap: 5, marginBottom: 5 }}>
                 <div />
                 {DAYS_FULL.map(d => (
-                  <div key={d} style={{ fontSize: 9, fontWeight: 700, textAlign: 'center', color: 'var(--text3)', fontFamily: 'system-ui,sans-serif' }}>{d}</div>
+                  <div key={d} style={{ fontSize: 9, fontWeight: 700, textAlign: 'center', color: 'var(--text3)', fontFamily: 'inherit' }}>{d}</div>
                 ))}
               </div>
               {['Matin', 'Après-midi'].map((period, pi) => (
                 <div key={period} style={{ display: 'grid', gridTemplateColumns: '60px repeat(5, 1fr)', gap: 5, marginBottom: 5 }}>
-                  <div style={{ fontSize: 10, color: 'var(--text2)', display: 'flex', alignItems: 'center', fontFamily: 'system-ui,sans-serif' }}>{period}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text2)', display: 'flex', alignItems: 'center', fontFamily: 'inherit' }}>{period}</div>
                   {presence.map((day, di) => (
                     <button
                       key={di}
@@ -378,7 +378,7 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
                 width: '100%', padding: '9px', borderRadius: 8,
                 border: '1px solid #fda4af',
                 background: 'var(--danger-bg)', color: 'var(--danger)',
-                fontSize: 11, fontFamily: 'system-ui,sans-serif', fontWeight: 700,
+                fontSize: 11, fontFamily: 'inherit', fontWeight: 700,
                 cursor: 'pointer',
               }}
             >
@@ -412,7 +412,7 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
                 background: 'none', border: '1px solid var(--border)', borderRadius: 6,
                 padding: '6px 12px', cursor: target ? 'pointer' : 'not-allowed',
                 color: target ? 'var(--text)' : 'var(--text3)',
-                fontSize: 12, fontWeight: 500, fontFamily: 'system-ui,sans-serif',
+                fontSize: 12, fontWeight: 500, fontFamily: 'inherit',
                 transition: 'all .15s', opacity: target ? 1 : 0.4,
               }}
             >
@@ -513,7 +513,7 @@ function CampaignModal({ medecins, onClose, onToast }) {
         ) : (
           /* ── Sélection ── */
           <div style={{ padding: '16px 20px 8px' }}>
-            <p style={{ fontSize: 12, fontFamily: 'system-ui,sans-serif', color: 'var(--text2)', margin: '0 0 14px', lineHeight: 1.6 }}>
+            <p style={{ fontSize: 12, fontFamily: 'inherit', color: 'var(--text2)', margin: '0 0 14px', lineHeight: 1.6 }}>
               Chaque praticien recevra un lien personnel (valable 72h) pour saisir ses congés.
             </p>
 
@@ -529,17 +529,17 @@ function CampaignModal({ medecins, onClose, onToast }) {
                     display: 'flex', alignItems: 'center', gap: 10,
                     padding: '7px 10px', borderRadius: 7, marginBottom: 4,
                     cursor: 'pointer', userSelect: 'none',
-                    background: checked ? 'var(--accent-light, #eef3ff)' : 'transparent',
-                    border: `1px solid ${checked ? 'var(--accent, #2272f0)' : 'var(--border)'}`,
+                    background: checked ? 'var(--accent-light, #eff6ff)' : 'transparent',
+                    border: `1px solid ${checked ? 'var(--accent, #2563eb)' : 'var(--border)'}`,
                     transition: 'all .12s',
                   }}>
                     <input
                       type="checkbox"
                       checked={checked}
                       onChange={() => toggleType(type)}
-                      style={{ accentColor: 'var(--accent, #2272f0)', width: 14, height: 14 }}
+                      style={{ accentColor: 'var(--accent, #2563eb)', width: 14, height: 14 }}
                     />
-                    <span style={{ flex: 1, fontSize: 12, fontFamily: 'system-ui,sans-serif', color: 'var(--text)', fontWeight: checked ? 700 : 400 }}>
+                    <span style={{ flex: 1, fontSize: 12, fontFamily: 'inherit', color: 'var(--text)', fontWeight: checked ? 700 : 400 }}>
                       {label}
                     </span>
                     <span style={{ fontSize: 10, color: withMail > 0 ? 'var(--text2)' : 'var(--text3)' }}>
@@ -555,7 +555,7 @@ function CampaignModal({ medecins, onClose, onToast }) {
               <div style={{
                 padding: '10px 12px', borderRadius: 7, marginBottom: 14,
                 background: '#f9f8f6', border: '1px solid var(--border)',
-                fontSize: 12, fontFamily: 'system-ui,sans-serif',
+                fontSize: 12, fontFamily: 'inherit',
               }}>
                 <div style={{ color: 'var(--text)', marginBottom: withoutEmail.length ? 4 : 0 }}>
                   <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ {withEmail.length} praticien{withEmail.length !== 1 ? 's' : ''}</span> recevront un email
@@ -718,7 +718,7 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
                   padding: '9px 34px 9px 32px',
                   border: '1px solid var(--border)',
                   borderRadius: 8, background: '#fff',
-                  fontSize: 13, fontFamily: 'system-ui,sans-serif',
+                  fontSize: 13, fontFamily: 'inherit',
                   color: 'var(--text)', outline: 'none',
                   boxShadow: '0 1px 3px rgba(0,0,0,.06)',
                 }}

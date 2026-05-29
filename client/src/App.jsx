@@ -17,7 +17,7 @@ import AstreintesTab from './components/AstreintesTab';
 const TAB_ICONS = {
   planning: (active) => (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-      stroke={active ? '#2272f0' : '#c8c5bc'} strokeWidth="1.5"
+      stroke={active ? '#2563eb' : '#c8c5bc'} strokeWidth="1.5"
       strokeLinecap="round" strokeLinejoin="round">
       <rect x="1" y="2" width="12" height="11" rx="1.5"/>
       <path d="M1 5.5h12"/><path d="M4.5 1v3M9.5 1v3"/>
@@ -26,7 +26,7 @@ const TAB_ICONS = {
   ),
   equipe: (active) => (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-      stroke={active ? '#2272f0' : '#c8c5bc'} strokeWidth="1.5"
+      stroke={active ? '#2563eb' : '#c8c5bc'} strokeWidth="1.5"
       strokeLinecap="round" strokeLinejoin="round">
       <circle cx="5" cy="5" r="2.2"/>
       <path d="M1 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/>
@@ -36,7 +36,7 @@ const TAB_ICONS = {
   ),
   absences: (active) => (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-      stroke={active ? '#2272f0' : '#c8c5bc'} strokeWidth="1.5"
+      stroke={active ? '#2563eb' : '#c8c5bc'} strokeWidth="1.5"
       strokeLinecap="round" strokeLinejoin="round">
       <rect x="1" y="2" width="12" height="11" rx="1.5"/>
       <path d="M1 5.5h12"/><path d="M4.5 1v3M9.5 1v3"/>
@@ -45,7 +45,7 @@ const TAB_ICONS = {
   ),
   stats: (active) => (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-      stroke={active ? '#2272f0' : '#c8c5bc'} strokeWidth="1.5"
+      stroke={active ? '#2563eb' : '#c8c5bc'} strokeWidth="1.5"
       strokeLinecap="round" strokeLinejoin="round">
       <path d="M2 12V7.5M5.5 12V4.5M9 12V6.5M12.5 12V2.5"/>
       <path d="M1 12h12"/>
@@ -53,7 +53,7 @@ const TAB_ICONS = {
   ),
   astreintes: (active) => (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-      stroke={active ? '#2272f0' : '#c8c5bc'} strokeWidth="1.5"
+      stroke={active ? '#2563eb' : '#c8c5bc'} strokeWidth="1.5"
       strokeLinecap="round" strokeLinejoin="round">
       <path d="M7 1.5c.55 0 1 .45 1 1v.4a4 4 0 0 1 3 3.8V10l1 1.5H2L3 10V6.7a4 4 0 0 1 3-3.8V2.5c0-.55.45-1 1-1z"/>
       <path d="M5.5 12a1.5 1.5 0 0 0 3 0"/>
@@ -111,7 +111,7 @@ function PasswordModal({ onClose, onSuccess }) {
           <div className="mttl">Accès secrétariat</div>
           <button className="mclose" onClick={onClose}>×</button>
         </div>
-        <p style={{ fontSize:11, fontFamily:'system-ui,sans-serif', color:'var(--text2)', margin:'6px 0 14px', lineHeight:1.6 }}>
+        <p style={{ fontSize:11, fontFamily:'inherit', color:'var(--text2)', margin:'6px 0 14px', lineHeight:1.6 }}>
           Entrez le mot de passe pour activer les modifications.
         </p>
         <form onSubmit={handleSubmit}>
@@ -121,7 +121,7 @@ function PasswordModal({ onClose, onSuccess }) {
               onChange={e => { setPwd(e.target.value); setError(''); }}
               placeholder="••••••••" autoComplete="current-password" />
           </div>
-          {error && <p style={{ fontSize:11, fontFamily:'system-ui,sans-serif', color:'var(--danger)', marginBottom:10 }}>{error}</p>}
+          {error && <p style={{ fontSize:11, fontFamily:'inherit', color:'var(--danger)', marginBottom:10 }}>{error}</p>}
           <div className="modal-actions">
             <button type="button" className="btn-cancel" onClick={onClose}>Annuler</button>
             <button type="submit" className="btn-primary" disabled={busy || !pwd.trim()}>
@@ -149,7 +149,7 @@ function LockButton({ isSecretary, onLock, onUnlock }) {
         background: isSecretary ? 'rgba(244,63,94,.06)' : 'transparent',
         cursor:'pointer',
         color: isSecretary ? '#f43f5e' : 'var(--text2)',
-        fontSize:12, fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:700,
+        fontSize:12, fontFamily:'inherit', fontWeight:700,
         transition:'all .15s',
       }}
     >
@@ -345,17 +345,17 @@ export default function App() {
   }
 
   if (baseLoading && medecins.length === 0)
-    return <div style={{ padding:'2rem', fontFamily:'system-ui,sans-serif', color:'var(--text2)' }}>Chargement…</div>;
+    return <div style={{ padding:'2rem', fontFamily:'inherit', color:'var(--text2)' }}>Chargement…</div>;
   if (baseError)
-    return <div style={{ padding:'2rem', fontFamily:'system-ui,sans-serif', color:'var(--danger)' }}>Erreur : {baseError}</div>;
+    return <div style={{ padding:'2rem', fontFamily:'inherit', color:'var(--danger)' }}>Erreur : {baseError}</div>;
 
   return (
     <>
       {/* ── Header ── */}
       <div className="hdr" style={{
         background: isSecretary
-          ? 'linear-gradient(135deg,#1858c8,#2272f0)'
-          : '#1858c8',
+          ? 'linear-gradient(135deg,#1d4ed8,#2563eb)'
+          : '#1d4ed8',
       }}>
         <div className="hdr-l">
           <span className="hdr-logo">CHU</span>
@@ -414,7 +414,7 @@ export default function App() {
                     medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
                 </div>
                 {planLoading && !planningData && (
-                  <div style={{ fontFamily:'system-ui,sans-serif', fontSize:12, color:'var(--text2)', padding:'1rem 0' }}>
+                  <div style={{ fontFamily:'inherit', fontSize:12, color:'var(--text2)', padding:'1rem 0' }}>
                     Chargement du planning…
                   </div>
                 )}

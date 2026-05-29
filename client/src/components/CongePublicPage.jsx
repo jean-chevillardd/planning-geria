@@ -85,7 +85,7 @@ function SuccessPage({ nom, count }) {
 function Header() {
   return (
     <div style={{
-      background: 'linear-gradient(135deg,#1858c8,#2272f0)',
+      background: 'linear-gradient(135deg,#1d4ed8,#2563eb)',
       padding: '18px 24px',
       borderRadius: '10px 10px 0 0',
       display: 'flex', alignItems: 'center', gap: 12,
@@ -116,7 +116,7 @@ const pageStyle = {
   alignItems: 'flex-start',
   justifyContent: 'center',
   padding: '40px 16px 80px',
-  fontFamily: 'system-ui,-apple-system,sans-serif',
+  fontFamily: 'inherit',
 };
 
 const cardStyle = {
@@ -138,7 +138,7 @@ const inputStyle = {
   color: '#1a1a1a',
   background: '#fff',
   outline: 'none',
-  fontFamily: 'system-ui,sans-serif',
+  fontFamily: 'inherit',
 };
 
 const labelStyle = {
@@ -306,13 +306,13 @@ export default function CongePublicPage({ token }) {
           <div style={{
             display: 'flex', alignItems: 'center', gap: 12,
             padding: '12px 16px', borderRadius: 9,
-            background: 'var(--accent-light, #eef3ff)',
+            background: 'var(--accent-light, #eff6ff)',
             border: '1px solid #c7d9ff',
             marginBottom: 22,
           }}>
             <div style={{
               width: 38, height: 38, borderRadius: '50%',
-              background: '#2272f0', color: '#fff',
+              background: '#2563eb', color: '#fff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontWeight: 800, fontSize: 15, flexShrink: 0,
             }}>
@@ -378,7 +378,7 @@ export default function CongePublicPage({ token }) {
             disabled={submitting}
             style={{
               width: '100%', padding: '14px',
-              background: submitting ? '#93c5fd' : '#2272f0',
+              background: submitting ? '#93c5fd' : '#2563eb',
               color: '#fff', border: 'none', borderRadius: 9,
               fontSize: 15, fontWeight: 700, cursor: submitting ? 'wait' : 'pointer',
               transition: 'background .15s',

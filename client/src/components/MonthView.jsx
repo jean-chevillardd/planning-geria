@@ -38,7 +38,7 @@ function MonthPickerPopover({ current, onSelect, onClose }) {
     }}>
       <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:10 }}>
         <button className="wn-btn" onClick={() => setYear(y => y - 1)}>‹</button>
-        <span style={{ flex:1, textAlign:'center', fontSize:13, fontFamily:'system-ui,sans-serif', fontWeight:700 }}>
+        <span style={{ flex:1, textAlign:'center', fontSize:13, fontFamily:'inherit', fontWeight:700 }}>
           {year}
         </span>
         <button className="wn-btn" onClick={() => setYear(y => y + 1)}>›</button>
@@ -50,7 +50,7 @@ function MonthPickerPopover({ current, onSelect, onClose }) {
             <button key={i}
               onClick={() => { onSelect(new Date(year, i, 1)); onClose(); }}
               style={{
-                padding:'5px 2px', fontSize:11, fontFamily:'system-ui,sans-serif',
+                padding:'5px 2px', fontSize:11, fontFamily:'inherit',
                 fontWeight: isSel ? 700 : 400, borderRadius:'var(--r)',
                 border: isSel ? '1.5px solid var(--accent)' : '1px solid transparent',
                 background: isSel ? 'var(--accent-light)' : 'transparent',
@@ -72,7 +72,7 @@ function MonthPickerPopover({ current, onSelect, onClose }) {
 const TYPE_RANK  = { ph:0, padhue:1, interne:2, externe:2, ipa:3 };
 
 const ABS_COLORS = {
-  'Congé annuel (CA)':     '#2272f0',
+  'Congé annuel (CA)':     '#2563eb',
   'Congé maladie':         '#e11d48',
   'Congé maternité':       '#db2777',
   'RTT':                   '#4f46e5',
@@ -84,7 +84,7 @@ function absColor(type) { return ABS_COLORS[type] ?? '#6A6A66'; }
 
 // Même définition que PlanningGrid (sans "Tout afficher")
 const FILTERS = [
-  { id: 'cs',      label: 'Court séjour',  color: '#2272f0', grps: ['Court séjour 1', 'Court séjour 2'] },
+  { id: 'cs',      label: 'Court séjour',  color: '#2563eb', grps: ['Court séjour 1', 'Court séjour 2'] },
   { id: 'ssr',     label: 'SSR',           color: '#1D9E75', grps: ['SSR'] },
   { id: 'hdj',     label: 'HDJ',           color: '#ea580c', grps: ['Hôpital de jour'] },
   { id: 'ucc',     label: 'UCC/EMCC',      color: '#e11d48', grps: ['UCC / EMCC'] },
@@ -101,7 +101,7 @@ FILTERS.forEach((f, fi) => f.grps.forEach(g => { GRP_ORDER[g] = fi; }));
 const AST_TYPES = {
   astreinte:  { label:'Astreinte 18h30→8h30', c:'#d97706' },
   pont_rouge: { label:'Pont Rouge 8h30→13h30', c:'#e11d48' },
-  csg1:       { label:'CSG 1 8h30→13h30',      c:'#2272f0' },
+  csg1:       { label:'CSG 1 8h30→13h30',      c:'#2563eb' },
 };
 
 export default function MonthView({ medecins, absences }) {
@@ -233,7 +233,7 @@ export default function MonthView({ medecins, absences }) {
                   border:`1.5px solid ${f.color}`,
                   borderRadius:20,
                   fontSize:10,
-                  fontFamily:'system-ui,-apple-system,sans-serif',
+                  fontFamily:'inherit',
                   fontWeight:700,
                   letterSpacing:'.04em',
                   cursor:'pointer',
@@ -277,7 +277,7 @@ export default function MonthView({ medecins, absences }) {
                           padding:'2px 9px',
                           borderRadius:14,
                           fontSize:9,
-                          fontFamily:'system-ui,-apple-system,sans-serif',
+                          fontFamily:'inherit',
                           fontWeight: isSub ? 700 : 500,
                           letterSpacing:'.03em',
                           cursor:'pointer',
@@ -302,7 +302,7 @@ export default function MonthView({ medecins, absences }) {
           onClick={() => window.print()}
           style={{
             marginLeft:'auto', fontSize:10, padding:'4px 11px',
-            borderRadius:20, fontFamily:'system-ui,-apple-system,sans-serif',
+            borderRadius:20, fontFamily:'inherit',
             fontWeight:700, letterSpacing:'.04em', cursor:'pointer',
             border:'1.5px solid var(--border2)', background:'transparent',
             color:'var(--text2)', display:'inline-flex', alignItems:'center', gap:5,

@@ -31,7 +31,7 @@ const DAY_H    = 32;
 
 // ── Couleurs par type d'absence (fixes, sémantiques) ────────
 const TYPE_COLORS = {
-  'Congé annuel (CA)':  '#2272f0', // bleu
+  'Congé annuel (CA)':  '#2563eb', // bleu
   'Congé maladie':      '#e11d48', // rose
   'Congé maternité':    '#db2777', // rose fuchsia
   'RTT':                '#4f46e5', // indigo
@@ -43,7 +43,7 @@ function typeColor(typeAbs) { return TYPE_COLORS[typeAbs] ?? '#6A6A66'; }
 
 // ── Palette couleurs par praticien (légende filtre calendrier) ─
 const PALETTE = [
-  '#2272f0','#059669','#e11d48','#db2777','#0891b2',
+  '#2563eb','#059669','#e11d48','#db2777','#0891b2',
   '#9333ea','#0d9488','#ea580c','#4f46e5','#d97706',
   '#7c3aed','#6366f1','#047857','#b91c1c','#92400e',
 ];
@@ -640,7 +640,7 @@ function MonthPickerPopover({ calMonth, onSelect, onClose }) {
       {/* Navigation année */}
       <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:10 }}>
         <button className="wn-btn" onClick={() => setYear(y => y - 1)}>‹</button>
-        <span style={{ flex:1, textAlign:'center', fontSize:13, fontFamily:'system-ui,sans-serif', fontWeight:700 }}>
+        <span style={{ flex:1, textAlign:'center', fontSize:13, fontFamily:'inherit', fontWeight:700 }}>
           {year}
         </span>
         <button className="wn-btn" onClick={() => setYear(y => y + 1)}>›</button>
@@ -654,7 +654,7 @@ function MonthPickerPopover({ calMonth, onSelect, onClose }) {
               key={i}
               onClick={() => { onSelect(new Date(year, i, 1)); onClose(); }}
               style={{
-                padding:'5px 2px', fontSize:11, fontFamily:'system-ui,sans-serif',
+                padding:'5px 2px', fontSize:11, fontFamily:'inherit',
                 fontWeight: isSel ? 700 : 400, borderRadius:'var(--r)',
                 border: isSel ? '1.5px solid var(--accent)' : '1px solid transparent',
                 background: isSel ? 'var(--accent-light)' : 'transparent',
@@ -919,7 +919,7 @@ function AbsenceFilterBadge({ monthMeds, filterMed, onFilter }) {
           padding:'2px 10px 2px 9px',
           background: isFiltered || open ? 'var(--accent)' : 'var(--accent-light)',
           border:`1px solid ${isFiltered || open ? 'var(--accent)' : 'var(--accent-mid)'}`,
-          borderRadius:20, fontSize:10, fontFamily:'system-ui,sans-serif',
+          borderRadius:20, fontSize:10, fontFamily:'inherit',
           color: isFiltered || open ? '#fff' : 'var(--accent)',
           cursor:'pointer', fontWeight:700, transition:'all .12s',
         }}
@@ -946,7 +946,7 @@ function AbsenceFilterBadge({ monthMeds, filterMed, onFilter }) {
               onMouseEnter={() => setActiveIdx(idx)}
               onMouseLeave={() => setActiveIdx(-1)}
               style={{
-                padding:'7px 14px', fontSize:11, fontFamily:'system-ui,sans-serif',
+                padding:'7px 14px', fontSize:11, fontFamily:'inherit',
                 borderBottom: idx < options.length - 1 ? '1px solid var(--border)' : 'none',
                 display:'flex', alignItems:'center', gap:8, cursor:'pointer',
                 background: idx === activeIdx ? 'var(--accent-light)' : filterMed === m.id ? 'var(--surface2)' : 'transparent',
@@ -1322,7 +1322,7 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
             onClick={() => setViewMode(v.key)}
             style={{
               padding:'6px 20px', fontSize:12, borderRadius:20, cursor:'pointer',
-              fontFamily:'system-ui,sans-serif', fontWeight:700,
+              fontFamily:'inherit', fontWeight:700,
               background: viewMode === v.key ? 'var(--accent)' : 'var(--accent-light)',
               color:      viewMode === v.key ? '#fff'          : 'var(--accent)',
               border:`1.5px solid ${viewMode === v.key ? 'var(--accent)' : 'var(--accent-mid)'}`,

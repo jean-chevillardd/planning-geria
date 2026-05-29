@@ -14,7 +14,7 @@ const CATS = [
 
 /* ── Congé colors & labels ────────────────────────────── */
 const CONGE_COLORS = {
-  'Congé annuel (CA)':     '#2272f0',
+  'Congé annuel (CA)':     '#2563eb',
   'Congé maladie':         '#e11d48',
   'Congé maternité':       '#db2777',
   'RTT':                   '#4f46e5',
@@ -202,7 +202,7 @@ function MediumCard({ p, selected, onSelect }) {
           <div style={{
             fontWeight:700, fontSize:14, color:'var(--text)',
             fontStyle: cat?.italic ? 'italic' : 'normal',
-            fontFamily:'Georgia,serif',
+            fontFamily:'inherit',
             whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
           }}>{p.nom}</div>
           <div style={{ fontSize:10, color:'var(--text3)', marginTop:2, letterSpacing:'0.04em', fontFamily:'Trebuchet MS,sans-serif' }}>
@@ -210,7 +210,7 @@ function MediumCard({ p, selected, onSelect }) {
           </div>
         </div>
         <div style={{ textAlign:'right', flexShrink:0, marginLeft:12 }}>
-          <div style={{ fontSize:24, fontWeight:800, color: selected ? 'var(--accent)' : 'var(--text)', lineHeight:1, fontFamily:'system-ui,sans-serif' }}>
+          <div style={{ fontSize:24, fontWeight:800, color: selected ? 'var(--accent)' : 'var(--text)', lineHeight:1, fontFamily:'inherit' }}>
             {tw}
           </div>
           <div style={{ fontSize:9, color:'var(--text2)', letterSpacing:'0.03em', fontFamily:'Trebuchet MS,sans-serif' }}>
@@ -226,7 +226,7 @@ function MediumCard({ p, selected, onSelect }) {
           {top.map(s => (
             <div key={s.id} style={{ display:'flex', alignItems:'center', gap:4 }}>
               <div style={{ width:8, height:8, borderRadius:2, background:s.c, flexShrink:0 }}/>
-              <span style={{ fontSize:11, color:'var(--text2)', fontFamily:'system-ui,sans-serif' }}>
+              <span style={{ fontSize:11, color:'var(--text2)', fontFamily:'inherit' }}>
                 {s.short} <b style={{ color:'var(--text)', fontWeight:600 }}>{s.n}</b>
               </span>
             </div>
@@ -239,12 +239,12 @@ function MediumCard({ p, selected, onSelect }) {
           {Object.entries(conges).map(([type, days]) => days > 0 ? (
             <div key={type} style={{ display:'flex', alignItems:'center', gap:3 }}>
               <div style={{ width:6, height:6, borderRadius:'50%', background:congeColor(type) }}/>
-              <span style={{ fontSize:10, color:'var(--text2)', fontFamily:'system-ui,sans-serif' }}>
+              <span style={{ fontSize:10, color:'var(--text2)', fontFamily:'inherit' }}>
                 {congeShort(type)} <b style={{ color:'var(--text)', fontWeight:600 }}>{days}</b>
               </span>
             </div>
           ) : null)}
-          <span style={{ marginLeft:'auto', fontSize:10, fontWeight:700, color:'var(--text2)', fontFamily:'system-ui,sans-serif' }}>
+          <span style={{ marginLeft:'auto', fontSize:10, fontWeight:700, color:'var(--text2)', fontFamily:'inherit' }}>
             {totalAbsDays} j.
           </span>
         </div>
@@ -275,7 +275,7 @@ function CardsView({ practitioners, selectedId, onSelect, search, setSearch }) {
             style={{
               border:'none', outline:'none', background:'transparent',
               fontSize:13, color:'var(--text)', width:'100%',
-              fontFamily:'Georgia,serif',
+              fontFamily:'inherit',
             }}
           />
           {search && (
@@ -285,7 +285,7 @@ function CardsView({ practitioners, selectedId, onSelect, search, setSearch }) {
           )}
         </div>
         {search && (
-          <span style={{ fontSize:12, color:'var(--text2)', fontFamily:'system-ui,sans-serif' }}>
+          <span style={{ fontSize:12, color:'var(--text2)', fontFamily:'inherit' }}>
             {filtered.length} résultat{filtered.length !== 1 ? 's' : ''}
           </span>
         )}
@@ -332,7 +332,7 @@ function MatrixView({ practitioners, selectedId, onSelect }) {
 
   return (
     <div style={{ padding:'24px 0' }}>
-      <div style={{ fontSize:11, color:'var(--text2)', marginBottom:16, fontFamily:'system-ui,sans-serif' }}>
+      <div style={{ fontSize:11, color:'var(--text2)', marginBottom:16, fontFamily:'inherit' }}>
         Intensité = volume de semaines · cliquer sur un nom pour ouvrir le détail
       </div>
       <div style={{
@@ -394,7 +394,7 @@ function MatrixView({ practitioners, selectedId, onSelect }) {
                       color: p.id === selectedId ? 'var(--accent)' : 'var(--text)',
                       textAlign:'right', paddingRight:10, cursor:'pointer',
                       fontStyle: cat.italic ? 'italic' : 'normal',
-                      fontFamily:'Georgia,serif',
+                      fontFamily:'inherit',
                       whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis',
                       transition:'color .15s',
                     }}
@@ -413,7 +413,7 @@ function MatrixView({ practitioners, selectedId, onSelect }) {
                           height:28, borderRadius:4, background:bg,
                           display:'flex', alignItems:'center', justifyContent:'center',
                           fontSize:10, fontWeight:700, color:txtCol,
-                          fontFamily:'system-ui,sans-serif',
+                          fontFamily:'inherit',
                         }}
                       >
                         {v > 0 ? v : ''}
@@ -429,12 +429,12 @@ function MatrixView({ practitioners, selectedId, onSelect }) {
         <div style={{
           display:'flex', alignItems:'center', gap:8,
           marginTop:16, paddingTop:12, borderTop:'1px solid var(--border)',
-          fontFamily:'system-ui,sans-serif',
+          fontFamily:'inherit',
         }}>
           <span style={{ fontSize:10, color:'var(--text2)' }}>0</span>
           <div style={{ display:'flex', gap:2 }}>
             {[0.1,0.28,0.46,0.64,0.82,1].map(o => (
-              <div key={o} style={{ width:22, height:11, borderRadius:2, background:hexA('#2272f0', o) }}/>
+              <div key={o} style={{ width:22, height:11, borderRadius:2, background:hexA('#2563eb', o) }}/>
             ))}
           </div>
           <span style={{ fontSize:10, color:'var(--text2)' }}>{maxV} sem.</span>
@@ -462,7 +462,7 @@ function DetailContent({ p }) {
           ['Absences', totalAbsDays + 'j'],
         ].map(([l, v]) => (
           <div key={l} style={{ background:'var(--bg)', borderRadius:8, padding:'12px 8px', textAlign:'center' }}>
-            <div style={{ fontSize:20, fontWeight:800, color:'var(--text)', lineHeight:1, fontFamily:'system-ui,sans-serif' }}>
+            <div style={{ fontSize:20, fontWeight:800, color:'var(--text)', lineHeight:1, fontFamily:'inherit' }}>
               {v}
             </div>
             <div style={{ fontSize:9, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text2)', marginTop:4, fontFamily:'Trebuchet MS,sans-serif' }}>
@@ -480,13 +480,13 @@ function DetailContent({ p }) {
           {s.map(sv => (
             <div key={sv.id} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
               <div style={{ width:10, height:10, borderRadius:2, background:sv.c, flexShrink:0 }}/>
-              <div style={{ width:52, fontSize:10, color:'var(--text2)', textAlign:'right', flexShrink:0, fontFamily:'system-ui,sans-serif' }}>
+              <div style={{ width:52, fontSize:10, color:'var(--text2)', textAlign:'right', flexShrink:0, fontFamily:'inherit' }}>
                 {sv.short}
               </div>
               <div style={{ flex:1, height:7, background:'#ede9e1', borderRadius:7, overflow:'hidden' }}>
                 <div style={{ height:'100%', width:`${(sv.n / maxW) * 100}%`, background:sv.c, borderRadius:7, transition:'width .4s ease' }}/>
               </div>
-              <div style={{ width:24, fontSize:12, fontWeight:700, color:'var(--text)', textAlign:'right', fontFamily:'system-ui,sans-serif' }}>
+              <div style={{ width:24, fontSize:12, fontWeight:700, color:'var(--text)', textAlign:'right', fontFamily:'inherit' }}>
                 {sv.n}
               </div>
             </div>
@@ -499,7 +499,7 @@ function DetailContent({ p }) {
           <div style={{ fontSize:10, fontWeight:700, letterSpacing:'0.09em', textTransform:'uppercase', color:'var(--text2)', marginBottom:10, fontFamily:'Trebuchet MS,sans-serif' }}>
             Absences par mois
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'48px repeat(12,1fr)', gap:'2px', fontSize:9, fontFamily:'system-ui,sans-serif' }}>
+          <div style={{ display:'grid', gridTemplateColumns:'48px repeat(12,1fr)', gap:'2px', fontSize:9, fontFamily:'inherit' }}>
             <div/>
             {MONTHS_SHORT.map(m => (
               <div key={m} style={{ textAlign:'center', color:'var(--text3)', fontWeight:600, paddingBottom:3 }}>{m}</div>
@@ -543,10 +543,10 @@ function SidePanel({ p, onClose, practitioners }) {
       <div style={{ padding:'20px 24px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontWeight:700, fontSize:16, color:'var(--text)', fontStyle: cat?.italic ? 'italic' : 'normal', lineHeight:1.3, fontFamily:'Georgia,serif' }}>
+            <div style={{ fontWeight:700, fontSize:16, color:'var(--text)', fontStyle: cat?.italic ? 'italic' : 'normal', lineHeight:1.3, fontFamily:'inherit' }}>
               {p.nom}
             </div>
-            <div style={{ fontSize:11, color:'var(--text2)', marginTop:4, fontFamily:'system-ui,sans-serif' }}>
+            <div style={{ fontSize:11, color:'var(--text2)', marginTop:4, fontFamily:'inherit' }}>
               {TYPE_LBL[p.type]} · Rotation {new Date().getFullYear()}
             </div>
           </div>
@@ -583,7 +583,7 @@ function SidePanel({ p, onClose, practitioners }) {
                 background:'none', border:'1px solid var(--border)', borderRadius:6,
                 padding:'6px 12px', cursor: next ? 'pointer' : 'not-allowed',
                 color: next ? 'var(--text)' : 'var(--text3)',
-                fontSize:12, fontWeight:500, fontFamily:'system-ui,sans-serif',
+                fontSize:12, fontWeight:500, fontFamily:'inherit',
                 transition:'all .15s', opacity: next ? 1 : 0.4,
               }}
             >
@@ -655,7 +655,7 @@ export default function StatsTab({ medecins }) {
       }}>
         <div>
           <div className="sec-t">Synthèse par praticien</div>
-          <div style={{ fontSize:11, fontFamily:'system-ui,sans-serif', color:'var(--text2)', marginTop:3 }}>
+          <div style={{ fontSize:11, fontFamily:'inherit', color:'var(--text2)', marginTop:3 }}>
             Rotation {year} · semaines passées &amp; planifiées
           </div>
         </div>
@@ -663,7 +663,7 @@ export default function StatsTab({ medecins }) {
       </div>
 
       {loading ? (
-        <div style={{ fontFamily:'system-ui,sans-serif', fontSize:12, color:'var(--text2)', padding:'2rem 0' }}>
+        <div style={{ fontFamily:'inherit', fontSize:12, color:'var(--text2)', padding:'2rem 0' }}>
           Chargement des statistiques…
         </div>
       ) : (

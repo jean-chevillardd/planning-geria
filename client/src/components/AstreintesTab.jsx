@@ -9,7 +9,7 @@ const JOURS_COURTS = ['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'];
 const SLOT_TYPES = [
   { id:'astreinte',  label:'Astreinte',  sub:'18h30→8h30 (sem) / 13h30→8h30 (WE)', c:'#d97706', dot:'◉', weOnly:false, bg:'#fdf6e7' },
   { id:'pont_rouge', label:'Pont Rouge', sub:'8h30→13h30',                          c:'#e11d48', dot:'▸', weOnly:true,  bg:'#fff1f2' },
-  { id:'csg1',       label:'CSG 1',      sub:'8h30→13h30',                          c:'#2272f0', dot:'▸', weOnly:true,  bg:'#eff6ff' },
+  { id:'csg1',       label:'CSG 1',      sub:'8h30→13h30',                          c:'#2563eb', dot:'▸', weOnly:true,  bg:'#eff6ff' },
 ];
 
 function mkKey(d) {
@@ -260,7 +260,7 @@ function SwimCellRot({ iso, dow, med, aMap, holidays, isSecretary, onDirectAssig
         <div style={{display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2}}>
           {shA && <div style={{width:9,height:9,borderRadius:'50%',background:'#d97706'}} />}
           {shP && <div style={{width:9,height:9,borderRadius:'50%',background:'#e11d48'}} />}
-          {shC && <div style={{width:9,height:9,borderRadius:'50%',background:'#2272f0'}} />}
+          {shC && <div style={{width:9,height:9,borderRadius:'50%',background:'#2563eb'}} />}
           {!hasAssignment && isSecretary && (
             <div style={{width:14,height:14,borderRadius:3,border:'1.5px dashed var(--border)'}} />
           )}
@@ -309,7 +309,7 @@ function DayCard({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
             fontSize:10, fontWeight:700, letterSpacing:'0.08em',
             color: wknd ? '#e11d48' : 'var(--text3)',
             textTransform:'uppercase', marginBottom:2,
-            fontFamily:'system-ui,sans-serif',
+            fontFamily:'inherit',
           }}>
             {JOURS_COURTS[dowN]}
           </div>
@@ -440,7 +440,7 @@ function ViewRotation({ year, month, aMap, medecins, isSecretary, onMonthChange,
               <th style={{padding:'0 0 4px 10px', textAlign:'left', verticalAlign:'bottom',
                 borderBottom:'1px solid var(--border)'}}>
                 <span style={{fontSize:9, fontWeight:700, letterSpacing:'0.08em', color:'var(--text3)',
-                  fontFamily:'system-ui,sans-serif'}}>TOTAL</span>
+                  fontFamily:'inherit'}}>TOTAL</span>
               </th>
             </tr>
           </thead>
@@ -470,7 +470,7 @@ function ViewRotation({ year, month, aMap, medecins, isSecretary, onMonthChange,
                     <div style={{display:'flex', gap:3, alignItems:'center', flexWrap:'nowrap'}}>
                       {t.a > 0 && <span style={{fontSize:10,fontWeight:700,color:'#d97706',background:'#fdf6e7',padding:'2px 5px',borderRadius:6,whiteSpace:'nowrap',fontFamily:'sans-serif'}}>{t.a}A</span>}
                       {t.p > 0 && <span style={{fontSize:10,fontWeight:700,color:'#e11d48',background:'#fff1f2',padding:'2px 5px',borderRadius:6,whiteSpace:'nowrap',fontFamily:'sans-serif'}}>{t.p}P</span>}
-                      {t.c > 0 && <span style={{fontSize:10,fontWeight:700,color:'#2272f0',background:'#eff6ff',padding:'2px 5px',borderRadius:6,whiteSpace:'nowrap',fontFamily:'sans-serif'}}>{t.c}C</span>}
+                      {t.c > 0 && <span style={{fontSize:10,fontWeight:700,color:'#2563eb',background:'#eff6ff',padding:'2px 5px',borderRadius:6,whiteSpace:'nowrap',fontFamily:'sans-serif'}}>{t.c}C</span>}
                     </div>
                   </td>
                 </tr>
@@ -579,7 +579,7 @@ function ViewCalendrier({ year, month, aMap, medecins, holidays, isSecretary, se
           borderRadius:10, padding:'7px 14px', marginBottom:14,
         }}>
           <div style={{width:8,height:8,borderRadius:'50%',background:'#d97706',flexShrink:0}} />
-          <span style={{fontSize:10, fontWeight:700, color:'var(--text2)', letterSpacing:'0.07em', fontFamily:'system-ui,sans-serif'}}>CE SOIR</span>
+          <span style={{fontSize:10, fontWeight:700, color:'var(--text2)', letterSpacing:'0.07em', fontFamily:'inherit'}}>CE SOIR</span>
           <span style={{fontSize:13, fontWeight:800, color:'var(--text)', fontFamily:'sans-serif'}}>{tonight.astreinte.med_nom}</span>
           <span style={{fontSize:10, color:'var(--text3)', fontFamily:'sans-serif'}}>18h30 → 8h30</span>
         </div>
@@ -589,7 +589,7 @@ function ViewCalendrier({ year, month, aMap, medecins, holidays, isSecretary, se
           <div key={l} style={{
             textAlign:'center', fontSize:10, fontWeight:700, letterSpacing:'0.05em',
             color: i >= 5 ? '#e11d48' : 'var(--text2)', padding:'6px 0',
-            fontFamily:'system-ui,sans-serif',
+            fontFamily:'inherit',
           }}>{l}</div>
         ))}
       </div>
@@ -611,7 +611,7 @@ function ViewCalendrier({ year, month, aMap, medecins, holidays, isSecretary, se
           display:'flex', gap:5, flexWrap:'wrap', alignItems:'center',
         }}>
           <span style={{fontSize:9, fontWeight:700, letterSpacing:'0.1em', color:'var(--text3)',
-            marginRight:3, fontFamily:'system-ui,sans-serif'}}>FILTRER PAR PRATICIEN</span>
+            marginRight:3, fontFamily:'inherit'}}>FILTRER PAR PRATICIEN</span>
           {personsInMonth.map(m => {
             const isSel = sel === m.id;
             return (

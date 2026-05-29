@@ -29,7 +29,7 @@ const TYPE_LABEL = { interne: 'Interne', externe: 'Externe', padhue: 'PADHUE', i
 
 const FILTERS = [
   { id: null,      label: 'Tout afficher',    color: null,      grps: null },
-  { id: 'cs',      label: 'Court séjour',     color: '#2272f0', grps: ['Court séjour 1', 'Court séjour 2'] },
+  { id: 'cs',      label: 'Court séjour',     color: '#2563eb', grps: ['Court séjour 1', 'Court séjour 2'] },
   { id: 'ssr',     label: 'SSR',              color: '#1D9E75', grps: ['SSR'] },
   { id: 'hdj',     label: 'HDJ',              color: '#ea580c', grps: ['Hôpital de jour'] },
   { id: 'ucc',     label: 'UCC/EMCC',         color: '#e11d48', grps: ['UCC / EMCC'] },
@@ -188,7 +188,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
               style={{
                 display:'inline-flex', alignItems:'center', gap:5,
                 padding:'4px 11px', border:`1.5px solid ${col}`, borderRadius:20,
-                fontSize:10, fontFamily:'system-ui,-apple-system,sans-serif',
+                fontSize:10, fontFamily:'inherit',
                 fontWeight:700, letterSpacing:'.04em', cursor:'pointer',
                 transition:'background .12s, color .12s',
                 background: active ? col : 'transparent',
@@ -224,7 +224,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
           onClick={() => window.print()}
           style={{
             marginLeft:'auto', fontSize:10, padding:'4px 11px', borderRadius:20,
-            fontFamily:'system-ui,-apple-system,sans-serif', fontWeight:700,
+            fontFamily:'inherit', fontWeight:700,
             letterSpacing:'.04em', cursor:'pointer',
             border:'1.5px solid var(--border2)', background:'transparent', color:'var(--text2)',
             display:'inline-flex', alignItems:'center', gap:5,
@@ -265,7 +265,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                           onClick={e => { e.stopPropagation(); onOpenAstreintes(di); }}
                           style={{
                             marginTop:4, cursor:'pointer', padding:'2px 7px', borderRadius:20,
-                            fontSize:9, fontFamily:'system-ui,-apple-system,sans-serif',
+                            fontSize:9, fontFamily:'inherit',
                             fontWeight:700, letterSpacing:'.03em',
                             border: isToday ? '1.5px solid rgba(255,255,255,.55)' : '1.5px solid #f6c05c',
                             background: isToday ? 'rgba(255,255,255,.15)' : '#fffbeb',
@@ -338,7 +338,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             background:'var(--surface)', borderRadius:'var(--rl)',
             border:'1px solid var(--border2)', padding:'1.5rem',
             width:400, boxShadow:'0 8px 32px rgba(0,0,0,.18)',
-            fontFamily:'system-ui,-apple-system,sans-serif',
+            fontFamily:'inherit',
           }}>
             {/* Titre */}
             <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>
