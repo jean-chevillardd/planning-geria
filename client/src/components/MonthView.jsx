@@ -299,7 +299,7 @@ export default function MonthView({ medecins, absences }) {
         })}
         {/* Bouton Imprimer aligné avec les pills */}
         <button
-          onClick={() => window.print()}
+          onClick={() => { document.body.dataset.date = new Date().toLocaleDateString('fr-FR'); window.print(); }}
           style={{
             marginLeft:'auto', fontSize:10, padding:'4px 11px',
             borderRadius:20, fontFamily:'inherit',

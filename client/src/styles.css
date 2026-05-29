@@ -219,20 +219,62 @@ button, input, select { font-family:inherit; }
 }
 
 @media print {
-  @page { size: A4 landscape; margin: 10mm; }
+  @page { size: A4 landscape; margin: 12mm 10mm; }
 
-  .hdr, .tabs, .foot, .toast-wrap, .print-hide { display: none !important; }
+  /* ── Éléments à masquer ─────────────────────────────── */
+  .hdr, .tabs, .foot, .toast-wrap, .print-hide,
+  .mbg, .chip-rm, .add-lnk { display: none !important; }
   .print-only { display: block !important; }
 
-  body { background: white; }
+  /* ── Base ───────────────────────────────────────────── */
+  html { font-size: 10pt; }
+  body {
+    background: white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   .main { max-width: 100%; padding: 0; margin: 0; }
 
-  /* Planning grid */
-  .grid-wrap { overflow: visible; box-shadow: none; border: 1px solid #bbb; }
-  .pgrid { min-width: 0 !important; width: 100%; }
+  /* Footer dynamique : date d'impression posée par JS */
+  body::after {
+    content: "Imprimé le " attr(data-date);
+    display: block;
+    text-align: right;
+    font-size: 8pt;
+    color: #999;
+    margin-top: 8mm;
+  }
 
-  /* Month view */
-  .monthly-grid { gap: 4px; }
-  .month-day { min-height: 60px; padding: 4px 6px; break-inside: avoid; }
-  .month-week-lbl { margin-top: 8px; padding: 6px 0 2px; }
+  /* ── Planning semaine ───────────────────────────────── */
+  .grid-wrap { overflow: visible; box-shadow: none; border: 1px solid #bbb; }
+  .pgrid { min-width: 0 !important; width: 100%; table-layout: fixed; }
+
+  /* Colonnes fixes : poste 40mm, 5 jours répartissent le reste */
+  .gh,
+  .grp-hdr-row,
+  .grow { grid-template-columns: 40mm repeat(5, 1fr); }
+
+  .pname { font-size: 9pt; padding: 4px 5px; word-break: break-word; }
+  .cell  { min-height: 0; padding: 3px 3px; }
+  .chip  { font-size: 8.5pt; padding: 2px 3px; margin-bottom: 1px; }
+  .chip-nm { white-space: normal; }
+  .chip-abs { font-size: 8pt; }
+
+  .grp-hdr { font-size: 8pt; padding: 2px 6px; }
+  .ghc     { font-size: 8pt; padding: 4px 4px; }
+
+  /* Saut de page : éviter de couper une ligne entre deux pages */
+  .grow { break-inside: avoid; }
+  /* Saut de page explicite avant chaque groupe de postes si besoin */
+  .grp-hdr-row { break-before: auto; }
+
+  /* ── Vue mensuelle ──────────────────────────────────── */
+  .monthly-grid { gap: 3px; }
+  .month-day {
+    min-height: 50px; padding: 3px 5px;
+    break-inside: avoid; font-size: 9pt;
+  }
+  .month-day-hdr { font-size: 8pt; }
+  .month-chip    { font-size: 8pt; }
+  .month-week-lbl { margin-top: 6px; padding: 4px 0 2px; font-size: 8pt; }
 }
