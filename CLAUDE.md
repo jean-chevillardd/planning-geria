@@ -22,6 +22,17 @@ Pour toute navigation web, utiliser le skill `/browse` de gstack. **Ne jamais ut
 Skills gstack disponibles :
 `/office-hours`, `/plan-ceo-review`, `/plan-eng-review`, `/plan-design-review`, `/design-consultation`, `/design-shotgun`, `/design-html`, `/review`, `/ship`, `/land-and-deploy`, `/canary`, `/benchmark`, `/browse`, `/connect-chrome`, `/qa`, `/qa-only`, `/design-review`, `/setup-browser-cookies`, `/setup-deploy`, `/setup-gbrain`, `/retro`, `/investigate`, `/document-release`, `/document-generate`, `/codex`, `/cso`, `/autoplan`, `/plan-devex-review`, `/devex-review`, `/careful`, `/freeze`, `/guard`, `/unfreeze`, `/gstack-upgrade`, `/learn`
 
+## README.md — maintien à jour
+
+**Mettre à jour `README.md` dès qu'une modification significative a lieu**, notamment :
+- ajout ou suppression d'un composant ou d'un onglet
+- nouvelle route API ou modification d'une route existante
+- changement de stack ou de dépendance majeure
+- nouvelle section fonctionnelle (auth, self-service, astreintes, etc.)
+- changement de commande de lancement ou de déploiement
+
+Le commit du README doit accompagner (ou suivre immédiatement) le commit de la fonctionnalité concernée.
+
 ## Mémoire — mise à jour en fin de session
 
 **À la fin de chaque session de travail**, mettre à jour les fichiers mémoire pertinents dans `.claude/projects/.../memory/` pour refléter :
