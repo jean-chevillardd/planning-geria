@@ -110,6 +110,9 @@ function V1Card({ member, isSecretary, onEdit, isSelected }) {
   const fullName = [member.prenom, member.nom].filter(Boolean).join(' ');
   return (
     <div
+      role={isSecretary ? 'button' : undefined}
+      tabIndex={isSecretary ? 0 : undefined}
+      onKeyDown={isSecretary ? e => e.key === 'Enter' && onEdit(member) : undefined}
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
       onClick={isSecretary ? () => onEdit(member) : undefined}
