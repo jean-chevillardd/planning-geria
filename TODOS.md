@@ -31,3 +31,13 @@
 **Effort:** M (human: ~4h / CC: ~45min)
 **Priority:** P3
 **Depends on:** Feedback des médecins sur le besoin réel vs la vue @media print améliorée.
+
+## P4 — UI désarchivage praticien (TeamTab)
+**What:** Ajouter dans l'onglet Équipe (TeamTab) une section "Praticiens archivés" listant les médecins avec `actif=0`, avec un bouton "Réactiver" qui appelle `PATCH /api/medecins/:id/desarchiver` (route déjà implémentée côté serveur et `desarchiveMedecin` déjà exposée dans `api.js`).
+**Why:** Actuellement, archiver un médecin est irréversible depuis l'UI. Un archivage accidentel ou un retour du praticien ne peut être corrigé qu'en base. La route de désarchivage existe déjà — il manque uniquement l'entrée UI.
+**Pros:** Effort XS (CC: ~20min), route déjà prête, améliore la réversibilité des actions.
+**Cons:** Aucun.
+**Context:** Découvert lors de l'audit divergences client/serveur du 2026-05-29. La route `PATCH /api/medecins/:id/desarchiver` a été ajoutée ce jour. Il faut : (1) un appel `GET /api/medecins?actif=0` ou équivalent pour lister les archivés, OU modifier `GET /api/medecins` pour accepter un param `?includeArchived=1` ; (2) une section repliable "Archivés (N)" dans TeamTab avec le bouton Réactiver.
+**Effort:** XS (human: ~30min / CC: ~20min)
+**Priority:** P4
+**Depends on:** Rien — peut être fait dès maintenant.

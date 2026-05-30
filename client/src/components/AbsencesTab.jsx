@@ -1206,7 +1206,7 @@ export default function AbsencesTab({ medecins, absences, isSecretary, onReload,
       await api.deleteAbsence(id);
       if (absToDelete) {
         onPushUndo('Suppression congé', async () => {
-          await api.addAbsence({ med_id: absToDelete.med_id, date_debut: absToDelete.date_debut, date_fin: absToDelete.date_fin, type_abs: absToDelete.type_abs });
+          await api.addAbsence({ med_id: absToDelete.med_id, date_debut: absToDelete.date_debut, date_fin: absToDelete.date_fin, type_abs: absToDelete.type_abs, demi_journee: absToDelete.demi_journee ?? null });
           onReload();
         });
       }

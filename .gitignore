@@ -4,6 +4,8 @@ node_modules/
 # ── Base de données (données locales, ne pas partager) ───────
 server/database.sqlite
 server/*.sqlite
+server/*.sqlite-shm
+server/*.sqlite-wal
 
 # ── Build du front-end ───────────────────────────────────────
 client/dist/
