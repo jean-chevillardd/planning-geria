@@ -15,8 +15,8 @@ import {
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('CONSTANTES', () => {
-  test('POSTES contient 21 entrées', () => {
-    expect(POSTES).toHaveLength(21);
+  test('POSTES contient 18 entrées', () => {
+    expect(POSTES).toHaveLength(18);
   });
 
   test('Chaque poste a id, lbl, c, min, grp, intern', () => {
