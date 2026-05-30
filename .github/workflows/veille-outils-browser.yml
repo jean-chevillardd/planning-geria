@@ -1,0 +1,81 @@
+name: Veille hebdomadaire — Outils browser/LLM/LinkedIn
+
+on:
+  schedule:
+    - cron: '0 7 * * 1'  # Lundi à 8h (heure de Paris, hiver CET)
+  workflow_dispatch:      # Déclenchement manuel pour tester
+
+jobs:
+  veille:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Recherche des nouveaux repos GitHub
+        id: rapport
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SINCE=$(date -d '7 days ago' '+%Y-%m-%d')
+          TODAY=$(date '+%d/%m/%Y')
+          SINCE_FR=$(date -d '7 days ago' '+%d/%m/%Y')
+          echo "week=${SINCE_FR} au ${TODAY}" >> "$GITHUB_OUTPUT"
+
+          fetch() {
+            local label="$1"
+            local query="$2 created:>${SINCE}"
+            local encoded
+            encoded=$(python3 -c "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" "$query")
+
+            printf "### %s\n" "$label"
+            curl -sf \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github.v3+json" \
+              "https://api.github.com/search/repositories?q=${encoded}&sort=stars&order=desc&per_page=5" \
+            | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+items = data.get('items', [])
+if not items:
+    print('  Aucun nouveau repo cette semaine.\n')
+else:
+    for r in items:
+        desc = r.get('description') or ''
+        print(f\"  - {r['full_name']} ({r['stargazers_count']} étoiles)\")
+        print(f\"    {r['html_url']}\")
+        if desc:
+            print(f\"    {desc}\")
+    print()
+" || echo "  (erreur lors de la recherche)"
+          }
+
+          {
+            echo "Veille GitHub — Semaine du ${SINCE_FR} au ${TODAY}"
+            echo "============================================================"
+            echo ""
+            echo "Thèmes surveillés : automatisation navigateur, LLM, LinkedIn, agents IA"
+            echo ""
+            fetch "Browser Automation + LLM"     "browser-use llm"
+            fetch "MCP + Browser / Playwright"   "mcp browser playwright"
+            fetch "LinkedIn Automation LLM"      "linkedin automation llm"
+            fetch "Computer Use / Web Agent"     "computer-use web-agent"
+            fetch "AI Browser Control"           "ai browser control agent"
+            echo "------------------------------------------------------------"
+            echo "Pour se désabonner : désactiver ce workflow dans GitHub Actions."
+          } > rapport.txt
+
+          echo "--- Aperçu du rapport ---"
+          cat rapport.txt
+
+      - name: Envoi par email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "Veille GitHub — Outils browser/LLM — semaine du ${{ steps.rapport.outputs.week }}"
+          to: jean.chevillard@gmail.com
+          from: "Veille GitHub <${{ secrets.MAIL_USERNAME }}>"
+          body: file://rapport.txt
+          content_type: text/plain
