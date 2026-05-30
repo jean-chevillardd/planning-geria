@@ -26,8 +26,9 @@ export const checkPassword = (password) => req('POST', '/auth', { password });
 export const getMedecins   = ()         => req('GET',    '/medecins');
 export const addMedecin    = (data)     => req('POST',   '/medecins', data);
 export const updateMedecin = (id, data) => req('PUT',    `/medecins/${id}`, data);
-export const archiveMedecin   = (id)    => req('PATCH',  `/medecins/${id}/archiver`);
+export const archiveMedecin    = (id)    => req('PATCH',  `/medecins/${id}/archiver`);
 export const desarchiveMedecin = (id)   => req('PATCH',  `/medecins/${id}/desarchiver`);
+export const getArchivedMedecins = ()   => req('GET',    '/medecins/archives');
 
 // ── Absences ────────────────────────────────────────────
 export const getAbsences   = ()    => req('GET',    '/absences');

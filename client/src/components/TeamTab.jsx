@@ -385,7 +385,7 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
                 cursor: 'pointer',
               }}
             >
-              Supprimer ce membre
+              Archiver ce membre
             </button>
           </div>
         )}
@@ -589,6 +589,125 @@ function CampaignModal({ medecins, onClose, onToast }) {
   );
 }
 
+// ── Section archivés ─────────────────────────────────────────
+function ArchivedSection({ isSecretary, onReactivate }) {
+  const [open,    setOpen]    = useState(false);
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [hdrHov,  setHdrHov]  = useState(false);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const rows = await api.getArchivedMedecins();
+      setMembers(rows.map(normalizeMedecin));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toggle() {
+    if (!open && members.length === 0) load();
+    setOpen(o => !o);
+  }
+
+  return (
+    <div style={{
+      marginBottom: 14,
+      background: '#fff',
+      borderRadius: 'var(--rl)',
+      border: '1px solid var(--border)',
+      boxShadow: 'var(--sh)',
+      overflow: 'hidden',
+      opacity: 0.85,
+    }}>
+      <div
+        onMouseEnter={() => setHdrHov(true)}
+        onMouseLeave={() => setHdrHov(false)}
+        onClick={toggle}
+        title={open ? 'Cliquer pour replier' : 'Cliquer pour déplier'}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '10px 14px',
+          background: hdrHov ? '#f0efed' : '#f9f8f6',
+          borderBottom: open ? '1px solid var(--border)' : 'none',
+          cursor: 'pointer', userSelect: 'none',
+          transition: 'background .13s',
+        }}
+      >
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#9ca3af', flexShrink: 0 }} />
+        <span style={{ flex: 1, fontSize: 10, fontFamily: 'inherit', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: '#6b7280' }}>
+          Archivés
+        </span>
+        <span style={{
+          fontSize: 9, fontFamily: 'inherit', fontWeight: 700,
+          background: '#f3f4f6', color: '#6b7280', padding: '1px 8px', borderRadius: 20,
+          border: '1px solid #d1d5db',
+        }}>
+          {open ? members.length : '…'}
+        </span>
+        <svg
+          width="14" height="14" viewBox="0 0 14 14" fill="none"
+          stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform .18s', flexShrink: 0, opacity: .8 }}
+        >
+          <path d="M5 3l4 4-4 4" />
+        </svg>
+      </div>
+      {open && (
+        <div style={{ padding: '12px 14px' }}>
+          {loading && (
+            <p style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'inherit', margin: 0 }}>Chargement…</p>
+          )}
+          {!loading && members.length === 0 && (
+            <p style={{ fontSize: 11, color: 'var(--text3)', fontFamily: 'inherit', margin: 0 }}>Aucun praticien archivé.</p>
+          )}
+          {!loading && members.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {members.map(m => {
+                const fullName = [m.prenom, m.nom].filter(Boolean).join(' ');
+                const cat = getCat(m.cat);
+                return (
+                  <div key={m.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 12px', borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: '#fafaf9',
+                  }}>
+                    <Avatar member={m} size={28} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {fullName}
+                      </div>
+                      <div style={{ fontSize: 9, color: 'var(--text3)', fontFamily: 'inherit' }}>
+                        {cat.label}{m.service ? ` · ${m.service}` : ''}
+                      </div>
+                    </div>
+                    {isSecretary && (
+                      <button
+                        onClick={() => onReactivate(m, setMembers)}
+                        style={{
+                          padding: '5px 11px', borderRadius: 6, cursor: 'pointer',
+                          border: '1px solid #86efac',
+                          background: '#f0fdf4', color: '#16a34a',
+                          fontSize: 10, fontFamily: 'inherit', fontWeight: 700,
+                          transition: 'all .13s', flexShrink: 0,
+                        }}
+                      >
+                        Réactiver
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Composant principal ──────────────────────────────────────
 export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPushUndo = () => {} }) {
   const [selected,      setSelected]      = useState(null); // member obj | { isNew:true, defaultCat } | null
@@ -609,7 +728,7 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
     return () => document.removeEventListener('keydown', h);
   }, []);
 
-  async function handleDelete(member) {
+  async function handleArchive(member) {
     const fullName = [member.prenom, member.nom].filter(Boolean).join(' ');
     if (!confirm(`Archiver ${fullName} ? Le praticien n'apparaîtra plus dans le planning mais son historique sera conservé.`)) return;
     try {
@@ -618,7 +737,7 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
       onReload();
       onToast(`${member.nom} archivé(e)`);
     } catch(e) {
-      onToast(e.message || 'Erreur lors de la suppression', 'err');
+      onToast(e.message || "Erreur lors de l'archivage", 'err');
     }
   }
 
@@ -776,7 +895,7 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
               isSecretary={isSecretary}
               onClose={handlePanelClose}
               onSave={handleSave}
-              onDelete={!selected?.isNew && selected?.id ? () => handleDelete(selected) : undefined}
+              onDelete={!selected?.isNew && selected?.id ? () => handleArchive(selected) : undefined}
               onToast={onToast}
               allMembers={filtered}
             />

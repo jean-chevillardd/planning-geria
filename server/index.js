@@ -191,6 +191,11 @@ function createApp(dbLib) {
     res.json(rows.map(r => ({ ...r, sched: r.sched.split('').map(Number) })));
   });
 
+  app.get('/api/medecins/archives', (req, res) => {
+    const rows = dbLib.queryAll('SELECT * FROM medecins WHERE actif=0 ORDER BY type, nom');
+    res.json(rows.map(r => ({ ...r, sched: r.sched.split('').map(Number) })));
+  });
+
   app.post('/api/medecins', (req, res) => {
     const { nom, type, sched, service, tel, email } = req.body;
     if (!nom || !type) return res.status(400).json({ error: 'nom et type requis' });
