@@ -71,7 +71,7 @@ function createApp(dbLib) {
   app._setSecretaryHash = (h) => { SECRETARY_HASH = h; };
 
   const checkMedExists = (med_id) =>
-    !!dbLib.queryOne('SELECT 1 FROM medecins WHERE id=?', [med_id]);
+    !!dbLib.queryOne('SELECT 1 FROM medecins WHERE id=? AND actif=1', [med_id]);
 
   function logAudit(action, tableName, recordId, payloadBefore, payloadAfter) {
     try {
@@ -171,7 +171,7 @@ function createApp(dbLib) {
 
   // ── Guard : token JWT requis pour toute mutation ────
   app.use((req, res, next) => {
-    if (!['POST', 'PUT', 'DELETE'].includes(req.method)) return next();
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
     if (!SECRETARY_HASH) return next();
     const token = req.headers['x-secretary-key'];
     if (!token) return res.status(403).json({ error: 'Accès réservé aux secrétaires' });
@@ -230,6 +230,15 @@ function createApp(dbLib) {
     if (!med) return res.status(404).json({ error: 'Médecin non trouvé' });
     dbLib.run('UPDATE medecins SET actif=0 WHERE id=?', [id]);
     logAudit('DELETE', 'medecins', id, med, null);
+    res.json({ ok: true });
+  });
+
+  app.patch('/api/medecins/:id/desarchiver', (req, res) => {
+    const { id } = req.params;
+    const med = dbLib.queryOne('SELECT id, nom, type FROM medecins WHERE id=?', [id]);
+    if (!med) return res.status(404).json({ error: 'Médecin non trouvé' });
+    dbLib.run('UPDATE medecins SET actif=1 WHERE id=?', [id]);
+    logAudit('UPDATE', 'medecins', id, { actif: 0 }, { actif: 1 });
     res.json({ ok: true });
   });
 
@@ -633,7 +642,7 @@ function createApp(dbLib) {
       ORDER BY med_id, date_debut
     `, [fromKey, toKey]);
 
-    const medecins = dbLib.queryAll('SELECT id FROM medecins ORDER BY id');
+    const medecins = dbLib.queryAll('SELECT id FROM medecins WHERE actif=1 ORDER BY id');
 
     const affByMed = {};
     for (const r of affRows) {
