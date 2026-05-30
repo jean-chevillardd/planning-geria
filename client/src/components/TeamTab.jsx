@@ -741,6 +741,18 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
     }
   }
 
+  async function handleReactivate(member, setArchivedMembers) {
+    const fullName = [member.prenom, member.nom].filter(Boolean).join(' ');
+    try {
+      await api.desarchiveMedecin(member.id);
+      setArchivedMembers(prev => prev.filter(m => m.id !== member.id));
+      onReload();
+      onToast(`${fullName} réactivé(e)`);
+    } catch(e) {
+      onToast(e.message || 'Erreur lors de la réactivation', 'err');
+    }
+  }
+
   async function handleSave(data) {
     const isNew = selected?.isNew === true;
     const apiData = denormalizeMedecin(data, isNew ? null : selected);
@@ -878,6 +890,12 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
                 />
               );
             })}
+            {isSecretary && (
+              <ArchivedSection
+                isSecretary={isSecretary}
+                onReactivate={handleReactivate}
+              />
+            )}
           </div>
         </div>
 
