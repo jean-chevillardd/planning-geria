@@ -68,16 +68,15 @@
 **Priority:** P4-bis (démarrer par les données / config avant l'UI)
 **Depends on:** Rien (les règles sont désormais connues).
 
-## P5 — Vue disponibilités praticiens (semaine / mois)
+## ~~P5 — Vue disponibilités praticiens (semaine)~~ ✅ DONE 2026-06-01
 
-**What:** Afficher une vue synthétique des praticiens **disponibles (présents)** sur une semaine ou un mois donné, afin de faciliter la répartition lors de la construction du planning.
-**Why:** Actuellement, pour savoir qui est disponible, les utilisatrices doivent ouvrir chaque jour/poste via l'AssignModal et scanner les praticiens un par un. Il n'existe pas de vue globale "qui est là cette semaine / ce mois-ci". Cette absence ralentit le travail de répartition et maintient une dépendance à l'Excel.
-**Pros:** Réduit drastiquement le temps de construction du planning ; vue naturelle pour les responsables de planning ; débloque une répartition équitable et visuelle.
-**Cons:** Nécessite de définir ce que signifie "disponible" (praticien sans congé/absence sur la période ? praticien actif non encore affecté ?). Choix d'affichage à préciser avec les utilisatrices : tableau praticien × jours, liste de présents par semaine, ou compteur mensuel ?
-**Context:** Remontée par les utilisatrices le 2026-06-01 — besoin exprimé directement : visualiser qui est présent à la semaine et/ou au mois pour répartir les personnes en fonction. La capture d'écran de l'AssignModal illustre le manque : on voit les affectés, pas les disponibles non encore placés.
-**Effort:** M (CC: ~1h) — dépend du périmètre exact (semaine seule vs semaine+mois, prise en compte des congés vs simple liste active).
-**Priority:** P5
-**Depends on:** Décision métier sur la définition de "disponible" + choix de la granularité (semaine/mois/les deux).
+**Implémenté :**
+- Prop `showAvailablePanel` ajoutée à `PlanningGrid.jsx`
+- `useMemo` calculant les disponibles : `!!m.actif` (SQLite retourne `1`/`0`, pas de booléens) + pas d'absence chevauchant la semaine (filtre sur `med_id` / `date_debut` / `date_fin`)
+- Column fixe 188px à droite de la grille, toggle bouton dans la barre WeekNav
+- Header "DISPONIBLES" + badge compteur + liste scrollable avec dots colorés
+- Bug détecté en test : `actif === true` toujours faux (SQLite integers) → corrigé en `!!m.actif`
+- **Reste hors scope :** vue mensuelle, tooltip affectations au survol, praticiens "pleins"
 
 ## ~~P4 — UI désarchivage praticien (TeamTab)~~ ✅ DONE 2026-05-30
 **What:** Section "Archivés" repliable en bas de l'onglet Équipe (mode secrétariat uniquement), listant les médecins `actif=0` avec un bouton "Réactiver" qui appelle `PATCH /api/medecins/:id/desarchiver`.

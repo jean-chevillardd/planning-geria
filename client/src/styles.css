@@ -57,7 +57,22 @@ button, input, select { font-family:inherit; }
 .l-hatch { width:14px; height:10px; background:var(--off-stripe); border:1px solid var(--border); border-radius:2px; }
 
 /* Grid */
+.planning-layout { display:flex; gap:10px; align-items:flex-start; margin-top:8px; }
+.planning-layout .grid-wrap { flex:1; min-width:0; margin-top:0; }
 .grid-wrap { overflow-x:auto; border-radius:var(--rl); border:1px solid var(--border); background:var(--surface); box-shadow:var(--sh); margin-top:8px; }
+
+/* Panneau disponibilités */
+.available-panel { width:188px; flex-shrink:0; border:1px solid var(--border); border-radius:var(--rl); background:var(--surface); box-shadow:var(--sh); padding:12px 10px; overflow-y:auto; max-height:calc(100vh - var(--header-offset,210px)); }
+.available-panel-header { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
+.available-count { background:var(--accent); color:#fff; border-radius:10px; padding:1px 7px; font-size:10px; }
+.available-list { list-style:none; padding:0; margin:0; }
+.available-item { display:flex; align-items:center; gap:7px; padding:5px 0; font-size:12px; color:var(--text); border-bottom:1px solid var(--border2); font-family:inherit; }
+.available-item:last-child { border-bottom:none; }
+.available-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.available-empty { font-size:11px; color:var(--text3); font-style:italic; padding:8px 0; list-style:none; }
+.btn-toggle-available { font-size:11px; padding:5px 10px; border-radius:var(--r); border:1.5px solid var(--border2); background:var(--surface); cursor:pointer; color:var(--text2); font-family:inherit; white-space:nowrap; transition:all .15s; flex-shrink:0; }
+.btn-toggle-available:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
+.btn-toggle-available.active { background:var(--accent-light); border-color:var(--accent); color:var(--accent); }
 .pgrid { min-width:700px; }
 .gh { display:grid; grid-template-columns:158px repeat(5,1fr); background:var(--surface2); border-bottom:1px solid var(--border); }
 .ghc { padding:8px 6px; font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text2); border-right:1px solid var(--border); text-align:center; }

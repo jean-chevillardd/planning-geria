@@ -41,7 +41,7 @@ const FILTERS = [
 
 // ── Composant principal ────────────────────────────────────
 
-export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick, doctorFilter = '', onOpenAstreintes, onMove }) {
+export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick, doctorFilter = '', onOpenAstreintes, onMove, showAvailablePanel = false }) {
   const [filter,      setFilter]      = useState(null);
   const [dragInfo,    setDragInfo]    = useState(null);   // chip en cours de drag
   const [pendingMove, setPendingMove] = useState(null);   // en attente de confirmation
@@ -64,6 +64,19 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
   const exclusions = planningData?.exclusions   || [];
   const extras     = planningData?.extras       || [];
   const renforts   = planningData?.renforts     || [];
+
+  // ── Disponibles cette semaine ─────────────────────────────
+  const disponibles = useMemo(() => {
+    if (!showAvailablePanel || !medecins || !absences) return [];
+    const actifs = medecins.filter(m => !!m.actif);
+    const dayIsos = days.map(d => toIso(d));
+    const absentIds = new Set(
+      absences
+        .filter(a => dayIsos.some(d => d >= a.date_debut && d <= a.date_fin))
+        .map(a => a.med_id)
+    );
+    return actifs.filter(m => !absentIds.has(m.id));
+  }, [showAvailablePanel, medecins, absences, monday]);
 
   // ── Alertes ──────────────────────────────────────────────
   const alerts = useMemo(() => {
@@ -241,7 +254,8 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         </button>
       </div>
 
-      {/* ── Grille ── */}
+      {/* ── Grille + panneau disponibilités ── */}
+      <div className="planning-layout">
       <div className="grid-wrap">
         <div className="pgrid">
           {/* En-tête colonnes */}
@@ -323,6 +337,27 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             )}
           </div>
         </div>
+      </div>
+
+      {showAvailablePanel && (
+        <div className="available-panel print-hide">
+          <div className="available-panel-header">
+            Disponibles
+            <span className="available-count">{disponibles.length}</span>
+          </div>
+          <ul className="available-list">
+            {disponibles.map(m => (
+              <li key={m.id} className="available-item">
+                <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
+                {m.prenom} {m.nom}
+              </li>
+            ))}
+            {disponibles.length === 0 && (
+              <li className="available-empty">Aucun praticien disponible cette semaine</li>
+            )}
+          </ul>
+        </div>
+      )}
       </div>
 
       {/* ── Dialog confirmation déplacement ── */}

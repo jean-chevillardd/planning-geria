@@ -178,6 +178,7 @@ export default function App() {
   const [pwdModal,       setPwdModal]   = useState(false);
   const [doctorFilter,   setDoctorFilter] = useState('');
   const [astreintesDay,  setAstreintesDay] = useState(null);
+  const [showAvailablePanel, setShowAvailablePanel] = useState(false);
   const toastId       = useRef(0);
   const undoStackRef  = useRef([]);
   const handleUndoRef = useRef(null);
@@ -408,10 +409,19 @@ export default function App() {
             {/* Sous-vue Semaine */}
             {planningView === 'semaine' && (
               <>
-                <div className="print-hide">
-                  <WeekNav monday={monday} onChange={setMonday} onCopy={handleCopyWeek}
-                    onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isSecretary}
-                    medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
+                <div className="print-hide" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:4 }}>
+                  <div style={{ flex:1 }}>
+                    <WeekNav monday={monday} onChange={setMonday} onCopy={handleCopyWeek}
+                      onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isSecretary}
+                      medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
+                  </div>
+                  <button
+                    className={`btn-toggle-available${showAvailablePanel ? ' active' : ''}`}
+                    onClick={() => setShowAvailablePanel(v => !v)}
+                    title="Afficher / masquer les disponibilités"
+                  >
+                    {showAvailablePanel ? '◀ Disponibles' : 'Disponibles ▶'}
+                  </button>
                 </div>
                 {planLoading && !planningData && (
                   <div style={{ fontFamily:'inherit', fontSize:12, color:'var(--text2)', padding:'1rem 0' }}>
@@ -424,7 +434,8 @@ export default function App() {
                       medecins={medecins} isSecretary={isSecretary} doctorFilter={doctorFilter}
                       onCellClick={(poste, dayIso) => isSecretary && setModal({ poste, dayIso })}
                       onOpenAstreintes={handleOpenAstreintes}
-                      onMove={handleMove} />
+                      onMove={handleMove}
+                      showAvailablePanel={showAvailablePanel} />
                   </div>
                 )}
               </>
