@@ -32,6 +32,42 @@
 **Priority:** P3
 **Depends on:** Feedback des médecins sur le besoin réel vs la vue @media print améliorée.
 
+## P4-bis — Règles métier activités & effectifs (source : email 2026-06-01)
+
+**What:** Modéliser dans l'application les règles d'activités et d'effectifs transmises par l'utilisatrice, et les exposer dans l'interface :
+1. Distinction activités **obligatoires** vs **dispensables** (seuil d'ouverture : >12 PH, ou >11 les mercredis)
+2. Effectifs minimaux par activité (cf. tableau ci-dessous)
+3. Ordre de tirage : CSG → SSR → autres obligatoires → dispensables
+4. Contraintes de continuité : même PH sur CSG 1,5–2 mois consécutifs, sur SSR 3 mois
+5. Fermetures fixes/ponctuelles : HDJ fermé le mercredi systématiquement ; HdJNP fermable sur périodes lacunaires (validation cadre IDE requise)
+6. Back-up EHPAD : Romain en priorité, vendredi obligatoire (Romain à Montaigu ce jour)
+
+**Effectifs par activité :**
+| Activité | PH min | Notes |
+|---|---|---|
+| CSG 1 | 2 | Continuité 1,5–2 mois |
+| CSG 2 | 2 | |
+| SSR | 3 (2 ponctuel OK) | Pas 2 jours consécutifs si seulement 2 PH dans le même service |
+| EOPS | 1 | Back-up : SSR, HDJ, EHPAD (très ponctuel) |
+| HdJNP | 1 | Fermeture périodes lacunaires (à valider avec cadre IDE) |
+| HDJ | 1 | Fermé le mercredi |
+| UCC | 1 | Peut être absent le mercredi |
+| EHPAD | 60 % | Romain prioritaire ; back-up vendredi obligatoire |
+
+**Internes (affectations par défaut) :**
+- 2 au CSG 1 (3 si Docteur Junior présent)
+- 1 au CSG 2
+- 1 en HdJNP
+- Reste : SSR / UCC / EOPS / CS selon projet pro (très variable → manuel)
+
+**Why:** Ces règles étaient non documentées dans le code. Elles sont indispensables pour que l'outil aide vraiment à "tirer le planning" plutôt que de simplement l'afficher.
+**Pros:** Déblocage du P1 et P2 (les seuils de couverture sont maintenant définis) ; évite de sur-builder des contraintes génériques.
+**Cons:** Volume de travail significatif ; certains points (HdJNP, affectations internes) restent partiellement manuels.
+**Context:** Email reçu le 2026-06-01. Résout aussi la dépendance de P1 ("retour test utilisateurs sur les seuils") et de P2 ("définition de couverture minimale").
+**Effort:** L (plusieurs sous-tâches indépendantes, à décomposer)
+**Priority:** P4-bis (démarrer par les données / config avant l'UI)
+**Depends on:** Rien (les règles sont désormais connues).
+
 ## ~~P4 — UI désarchivage praticien (TeamTab)~~ ✅ DONE 2026-05-30
 **What:** Section "Archivés" repliable en bas de l'onglet Équipe (mode secrétariat uniquement), listant les médecins `actif=0` avec un bouton "Réactiver" qui appelle `PATCH /api/medecins/:id/desarchiver`.
 **Implémenté :**
