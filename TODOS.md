@@ -68,6 +68,92 @@
 **Priority:** P4-bis (démarrer par les données / config avant l'UI)
 **Depends on:** Rien (les règles sont désormais connues).
 
+---
+
+## P6 — Numéro de semaine dans WeekNav (suppression du libellé date)
+
+**What:** Remplacer le libellé « Semaine du 30 novembre » par le numéro ISO de semaine (« Semaine 48 ») dans `WeekNav` et partout où la semaine est affichée en titre.
+**Why:** Le numéro de semaine est le repère naturel utilisé à l'hôpital (« je suis de garde S46 »). Le libellé « semaine du XX » est redondant avec les dates visibles dans la grille.
+**Pros:** Effort XS, lisibilité immédiate, cohérence avec le vocabulaire médical.
+**Cons:** Nécessite de calculer `getISOWeek(date)` — librairie `date-fns` déjà présente.
+**Context:** Demande explicite de l'utilisateur (notes 2026-06-02).
+**Effort:** XS (CC: ~10min)
+**Priority:** P6
+**Depends on:** Rien.
+
+---
+
+## P7 — Supprimer le bouton « Copier semaine précédente »
+
+**What:** Retirer le bouton "Copier semaine précédente" de la barre `WeekNav` / `PlanningGrid`, ainsi que la route API correspondante si elle n'est plus utilisée ailleurs.
+**Why:** La fonctionnalité de copie crée des affectations en masse qui ignorent les règles de disponibilité et de couverture minimale (P1/P4-bis). Elle sera remplacée par les scopes étendus de P9.
+**Pros:** Effort XS, simplifie l'UI, évite les affectations non contrôlées.
+**Cons:** Vérifier qu'aucune route API (ex. `POST /api/planning/copy-week`) n'est utilisée autrement avant de la supprimer.
+**Context:** Demande explicite de l'utilisateur (notes 2026-06-02).
+**Effort:** XS (CC: ~15min)
+**Priority:** P7
+**Depends on:** Rien.
+
+---
+
+## P8 — Vue rotation astreintes : supprimer le tri automatique
+
+**What:** Dans `AstreintesTab` vue Rotation, désactiver le tri automatique des lignes. L'ordre d'affichage doit respecter l'ordre de saisie/insertion, ou être manuellement ajustable.
+**Why:** Le tri auto perturbe la lecture des rotations planifiées ; les médecins s'attendent à retrouver les lignes dans l'ordre où ils les ont définies.
+**Pros:** Effort XS, correction de comportement indésirable signalé.
+**Cons:** Vérifier que le retrait du tri ne casse pas le rendu (doublons éventuels à gérer).
+**Context:** Demande explicite de l'utilisateur (notes 2026-06-02).
+**Effort:** XS (CC: ~10min)
+**Priority:** P8
+**Depends on:** Rien.
+
+---
+
+## P9 — AssignModal : scope étendu + taux de présence praticiens
+
+**What:** Deux améliorations liées de `AssignModal` :
+1. **Scope d'affectation étendu** : en plus de "ce jour" et "cette semaine", ajouter "ce mois" et "les X prochaines semaines" (saisie numérique 1–12). Même logique pour le retrait : ce jour / cette semaine / ce mois.
+2. **Taux de présence visible** : dans la liste des praticiens du modal, afficher le taux de présence de chaque praticien (calculé depuis `jours_presence` ou la colonne dédiée) — ex. « 80 % » ou « 4j/5 » — pour aider au choix.
+
+**Why:**
+- Le scope "semaine entière" est insuffisant pour placer un praticien sur plusieurs semaines consécutives (rotation longue, remplacement maladie prolongé). Ajouter "mois" et "X semaines" couvre les cas réels sans réécrire l'architecture.
+- La liste actuelle n'indique pas qui est à temps partiel. Afficher le taux évite d'affecter par erreur un 50 % sur 5 jours.
+
+**Pros:** Gain de temps significatif pour la saisie de rotations longues. Taux de présence : lecture immédiate sans aller dans l'onglet Équipe.
+**Cons:** Scope "mois" et "X semaines" génère potentiellement beaucoup d'insertions en base — penser à une transaction et un feedback de progression. Taux de présence : calcul à exposer côté API ou à dériver côté client depuis `useBaseData`.
+**Context:** Demande explicite de l'utilisateur (notes 2026-06-02). Lié à P1/P4-bis : les nouvelles règles de couverture minimale devront être vérifiées par vacation insérée.
+**Effort:** M (CC: ~1h)
+**Priority:** P9
+**Depends on:** P4-bis (règles métier couverture) utile mais non bloquant.
+
+---
+
+## P10 — Demi-journées en vue semaine planning
+
+**What:** Permettre d'affecter et d'afficher des vacations par demi-journée (matin / après-midi) dans la vue semaine de `PlanningGrid`. Chaque cellule jour × poste devient deux sous-cellules AM/PM indépendantes.
+**Why:** Plusieurs praticiens (mi-temps, consultations ponctuelles, EOPS) n'exercent que sur une demi-journée. La granularité journalière actuelle masque cette réalité et force des workarounds (notes manuelles, conventions implicites).
+**Pros:** Modèle de données plus fidèle, couvre les cas UCC/HDJ/EOPS qui ferment l'après-midi ou le matin.
+**Cons:** **Refacto architecturale majeure** — impacte le schéma `planning` (ajout colonne `periode` enum `AM|PM|FULL`), toutes les routes API, `PlanningGrid`, `AssignModal`, `MonthView`, exports, et règles P1/P4-bis. À planifier en sprint dédié.
+**Context:** Demande explicite de l'utilisateur (notes 2026-06-02). HDJ fermé le mercredi + UCC peut être absent le mercredi (P4-bis) illustrent le besoin réel.
+**Effort:** XL (CC: ~3–4h, humain: ~1 journée de test/validation)
+**Priority:** P10
+**Depends on:** P4-bis (les règles de couverture par activité servent de spec pour AM/PM). À faire après P1.
+
+---
+
+## P11 — Refonte onglet Absences
+
+**What:** Refonte complète de `AbsencesTab` : UX, hiérarchie visuelle, et potentiellement les flux de saisie. Périmètre exact à définir avec l'utilisateur (navigation, formulaire inline vs modal, synthèse par agent, export, etc.).
+**Why:** L'onglet actuel (calendrier mensuel + vue semestre + DateRangePicker custom) est fonctionnel mais peu intuitif. Signalé comme point de friction dans les notes utilisateur du 2026-06-02.
+**Pros:** Amélioration de l'adoption ; l'onglet est utilisé en autonomie par les secrétaires et les médecins via magic link.
+**Cons:** Périmètre flou — nécessite une session de spécification avant d'implémenter. Risque de re-travail si les besoins changent après P10 (demi-journées pourraient affecter la saisie d'absences).
+**Context:** Demande explicite de l'utilisateur (notes 2026-06-02). À préciser : quels écrans sont conservés, lesquels sont repensés, nouveau parcours de saisie ?
+**Effort:** L (à affiner après spec — CC: ~2h min)
+**Priority:** P11
+**Depends on:** Session de spécification UX. Idéalement après P10 (demi-journées).
+
+---
+
 ## ~~P5 — Vue disponibilités praticiens (semaine)~~ ✅ DONE 2026-06-01
 
 **Implémenté :**
