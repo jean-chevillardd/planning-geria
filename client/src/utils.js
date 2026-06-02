@@ -2,24 +2,29 @@
 // Only POSTES colors changed; all other logic is unchanged.
 
 export const POSTES = [
-  { id:'csg1a',  lbl:'CSG 1 — Sénior',           short:'CSG 1',    c:'#2272f0', min:1, minPH:2, grp:'Court séjour 1',      intern:false },
-  { id:'csg1i1', lbl:'CSG 1 — Interne',            short:'CSG 1',    c:'#60a5fa', min:1,          grp:'Court séjour 1',      intern:true  },
-  { id:'csg2a',  lbl:'CSG 2 — Sénior',             short:'CSG 2',    c:'#4f46e5', min:1, minPH:2, grp:'Court séjour 2',      intern:false },
-  { id:'csg2i1', lbl:'CSG 2 — Interne',             short:'CSG 2',    c:'#818cf8', min:1,          grp:'Court séjour 2',      intern:true  },
-  { id:'hdj',    lbl:'HDJ programmé',               short:'HDJ',      c:'#ea580c', min:1, grp:'Hôpital de jour',     intern:false },
-  { id:'hdjnp',  lbl:'HDJ non programmé',           short:'HDJ NP',   c:'#b91c1c', min:1, grp:'Hôpital de jour',     intern:false },
-  { id:'hdjog',  lbl:'HDJ oncoGéria',               short:'HDJ OG',   c:'#f97316', min:0, grp:'Hôpital de jour',     intern:false },
-  { id:'eops',   lbl:"EOPS / Ligne d'avis",         short:'EOPS',     c:'#0891b2', min:1, grp:'Extra-hospitalier',   intern:false },
-  { id:'emg',    lbl:'EMG (équipe mobile)',          short:'EMG',      c:'#6366f1', min:1, grp:'Extra-hospitalier',   intern:false },
-  { id:'tnc',    lbl:'Temps non clinique',           short:'TNC',      c:'#9333ea', min:0, grp:'Temps non clinique',  intern:false },
-  { id:'ssr3',   lbl:'SSR 3ème',                    short:'SSR 3',    c:'#0d9488', min:1, grp:'SSR',                 intern:false },
-  { id:'ssr4',   lbl:'SSR 4ème',                    short:'SSR 4',    c:'#1D9E75', min:1, grp:'SSR',                 intern:false },
-  { id:'ssr5',   lbl:'SSR 5ème',                    short:'SSR 5',    c:'#047857', min:1, grp:'SSR',                 intern:false },
-  { id:'ucc',    lbl:'UCC',                         short:'UCC',      c:'#e11d48', min:1, grp:'UCC / EMCC',          intern:false },
-  { id:'emcc',   lbl:'EMCC',                        short:'EMCC',     c:'#db2777', min:0, grp:'UCC / EMCC',          intern:false },
-  { id:'ehpad',  lbl:'EHPAD / SLD',                 short:'EHPAD',    c:'#d97706', min:1, grp:'EHPAD',               intern:false },
-  { id:'ehpadl', lbl:'EHPAD Luçon',                 short:'EHPAD L',  c:'#92400e', min:0, grp:'EHPAD',               intern:false },
-  { id:'cstmem', lbl:'CST Mémoire',                 short:'Mémoire',  c:'#7c3aed', min:0, grp:'Consultations',       intern:false },
+  { id:'csg1a',  lbl:'CSG 1 — Sénior',  short:'CSG 1',   c:'#2272f0', min:1, minPH:2, grp:'Court séjour 1',    intern:false, obligatoire:true  },
+  { id:'csg1i1', lbl:'CSG 1 — Interne', short:'CSG 1',   c:'#60a5fa', min:1,          grp:'Court séjour 1',    intern:true,  obligatoire:true  },
+  { id:'csg2a',  lbl:'CSG 2 — Sénior',  short:'CSG 2',   c:'#4f46e5', min:1, minPH:2, grp:'Court séjour 2',    intern:false, obligatoire:true  },
+  { id:'csg2i1', lbl:'CSG 2 — Interne', short:'CSG 2',   c:'#818cf8', min:1,          grp:'Court séjour 2',    intern:true,  obligatoire:true  },
+  // HDJ fermé systématiquement le mercredi
+  { id:'hdj',    lbl:'HDJ programmé',    short:'HDJ',     c:'#ea580c', min:1, grp:'Hôpital de jour',   intern:false, obligatoire:true,  closedWednesday:true  },
+  // HdJNP : fermeture sur périodes lacunaires — décision manuelle (validation cadre IDE)
+  { id:'hdjnp',  lbl:'HDJ non programmé',short:'HDJ NP',  c:'#b91c1c', min:1, grp:'Hôpital de jour',   intern:false, obligatoire:true,  manualClosure:true    },
+  { id:'hdjog',  lbl:'HDJ oncoGéria',    short:'HDJ OG',  c:'#f97316', min:0, grp:'Hôpital de jour',   intern:false, obligatoire:false },
+  { id:'eops',   lbl:"EOPS / Ligne d'avis", short:'EOPS', c:'#0891b2', min:1, grp:'Extra-hospitalier', intern:false, obligatoire:true  },
+  { id:'emg',    lbl:'EMG (équipe mobile)', short:'EMG',  c:'#6366f1', min:1, grp:'Extra-hospitalier', intern:false, obligatoire:false },
+  { id:'tnc',    lbl:'Temps non clinique',  short:'TNC',  c:'#9333ea', min:0, grp:'Temps non clinique',intern:false, obligatoire:false },
+  // SSR : 3 PH min (1 par étage) — 2 ponctuel OK mais pas 2 jours consécutifs
+  { id:'ssr3',   lbl:'SSR 3ème',         short:'SSR 3',   c:'#0d9488', min:1, grp:'SSR',               intern:false, obligatoire:true,  ssrGroup:true },
+  { id:'ssr4',   lbl:'SSR 4ème',         short:'SSR 4',   c:'#1D9E75', min:1, grp:'SSR',               intern:false, obligatoire:true,  ssrGroup:true },
+  { id:'ssr5',   lbl:'SSR 5ème',         short:'SSR 5',   c:'#047857', min:1, grp:'SSR',               intern:false, obligatoire:true,  ssrGroup:true },
+  // UCC : absence tolérée le mercredi (pas d'alerte ce jour-là)
+  { id:'ucc',    lbl:'UCC',              short:'UCC',     c:'#e11d48', min:1, grp:'UCC / EMCC',        intern:false, obligatoire:true,  noAlertWednesday:true },
+  { id:'emcc',   lbl:'EMCC',             short:'EMCC',    c:'#db2777', min:0, grp:'UCC / EMCC',        intern:false, obligatoire:false },
+  // EHPAD : 1 PH titulaire ≥ 3j/5 + back-up les jours restants
+  { id:'ehpad',  lbl:'EHPAD / SLD',      short:'EHPAD',   c:'#d97706', min:1, grp:'EHPAD',             intern:false, obligatoire:true,  ehpadContinuity:true  },
+  { id:'ehpadl', lbl:'EHPAD Luçon',      short:'EHPAD L', c:'#92400e', min:0, grp:'EHPAD',             intern:false, obligatoire:false },
+  { id:'cstmem', lbl:'CST Mémoire',      short:'Mémoire', c:'#7c3aed', min:0, grp:'Consultations',     intern:false, obligatoire:false },
 ];
 
 export const TYPE_LBL = {
@@ -221,6 +226,40 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
   full.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
   partial.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
   return { full, partial };
+}
+
+// ── Couverture services & dispensables ───────────────────
+
+export function countPHPresents(medecins, absences, dayIso) {
+  if (!medecins) return 0;
+  return medecins.filter(m => !!m.actif && m.type === 'ph' && worksDay(m, dayIso, absences)).length;
+}
+
+// Seuil dispensables : >12 PH présents (>11 le mercredi, HDJ fermé ce jour)
+export function dispensablesStatus(medecins, absences, days) {
+  return days.map(d => {
+    const di = toIso(d);
+    const dow = new Date(di + 'T12:00:00').getDay();
+    const isWed = dow === 3;
+    const count = countPHPresents(medecins, absences, di);
+    const seuil = isWed ? 11 : 12;
+    return { dayIso: di, count, seuil, accessible: count > seuil };
+  });
+}
+
+// Compte les PH présents au SSR (tous étages confondus) pour un jour donné
+export function ssrPhCount(byPoste, exclusions, absences, dayIso) {
+  const ssrIds = ['ssr3', 'ssr4', 'ssr5'];
+  const counted = new Set();
+  ssrIds.forEach(pid => {
+    (byPoste[pid]?.medecins || []).forEach(m => {
+      if (m.type !== 'ph') return;
+      if (!worksDay(m, dayIso, absences)) return;
+      if (exclusions.some(e => e.med_id === m.id && e.poste_id === pid && e.jour === dayIso)) return;
+      counted.add(m.id);
+    });
+  });
+  return counted.size;
 }
 
 // ── Jours fériés français ─────────────────────────────────
