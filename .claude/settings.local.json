@@ -22,7 +22,8 @@
       "Bash(npx vite *)",
       "Bash(sqlite3 \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/database.sqlite\" \".tables\")",
       "Bash(sqlite3 '/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/database.sqlite' ' *)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npx skillfish *)"
     ]
   },
   "hooks": {
