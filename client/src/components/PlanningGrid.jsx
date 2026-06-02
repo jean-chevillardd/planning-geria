@@ -354,7 +354,10 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                     {disponibles.full.map(m => (
                       <li key={m.id} className="available-item">
                         <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
-                        {m.prenom} {m.nom}
+                        <span>
+                          {m.prenom} {m.nom}
+                          {m.schedNote && <span className="available-days">{m.schedNote}</span>}
+                        </span>
                       </li>
                     ))}
                   </ul>

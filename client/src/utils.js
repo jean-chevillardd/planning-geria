@@ -114,13 +114,7 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
   if (!medecins || !absences || !days?.length) return { full: [], partial: [] };
   const dayIsos = days.map(d => toIso(d));
 
-  const absentIds = new Set(
-    absences
-      .filter(a => dayIsos.some(d => d >= a.date_debut && d <= a.date_fin))
-      .map(a => a.med_id)
-  );
-
-  // medId → Set des posteIds où ce praticien est affecté (Map pour préserver le type des clés)
+  // medId → Set des posteIds (Map préserve le type des clés)
   const medPosteMap = new Map();
   for (const [posteId, posteData] of Object.entries(byPoste)) {
     for (const m of (posteData.medecins || [])) {
@@ -129,21 +123,61 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
     }
   }
 
+  const DAY_SHORT = ['lun.', 'mar.', 'mer.', 'jeu.', 'ven.'];
+
+  // Note sur les demi-journées absentes selon le sched (ex: "(abs le mer. a-m)")
+  function buildSchedNote(m) {
+    const parts = [];
+    dayIsos.forEach((iso, i) => {
+      const dow = new Date(iso + 'T12:00:00').getDay();
+      const idx = schedIdx(dow);
+      const am = m.sched[idx], pm = m.sched[idx + 1];
+      if (!am && !pm) parts.push(`abs le ${DAY_SHORT[i]}`);
+      else if (am && !pm) parts.push(`abs le ${DAY_SHORT[i]} a-m`);
+      else if (!am && pm) parts.push(`abs le ${DAY_SHORT[i]} mat.`);
+    });
+    return parts.length ? `(${parts.join(', ')})` : null;
+  }
+
   const full = [];
   const partial = [];
 
   for (const m of medecins) {
-    if (!m.actif || m.type !== 'ph' || absentIds.has(m.id)) continue;
+    if (!m.actif || m.type !== 'ph') continue;
 
     if (!medPosteMap.has(m.id)) {
-      // Non affecté : logique originale
-      const joursPresents = dayIsos
-        .map((iso, i) => worksDay(m, iso, absences) ? DAYS_FR[i] : null)
+      // Non assigné : distinguer absence posée vs planning de travail
+      const joursConge = dayIsos
+        .map((iso, i) => {
+          if (!isAbsent(m.id, iso, absences)) return null;
+          const dow = new Date(iso + 'T12:00:00').getDay();
+          const idx = schedIdx(dow);
+          // N'afficher que les jours normalement travaillés
+          if (!m.sched[idx] && !m.sched[idx + 1]) return null;
+          return DAY_SHORT[i];
+        })
         .filter(Boolean);
-      if (joursPresents.length === days.length) full.push(m);
-      else if (joursPresents.length > 0)        partial.push({ ...m, joursPresents });
+
+      if (joursConge.length > 0) {
+        // A posé un congé/absence → "Présents partiellement" si encore présent ≥1 jour
+        const encorePresent = dayIsos.some(iso => {
+          if (isAbsent(m.id, iso, absences)) return false;
+          const dow = new Date(iso + 'T12:00:00').getDay();
+          const idx = schedIdx(dow);
+          return !!(m.sched[idx] || m.sched[idx + 1]);
+        });
+        if (encorePresent) partial.push({ ...m, joursPresents: joursConge });
+      } else {
+        // Aucun congé posé → "Présents 5j" si travaille ≥1 jour selon sched
+        const travailleUnJour = dayIsos.some(iso => {
+          const dow = new Date(iso + 'T12:00:00').getDay();
+          const idx = schedIdx(dow);
+          return !!(m.sched[idx] || m.sched[idx + 1]);
+        });
+        if (travailleUnJour) full.push({ ...m, schedNote: buildSchedNote(m) });
+      }
     } else {
-      // Affecté : libre uniquement les jours où il est exclu de TOUS ses postes
+      // Assigné : libre uniquement les jours où exclu de TOUS ses postes
       const myPostes = [...medPosteMap.get(m.id)];
       const joursLibres = dayIsos
         .map((iso, i) => {
