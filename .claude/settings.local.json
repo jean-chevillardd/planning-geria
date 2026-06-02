@@ -30,7 +30,10 @@
       "mcp__github__search_users",
       "mcp__github__get_file_contents",
       "Bash(~/.claude/skills/gstack/design/dist/design setup *)",
-      "mcp__github__create_repository"
+      "mcp__github__create_repository",
+      "mcp__github__push_files",
+      "mcp__github__create_or_update_file",
+      "Bash(gh auth *)"
     ]
   },
   "hooks": {
