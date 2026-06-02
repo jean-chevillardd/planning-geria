@@ -62,7 +62,7 @@ button, input, select { font-family:inherit; }
 .grid-wrap { overflow-x:auto; border-radius:var(--rl); border:1px solid var(--border); background:var(--surface); box-shadow:var(--sh); margin-top:8px; }
 
 /* Panneau disponibilités */
-.available-panel { width:188px; flex-shrink:0; border:1px solid var(--border); border-radius:var(--rl); background:var(--surface); box-shadow:var(--sh); padding:12px 10px; overflow-y:auto; max-height:calc(100vh - var(--header-offset,210px)); }
+.available-panel { width:188px; flex-shrink:0; border:1px solid var(--border); border-radius:var(--rl); background:var(--surface); box-shadow:var(--sh); padding:12px 10px; overflow-y:auto; max-height:calc(100vh - 76px); position:sticky; top:60px; }
 .available-panel-header { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
 .available-count { background:var(--accent); color:#fff; border-radius:10px; padding:1px 7px; font-size:10px; }
 .available-list { list-style:none; padding:0; margin:0; }
