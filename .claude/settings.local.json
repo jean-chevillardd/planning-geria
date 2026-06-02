@@ -23,7 +23,8 @@
       "Bash(sqlite3 \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/database.sqlite\" \".tables\")",
       "Bash(sqlite3 '/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/database.sqlite' ' *)",
       "WebSearch",
-      "Bash(npx skillfish *)"
+      "Bash(npx skillfish *)",
+      "Bash(npm test *)"
     ]
   },
   "hooks": {
