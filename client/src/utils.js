@@ -147,18 +147,12 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
 
     if (!medPosteMap.has(m.id)) {
       // Non assigné : distinguer absence posée vs planning de travail
-      const joursConge = dayIsos
-        .map((iso, i) => {
-          if (!isAbsent(m.id, iso, absences)) return null;
-          const dow = new Date(iso + 'T12:00:00').getDay();
-          const idx = schedIdx(dow);
-          // N'afficher que les jours normalement travaillés
-          if (!m.sched[idx] && !m.sched[idx + 1]) return null;
-          return DAY_SHORT[i];
-        })
-        .filter(Boolean);
+      const absForMed = absences.filter(a =>
+        a.med_id === m.id &&
+        dayIsos.some(d => d >= a.date_debut && d <= a.date_fin)
+      );
 
-      if (joursConge.length > 0) {
+      if (absForMed.length > 0) {
         // A posé un congé/absence → "Présents partiellement" si encore présent ≥1 jour
         const encorePresent = dayIsos.some(iso => {
           if (isAbsent(m.id, iso, absences)) return false;
@@ -166,7 +160,22 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
           const idx = schedIdx(dow);
           return !!(m.sched[idx] || m.sched[idx + 1]);
         });
-        if (encorePresent) partial.push({ ...m, joursPresents: joursConge });
+        if (encorePresent) {
+          // Construire la plage de dates à partir des enregistrements d'absence
+          const labels = absForMed.map(a => {
+            const coveredDays = dayIsos.filter(d => {
+              if (d < a.date_debut || d > a.date_fin) return false;
+              const dow = new Date(d + 'T12:00:00').getDay();
+              const idx = schedIdx(dow);
+              return !!(m.sched[idx] || m.sched[idx + 1]);
+            });
+            if (!coveredDays.length) return null;
+            const first = parseInt(coveredDays[0].split('-')[2], 10);
+            const last  = parseInt(coveredDays[coveredDays.length - 1].split('-')[2], 10);
+            return first === last ? `abs le ${first}` : `abs du ${first} au ${last}`;
+          }).filter(Boolean);
+          if (labels.length) partial.push({ ...m, joursPresents: [`(${labels.join(', ')})`] });
+        }
       } else {
         // Aucun congé posé → "Présents 5j" si travaille ≥1 jour selon sched
         const travailleUnJour = dayIsos.some(iso => {
