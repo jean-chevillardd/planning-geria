@@ -110,7 +110,7 @@ export function worksWeekAny(med, monday, absences = []) {
  * Ne retourne que les praticiens de type 'ph' (Praticien Hospitalier).
  * SQLite stocke actif comme INTEGER — utiliser !!m.actif, pas m.actif === true.
  */
-export function getDisponiblesPH(medecins, absences, days) {
+export function getDisponiblesPH(medecins, absences, days, assignedIds = new Set()) {
   if (!medecins || !absences || !days?.length) return { full: [], partial: [] };
   const dayIsos = days.map(d => toIso(d));
   const absentIds = new Set(
@@ -118,7 +118,7 @@ export function getDisponiblesPH(medecins, absences, days) {
       .filter(a => dayIsos.some(d => d >= a.date_debut && d <= a.date_fin))
       .map(a => a.med_id)
   );
-  const phDispo = medecins.filter(m => !!m.actif && m.type === 'ph' && !absentIds.has(m.id));
+  const phDispo = medecins.filter(m => !!m.actif && m.type === 'ph' && !absentIds.has(m.id) && !assignedIds.has(m.id));
   const full = [];
   const partial = [];
   for (const m of phDispo) {
