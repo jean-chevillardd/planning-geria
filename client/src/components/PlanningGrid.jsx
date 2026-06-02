@@ -71,6 +71,32 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     return getDisponiblesPH(medecins, absences, days, byPoste, exclusions);
   }, [showAvailablePanel, medecins, absences, monday, byPoste, exclusions]);
 
+  // ── Compteur PH présents par jour (toutes lignes, dédupliqués) ──
+  const phPerDay = useMemo(() => {
+    const result = {};
+    days.forEach(d => {
+      const di = toIso(d);
+      if (holidays.has(di)) { result[di] = null; return; }
+      const phIds = new Set();
+      POSTES_DISPLAY.forEach(p => {
+        const allIds = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
+        const excl = exclusions
+          .filter(e => allIds.includes(e.poste_id) && e.jour === di)
+          .map(e => e.med_id);
+        allIds.forEach(pid => {
+          (byPoste[pid]?.medecins || [])
+            .filter(m => m.type === 'ph' && worksDay(m, di, absences) && !excl.includes(m.id))
+            .forEach(m => phIds.add(m.id));
+        });
+        extras
+          .filter(e => allIds.includes(e.poste_id) && e.jour === di && e.type === 'ph')
+          .forEach(e => phIds.add(e.med_id));
+      });
+      result[di] = phIds.size;
+    });
+    return result;
+  }, [planningData, absences, monday, holidays]);
+
   // ── Alertes ──────────────────────────────────────────────
   const alerts = useMemo(() => {
     const warns = [];
@@ -297,6 +323,28 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                       )}
                     </>
                   )}
+                  {phPerDay[di] != null && (() => {
+                    const count = phPerDay[di];
+                    const quota = new Date(di + 'T12:00:00').getDay() === 3 ? 11 : 12;
+                    const ratio = count / quota;
+                    const [col, bg] = ratio >= 1
+                      ? ['#16a34a', '#f0fdf4']
+                      : ratio >= 0.75
+                        ? ['#c2410c', '#fff7ed']
+                        : ['#dc2626', '#fef2f2'];
+                    return (
+                      <div style={{
+                        marginTop:4, display:'inline-flex', alignItems:'center',
+                        padding:'2px 7px', borderRadius:20,
+                        fontSize:9, fontWeight:700, letterSpacing:'.03em',
+                        color: isToday ? 'rgba(255,255,255,.9)' : col,
+                        background: isToday ? 'rgba(255,255,255,.18)' : bg,
+                        border: isToday ? '1.5px solid rgba(255,255,255,.45)' : `1.5px solid ${col}`,
+                      }}>
+                        {count} PH / {quota}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
