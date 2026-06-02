@@ -1,6 +1,6 @@
 // components/MonthView.jsx
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, getSchedHalfDay, getFrenchHolidays } from '../utils';
+import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, getSchedHalfDay, getFrenchHolidays, getISOWeek } from '../utils';
 import * as api from '../api';
 import DoctorSearch from './DoctorSearch';
 
@@ -351,11 +351,8 @@ export default function MonthView({ medecins, absences }) {
 
         return (
           <div key={wk}>
-            <div className="month-week-lbl">
-              Semaine du {monday.toLocaleDateString('fr-FR', { day:'numeric', month:'long' })}
-            </div>
             <div className="monthly-grid">
-              {days.map(day => {
+              {days.map((day, dayIdx) => {
                 const di = toIso(day);
                 const isThisMonth = day.getMonth() === mo;
                 const isToday     = di === toIso(new Date());
@@ -438,12 +435,20 @@ export default function MonthView({ medecins, absences }) {
                       <div style={{position:'absolute', inset:0, pointerEvents:'none', borderRadius:'inherit', backgroundImage:'var(--holiday-stripe)'}}/>
                     )}
                     <div className={`month-day-hdr${isToday ? ' today' : ''}`}
-                      style={{position:'relative', ...(holidayName && !isToday ? { color:'#d97706', borderBottomColor:'#fcd34d' } : {})}}>
-                      {day.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' })}
-                      {holidayName && (
-                        <span style={{ display:'block', fontSize:8, fontWeight:600, marginTop:1, color:'#b45309', lineHeight:1.2 }}>
-                          {holidayName}
-                        </span>
+                      style={{
+                        position:'relative', display:'flex', justifyContent:'space-between', alignItems:'flex-start',
+                        ...(holidayName && !isToday ? { color:'#d97706', borderBottomColor:'#fcd34d' } : {}),
+                      }}>
+                      <div>
+                        {day.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' })}
+                        {holidayName && (
+                          <span style={{ display:'block', fontSize:8, fontWeight:600, marginTop:1, color:'#b45309', lineHeight:1.2 }}>
+                            {holidayName}
+                          </span>
+                        )}
+                      </div>
+                      {dayIdx === 0 && (
+                        <span className="week-num">S{getISOWeek(monday)}</span>
                       )}
                     </div>
                     {chips.slice(0, 8).map(ch => (

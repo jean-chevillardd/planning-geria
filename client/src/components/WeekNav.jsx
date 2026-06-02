@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { fmtDay, addDays, getMonday, toIso } from '../utils';
+import { fmtDay, addDays, getMonday, toIso, getISOWeek } from '../utils';
 import DoctorSearch from './DoctorSearch';
 
 // ── Mini-calendrier de navigation semaine ──────────────────
@@ -138,7 +138,13 @@ export default function WeekNav({ monday, onChange, onCopy, onGoToday, isSecreta
           title="Cliquer pour accéder à une semaine précise"
           style={{ cursor:'pointer', userSelect:'none', display:'inline-flex', alignItems:'center', gap:5 }}
         >
-          Semaine du {fmtDay(days[0])} au {fmtDay(days[4])}
+          S{getISOWeek(monday)}
+          <span style={{ fontWeight:400, color:'var(--text2)', fontSize:12 }}>
+            {' '}·{' '}
+            {days[0].toLocaleDateString('fr-FR', { day:'numeric', month:'short' })}
+            {' – '}
+            {days[4].toLocaleDateString('fr-FR', { day:'numeric', month:'short' })}
+          </span>
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
             stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
             style={{ opacity:.45, flexShrink:0 }}>

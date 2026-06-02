@@ -1,26 +1,42 @@
 # TODOS — Planning Gériatrie
 
-## P1 — Règle métier affectations : contrainte "1 médecin = 1 poste max" + double tâche
-**What:** Définir et enforcer la règle d'affectation complète : (1) nombre minimal de PH requis par ligne de service pour éviter la "tension", (2) modéliser le concept de "double tâche" — quand une ligne est en tension, un PH déjà affecté ailleurs peut être ajouté en backup (disponible par téléphone en urgence).
-**Why:** La règle actuelle dans AssignModal (`takenThisWeek`) est simpliste. Elle ne modélise pas les double tâches légitimes ni le seuil minimal de couverture. Une contrainte UNIQUE en base sans avoir clarifié ces règles métier créerait des faux positifs (bloque des double tâches légitimes).
-**Pros:** Modèle de données correct dès le départ, pas de contrainte UNIQUE à défaire plus tard.
-**Cons:** Nécessite un retour des 3 médecins sur la définition exacte : "combien de PH minimum par ligne de service ?" et "dans quels cas une double tâche est-elle autorisée ?"
-**Context:** Découvert en CEO review du 2026-05-29. L'outside voice a remarqué que le seed.js insère des médecins sur plusieurs services la même semaine (TNC coexiste avec poste clinique). L'utilisateur a confirmé que le concept de "double tâche" est une règle métier réelle non documentée. Questions pour le test médecins :
-- "Quel est le minimum de PH requis pour que la ligne SSR / CSG / consultation soit 'couverte' ?"
-- "Dans quels cas peut-on mettre un médecin en 'double tâche' sur une ligne en tension ?"
-**Effort:** M (human: ~2h / CC: ~30min) une fois les règles claires.
-**Priority:** P1
-**Depends on:** Retour test utilisateurs sur les seuils de couverture et la définition de double tâche.
+## ~~P1 — Contrainte serveur "1 médecin = 1 poste max"~~ ✅ DONE 2026-06-02
 
-## P2 — Alerte couverture minimale
-**What:** Afficher une alerte visuelle (ligne rouge ou icône) sur les lignes de service sans médecin assigné dans la grille semaine.
+**État actuel :**
+- ~~Double tâche~~ : **DONE** — implémentée via le mécanisme "Renfort" dans `AssignModal.jsx` (bouton "Renfort", `renfortAvail`, `add_renfort`). Un médecin déjà en poste ailleurs peut être ajouté en backup sur une ligne en tension. Tooltip explicite : *"Ajouter en double tâche (déjà en poste ailleurs ce jour)"*.
+- Règle "1 médecin = 1 poste max" : **appliquée côté UI uniquement** — `takenThisWeek` bloque l'affectation semaine, `takenToday` bloque l'affectation jour. Aucune contrainte en base.
+
+**What:** Ajouter la contrainte d'unicité côté serveur pour garantir que la règle ne peut pas être contournée via l'API (appels directs, scripts, bug futur).
+
+**Why:** La protection UI peut être déjouée. La source de vérité doit être la base de données. Maintenant que les règles métier sont claires (P4-bis), la contrainte UNIQUE peut être posée sans risque de faux positifs — les renforts (double tâche) sont dans une table séparée (`renforts`), pas dans `affectations`, donc pas de collision.
+
+**Pros:** Intégrité des données garantie quelle que soit la surface d'appel.
+**Cons:** Migration à écrire ; tester que les renforts existants ne violent pas la contrainte.
+**Context:** Initialement bloqué par l'absence de définition des règles métier (CEO review 2026-05-29). Débloqué par P4-bis (email 2026-06-01). Double tâche déjà développée.
+**Effort:** S (CC: ~20min)
+**Priority:** P1
+**Depends on:** Rien (P4-bis a résolu la dépendance métier).
+
+## ~~P2 — Alerte couverture minimale~~ ✅ DONE 2026-06-02
+
+**What:** Afficher une alerte visuelle (ligne rouge ou icône) sur les lignes de service dont le nombre de PH affectés est inférieur au seuil minimal défini dans P4-bis.
+
+**Seuils désormais connus (P4-bis) :**
+| Activité | PH min | Remarque |
+|---|---|---|
+| CSG 1 | 2 | |
+| CSG 2 | 2 | |
+| SSR | 3 | 2 acceptable ponctuellement |
+| EOPS / HdJNP / HDJ / UCC | 1 | |
+| EHPAD | 60 % | |
+
 **Why:** Les médecins doivent actuellement scanner le planning ligne par ligne pour détecter les trous de couverture — exactement comme avec l'Excel. Ce delight réduirait à 0 secondes la détection des gaps.
-**Pros:** Effort XS (~15min CC), impact immédiat sur la valeur perçue, feature logique dans tout outil de planning.
-**Cons:** Nécessite de définir ce qu'est "couverture suffisante" (1 médecin par ligne ? par demi-journée ? par service ?). Attendre le retour des médecins pour ne pas sur-builder.
-**Context:** Décidé en CEO review du 2026-05-29 — différé explicitement pour attendre le feedback du test utilisateur. Quand les médecins confirment la définition de "couverture ok", l'implémentation est triviale (calcul dans PlanningGrid.jsx + style CSS conditionnel).
-**Effort:** XS (human: ~20min / CC: ~5min) quand la définition métier est claire.
+**Pros:** Effort XS, impact immédiat sur la valeur perçue. Les seuils sont désormais définis → implémentation triviale (calcul dans `PlanningGrid.jsx` + style CSS conditionnel).
+**Cons:** Le seuil SSR "2 ponctuel OK" introduit une nuance (warning vs erreur ?) à trancher.
+**Context:** Décidé en CEO review du 2026-05-29, différé en attente des règles métier. Débloqué par P4-bis (email 2026-06-01).
+**Effort:** XS (CC: ~15min)
 **Priority:** P2
-**Depends on:** Retour test utilisateurs + décision métier sur la définition de couverture minimale.
+**Depends on:** Rien (seuils définis dans P4-bis).
 
 ## P3 — Export PDF planning semaine (dédié)
 **What:** Bouton "Exporter PDF" générant un PDF de la semaine courante avec mise en page correcte, distinct du CSS @media print existant.
@@ -125,6 +141,97 @@
 **Effort:** L (à affiner après spec — CC: ~2h min)
 **Priority:** P11
 **Depends on:** Session de spécification UX. Idéalement après P10 (demi-journées).
+
+---
+
+## P-BUG — Suppression & affectation limitées aux PH
+
+**What:** Dans `AssignModal` et dans la logique de suppression d'affectation, seuls les praticiens de type `ph` sont accessibles : la barre de recherche ne retourne aucun résultat pour les autres types (interne, remplaçant, etc.), et le bouton de suppression d'une affectation existante est inopérant pour les non-PH.
+**Why:** Bloque l'utilisation de l'outil pour les postes occupés par des internes ou des remplaçants, ce qui représente une fraction significative des affectations réelles.
+**Pros:** Bug bloquant — correction prioritaire.
+**Cons:** Vérifier que le filtre `type='ph'` n'est pas intentionnel dans certains contextes (ex. panel dispo, qui lui doit rester PH-only).
+**Context:** Signalé par l'utilisateur le 2026-06-02.
+**Effort:** XS–S (localiser le filtre côté API ou client, retirer la restriction, tester)
+**Priority:** P-BUG
+**Depends on:** Rien.
+
+---
+
+## P12 — Panneau « PH dispo » : visibilité conditionnelle (plus de bouton toggle)
+
+**What:** Supprimer le bouton « PH dispo ▶/◀ » et rendre le panneau dispo **toujours visible en mode édition**, **invisible en mode lecture**.
+**Why:** Le toggle manuel est une friction inutile : en mode édition le panneau est systématiquement utile (choisir qui affecter) ; en mode lecture il est du bruit.
+**Pros:** Effort XS, simplifie l'UI, comportement plus cohérent avec l'intention du mode.
+**Cons:** S'assurer que la prop `showAvailablePanel` / le state local est bien piloté par le mode et non par un toggle interne.
+**Context:** Demande explicite de l'utilisateur (2026-06-02). Fait suite à P5 (panel déjà implémenté).
+**Effort:** XS (CC: ~10min)
+**Priority:** P12
+**Depends on:** Rien.
+
+---
+
+## P13 — Panneau « PH dispo » sur la vue calendrier (mensuelle)
+
+**What:** Afficher le panneau de disponibilités des PH également dans la vue mensuelle (`MonthlyView` / `CalendarTab`), en complément de la vue semaine où il existe déjà (P5).
+**Why:** Les médecins naviguent aussi en vue mensuelle pour planifier les rotations longues ; ne pas avoir le panel dispo dans cette vue les oblige à basculer en vue semaine pour consulter les disponibilités.
+**Pros:** Cohérence entre les deux vues, réutilise le composant existant.
+**Cons:** La granularité mensuelle est différente : le panel devra peut-être afficher la disponibilité semaine par semaine ou par mois entier — à définir.
+**Context:** Demande explicite de l'utilisateur (2026-06-02).
+**Effort:** S–M (CC: ~20–40min selon l'adaptation de granularité)
+**Priority:** P13
+**Depends on:** P12 (visibilité conditionnelle idéalement alignée avant).
+
+---
+
+## P14 — Drag & drop depuis le panneau dispo vers le planning
+
+**What:** Permettre de glisser-déposer un praticien depuis le panneau « PH dispo » directement sur une cellule du planning (vue semaine ou mensuelle) pour créer une affectation, sans ouvrir `AssignModal`.
+**Why:** Réduit le nombre de clics pour l'affectation la plus courante (choisir un dispo → le poser sur un poste libre). Particulièrement utile pour la saisie en rafale d'une semaine entière.
+**Pros:** Gain d'ergonomie majeur pour la saisie ; `@dnd-kit` ou HTML5 Drag API sont disponibles en React.
+**Cons:** Effort M–L : gestion des zones de drop, feedback visuel, collision avec le clic existant, et vérification des règles métier (P4-bis) à la volée. Le D&D mensuel est plus complexe que le D&D semaine.
+**Context:** Demande explicite de l'utilisateur (2026-06-02).
+**Effort:** L (CC: ~1h30–2h)
+**Priority:** P14
+**Depends on:** P12, P13. P4-bis (règles métier) utile pour la validation au drop.
+
+---
+
+## P15 — Refonte bandeau « créneaux non couverts »
+
+**What:** Revoir l'affichage du bandeau d'alerte listant les créneaux non couverts (ex. « ⚠ 46 créneau(x) non couvert(s) : HDJ programmé (Lun) · … »). Rendu actuel : texte dense sur fond jaune, peu hiérarchisé et difficile à scanner rapidement.
+**Why:** Le bandeau est une information critique (signal d'alarme) mais sa présentation actuelle noie le message dans une liste horizontale sans structure visuelle.
+**Pros:** Effort S, impact direct sur la lisibilité des alertes.
+**Cons:** À spécifier : groupe par service ? par jour ? tooltip au survol ? badge numérique seul ?
+**Context:** Signalé par l'utilisateur (2026-06-02, capture Image #3).
+**Effort:** S (CC: ~20–30min)
+**Priority:** P15
+**Depends on:** Rien.
+
+---
+
+## P16 — Filtres vue semaine : supprimer « Tout afficher », homogénéiser avec vue mensuelle
+
+**What:** Dans la vue semaine (barre de filtres catégories), supprimer le bouton « Tout afficher » et structurer les catégories en sous-groupes, comme c'est déjà le cas dans la vue mensuelle. Homogénéiser l'apparence et le comportement des filtres entre les deux vues.
+**Why:** Le bouton « Tout afficher » est redondant (dé-sélectionner tous les filtres produit le même résultat) et la disparité entre vue semaine et vue mensuelle crée une incohérence visuelle.
+**Pros:** Cohérence UI, simplification, réutilisation de la logique existante de la vue mensuelle.
+**Cons:** Vérifier que la vue semaine et la vue mensuelle partagent les mêmes catégories de services.
+**Context:** Signalé par l'utilisateur (2026-06-02, capture Image #4).
+**Effort:** S (CC: ~20min)
+**Priority:** P16
+**Depends on:** Rien.
+
+---
+
+## P17 — Sélecteurs de dates : homogénéiser partout (notamment onglet Astreintes)
+
+**What:** Uniformiser le composant de sélection de date utilisé dans toute l'application. L'onglet Astreintes utilise actuellement un sélecteur différent des autres onglets — aligner sur un seul pattern cohérent.
+**Why:** L'incohérence des contrôles de date entre onglets crée une friction et nuit à la perception de qualité du produit.
+**Pros:** Effort S–M, amélioration de la cohérence globale.
+**Cons:** Identifier quel composant est la « référence » avant de migrer les autres.
+**Context:** Signalé par l'utilisateur (2026-06-02).
+**Effort:** S–M (CC: ~30min)
+**Priority:** P17
+**Depends on:** Rien.
 
 ---
 

@@ -77,17 +77,27 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     days.forEach(d => {
       const di = toIso(d);
       if (holidays.has(di)) return;
-      POSTES_DISPLAY.filter(p => p.min > 0).forEach(p => {
+      POSTES_DISPLAY.filter(p => p.min > 0 || p.minPH > 0).forEach(p => {
         const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
         const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
         const excl     = exclusions.filter(e => allIds.includes(e.poste_id) && e.jour === di).map(e => e.med_id);
         const ext      = extras.filter(e => allIds.includes(e.poste_id) && e.jour === di);
-        const present  = [
-          ...assigned.filter(m => worksDay(m, di, absences) && !excl.includes(m.id)),
-          ...ext,
-        ];
-        if (present.length < p.min)
-          warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
+        if (p.minPH) {
+          // Vérifier uniquement les PH (praticiens hospitaliers) pour les postes avec seuil PH
+          const phPresent = [
+            ...assigned.filter(m => m.type === 'ph' && worksDay(m, di, absences) && !excl.includes(m.id)),
+            ...ext.filter(e => e.type === 'ph'),
+          ];
+          if (phPresent.length < p.minPH)
+            warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
+        } else {
+          const present = [
+            ...assigned.filter(m => worksDay(m, di, absences) && !excl.includes(m.id)),
+            ...ext,
+          ];
+          if (present.length < p.min)
+            warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
+        }
       });
     });
     return warns;

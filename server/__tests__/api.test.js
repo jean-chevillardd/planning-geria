@@ -614,14 +614,21 @@ describe('Middleware DB_READY', () => {
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('Règles métier planning gériatrique', () => {
-  test('Un médecin peut être affecter à plusieurs postes différents la même semaine', async () => {
-    // NOTE : la logique de "un médecin = un poste max" est côté CLIENT (AssignModal),
-    // pas côté serveur. Le serveur accepte des affectations multiples.
+  test('Un médecin ne peut pas être affecté à deux postes différents la même semaine (P1)', async () => {
     const r = await request(app).post('/api/medecins').send({ nom: 'Dr Multi', type: 'ph' });
     const id = r.body.id;
-    await request(app).post('/api/affectations').send({ week_key: '2025-07-07', poste_id: 'csg1a', med_id: id });
+    const res1 = await request(app).post('/api/affectations').send({ week_key: '2025-07-07', poste_id: 'csg1a', med_id: id });
+    expect(res1.status).toBe(200);
     const res2 = await request(app).post('/api/affectations').send({ week_key: '2025-07-07', poste_id: 'csg2a', med_id: id });
-    // Le serveur l'accepte (la contrainte unique est (week_key, poste_id, med_id))
+    // Le serveur rejette la double affectation sur un poste différent
+    expect(res2.status).toBe(409);
+  });
+
+  test('Un médecin peut être ré-affecté au même poste (idempotent)', async () => {
+    const r = await request(app).post('/api/medecins').send({ nom: 'Dr Idem', type: 'ph' });
+    const id = r.body.id;
+    await request(app).post('/api/affectations').send({ week_key: '2025-07-07', poste_id: 'csg1a', med_id: id });
+    const res2 = await request(app).post('/api/affectations').send({ week_key: '2025-07-07', poste_id: 'csg1a', med_id: id });
     expect(res2.status).toBe(200);
   });
 

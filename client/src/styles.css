@@ -180,10 +180,10 @@ button, input, select { font-family:inherit; }
 
 /* Month view */
 .monthly-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:6px; }
-.month-week-lbl { font-size:10px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--text2); padding:10px 0 4px; border-top:1px solid var(--border); margin-top:6px; }
 .month-day { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); padding:6px 8px; min-height:80px; box-shadow:var(--sh); }
 .month-day-hdr { font-size:11px; font-weight:700; color:var(--text2); margin-bottom:4px; padding-bottom:3px; border-bottom:1px solid var(--border); }
 .month-day-hdr.today { color:var(--accent); }
+.week-num { font-size:9px; font-weight:700; color:var(--text3); letter-spacing:.04em; flex-shrink:0; margin-top:1px; }
 .month-chip { font-size:10px; padding:1px 4px; border-radius:3px; margin-bottom:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* Forms */
@@ -294,5 +294,5 @@ button, input, select { font-family:inherit; }
   }
   .month-day-hdr { font-size: 8pt; }
   .month-chip    { font-size: 8pt; }
-  .month-week-lbl { margin-top: 6px; padding: 4px 0 2px; font-size: 8pt; }
+  .week-num      { font-size: 7pt; }
 }

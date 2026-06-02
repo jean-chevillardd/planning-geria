@@ -63,6 +63,10 @@ function applySchema(db) {
       UNIQUE(week_key, poste_id, med_id, jour)
     )
   `);
+  // Contrainte P1 : 1 médecin = 1 poste max par semaine (renforts dans table séparée, pas impactés)
+  try {
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_aff_week_med ON affectations(week_key, med_id)`);
+  } catch(_) {}
   db.exec(`
     CREATE TABLE IF NOT EXISTS conge_tokens (
       token      TEXT PRIMARY KEY,

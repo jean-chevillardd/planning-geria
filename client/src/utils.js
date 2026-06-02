@@ -2,10 +2,10 @@
 // Only POSTES colors changed; all other logic is unchanged.
 
 export const POSTES = [
-  { id:'csg1a',  lbl:'CSG 1 — Sénior',           short:'CSG 1',    c:'#2272f0', min:1, grp:'Court séjour 1',      intern:false },
-  { id:'csg1i1', lbl:'CSG 1 — Interne',            short:'CSG 1',    c:'#60a5fa', min:1, grp:'Court séjour 1',      intern:true  },
-  { id:'csg2a',  lbl:'CSG 2 — Sénior',             short:'CSG 2',    c:'#4f46e5', min:1, grp:'Court séjour 2',      intern:false },
-  { id:'csg2i1', lbl:'CSG 2 — Interne',             short:'CSG 2',    c:'#818cf8', min:1, grp:'Court séjour 2',      intern:true  },
+  { id:'csg1a',  lbl:'CSG 1 — Sénior',           short:'CSG 1',    c:'#2272f0', min:1, minPH:2, grp:'Court séjour 1',      intern:false },
+  { id:'csg1i1', lbl:'CSG 1 — Interne',            short:'CSG 1',    c:'#60a5fa', min:1,          grp:'Court séjour 1',      intern:true  },
+  { id:'csg2a',  lbl:'CSG 2 — Sénior',             short:'CSG 2',    c:'#4f46e5', min:1, minPH:2, grp:'Court séjour 2',      intern:false },
+  { id:'csg2i1', lbl:'CSG 2 — Interne',             short:'CSG 2',    c:'#818cf8', min:1,          grp:'Court séjour 2',      intern:true  },
   { id:'hdj',    lbl:'HDJ programmé',               short:'HDJ',      c:'#ea580c', min:1, grp:'Hôpital de jour',     intern:false },
   { id:'hdjnp',  lbl:'HDJ non programmé',           short:'HDJ NP',   c:'#b91c1c', min:1, grp:'Hôpital de jour',     intern:false },
   { id:'hdjog',  lbl:'HDJ oncoGéria',               short:'HDJ OG',   c:'#f97316', min:0, grp:'Hôpital de jour',     intern:false },
@@ -29,6 +29,13 @@ export const TYPE_LBL = {
 export const DAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
 
 // ── Date helpers ─────────────────────────────────────────
+
+export function getISOWeek(date) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
 export function getMonday(d) {
   const dt = new Date(d);
   const day = dt.getDay();

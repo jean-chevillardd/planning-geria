@@ -363,6 +363,13 @@ function createApp(dbLib) {
     if (!week_key || !poste_id || !med_id) return res.status(400).json({ error: 'Champs manquants' });
     if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
     if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
+    const existing = dbLib.queryOne(
+      'SELECT poste_id FROM affectations WHERE week_key=? AND med_id=?',
+      [week_key, med_id]
+    );
+    if (existing && existing.poste_id !== poste_id) {
+      return res.status(409).json({ error: 'Médecin déjà affecté à un autre poste cette semaine' });
+    }
     try {
       dbLib.run(
         'INSERT OR IGNORE INTO affectations (week_key,poste_id,med_id) VALUES (?,?,?)',
