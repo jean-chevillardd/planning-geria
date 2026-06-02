@@ -66,14 +66,19 @@ button, input, select { font-family:inherit; }
 .available-panel-header { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
 .available-count { background:var(--accent); color:#fff; border-radius:10px; padding:1px 7px; font-size:10px; }
 .available-list { list-style:none; padding:0; margin:0; }
-.available-item { display:flex; align-items:center; gap:7px; padding:5px 0; font-size:12px; color:var(--text); border-bottom:1px solid var(--border2); font-family:inherit; }
+.available-item { display:flex; align-items:center; gap:6px; padding:5px 2px; font-size:12px; color:var(--text); border-bottom:1px solid var(--border2); font-family:inherit; border-radius:var(--r); transition:background .1s; }
 .available-item[draggable="true"] { cursor:grab; }
+.available-item[draggable="true"]:hover { background:var(--accent-light); border-bottom-color:transparent; }
+.available-item[draggable="true"]:hover .drag-handle { opacity:1; color:var(--accent); }
 .available-item[draggable="true"]:active { cursor:grabbing; }
 .available-item:last-child { border-bottom:none; }
+.drag-handle { color:var(--text3); flex-shrink:0; opacity:.35; display:flex; align-items:center; transition:opacity .1s, color .1s; }
 .available-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
 .available-empty { font-size:11px; color:var(--text3); font-style:italic; padding:8px 0; margin:0; }
 .available-group-label { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text3); margin-bottom:4px; }
 .available-days { display:block; font-size:10px; color:var(--text3); margin-top:1px; }
+.panel-drag-hint { display:flex; align-items:center; gap:5px; margin:0 0 10px; padding:5px 8px; font-size:10px; color:var(--accent); background:var(--accent-light); border-radius:var(--r); border:1px solid var(--accent-mid); line-height:1.4; font-family:inherit; }
+.panel-info-note { display:flex; align-items:center; gap:5px; margin:0 0 10px; padding:5px 8px; font-size:10px; color:var(--text2); background:var(--surface2); border-radius:var(--r); border:1px solid var(--border); line-height:1.4; font-family:inherit; font-style:italic; }
 @media (max-width:900px) { .available-panel { display:none; } }
 .pgrid { min-width:700px; }
 .gh { display:grid; grid-template-columns:158px repeat(5,1fr); background:var(--surface2); border-bottom:1px solid var(--border); }

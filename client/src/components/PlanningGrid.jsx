@@ -76,14 +76,21 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     return getDisponiblesPH(medecins, absences, days, byPoste, exclusions);
   }, [showAvailablePanel, medecins, absences, monday, byPoste, exclusions]);
 
-  // ── Compteur PH présents par jour (toutes lignes, dédupliqués) ──
+  // ── Compteur PH présents par jour ──
+  // Restreint aux services indispensables (dispensable:false).
+  // Les demi-journées (sched am OU pm uniquement) comptent 0,5.
+  // Pas de plafond : au-delà du quota le compteur continue d'augmenter.
   const phPerDay = useMemo(() => {
     const result = {};
     days.forEach(d => {
       const di = toIso(d);
       if (holidays.has(di)) { result[di] = null; return; }
-      const phIds = new Set();
-      POSTES_DISPLAY.forEach(p => {
+      // medId → contribution max (0.5 demi-journée, 1 journée complète)
+      const phContrib = new Map();
+      const addContrib = (medId, contrib) =>
+        phContrib.set(medId, Math.max(phContrib.get(medId) ?? 0, contrib));
+
+      POSTES_DISPLAY.filter(p => !p.dispensable).forEach(p => {
         const allIds = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
         const excl = exclusions
           .filter(e => allIds.includes(e.poste_id) && e.jour === di)
@@ -91,13 +98,15 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         allIds.forEach(pid => {
           (byPoste[pid]?.medecins || [])
             .filter(m => m.type === 'ph' && worksDay(m, di, absences) && !excl.includes(m.id))
-            .forEach(m => phIds.add(m.id));
+            .forEach(m => addContrib(m.id, getSchedHalfDay(m, di) ? 0.5 : 1));
         });
         extras
           .filter(e => allIds.includes(e.poste_id) && e.jour === di && e.type === 'ph')
-          .forEach(e => phIds.add(e.med_id));
+          .forEach(e => addContrib(e.med_id, 1));
       });
-      result[di] = phIds.size;
+      const total = [...phContrib.values()].reduce((a, b) => a + b, 0);
+      // Arrondi au 0,5 le plus proche pour éviter les erreurs float
+      result[di] = Math.round(total * 2) / 2;
     });
     return result;
   }, [planningData, absences, monday, holidays]);
@@ -400,6 +409,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                       : ratio >= 0.75
                         ? ['#c2410c', '#fff7ed']
                         : ['#dc2626', '#fef2f2'];
+                    const displayCount = count % 1 === 0 ? count : count.toFixed(1);
                     return (
                       <div style={{
                         display:'flex', alignItems:'center',
@@ -408,7 +418,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                         color: col, background: bg,
                         border: `1.5px solid ${col}`,
                       }}>
-                        {count} PH / {quota}
+                        {displayCount} PH / {quota}
                       </div>
                     );
                   })()}
@@ -472,9 +482,14 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             </span>
           </div>
           {isSecretary && (
-            <p style={{ margin:'0 0 8px', fontSize:10, color:'var(--text3)', fontFamily:'sans-serif', fontStyle:'italic' }}>
-              Glisser sur une cellule pour affecter
-            </p>
+            <div className="panel-drag-hint" aria-label="Glisser un PH sur une cellule pour l'affecter">
+              <svg width="9" height="13" viewBox="0 0 9 13" fill="currentColor" aria-hidden="true" style={{ flexShrink:0 }}>
+                <circle cx="2" cy="2"  r="1.3"/><circle cx="7" cy="2"  r="1.3"/>
+                <circle cx="2" cy="6.5" r="1.3"/><circle cx="7" cy="6.5" r="1.3"/>
+                <circle cx="2" cy="11" r="1.3"/><circle cx="7" cy="11" r="1.3"/>
+              </svg>
+              Glisser un PH sur une cellule
+            </div>
           )}
           {disponibles.full.length === 0 && disponibles.partial.length === 0 ? (
             <p className="available-empty">Aucun PH disponible cette semaine</p>
@@ -490,6 +505,15 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                         onDragStart={isSecretary ? e => { e.stopPropagation(); handlePanelDragStart(m); } : undefined}
                         onDragEnd={isSecretary ? handlePanelDragEnd : undefined}
                       >
+                        {isSecretary && (
+                          <span className="drag-handle" aria-hidden="true">
+                            <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
+                              <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
+                              <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
+                              <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
+                            </svg>
+                          </span>
+                        )}
                         <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
                         <span>
                           {m.prenom} {m.nom}
@@ -510,6 +534,15 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                         onDragStart={isSecretary ? e => { e.stopPropagation(); handlePanelDragStart(m); } : undefined}
                         onDragEnd={isSecretary ? handlePanelDragEnd : undefined}
                       >
+                        {isSecretary && (
+                          <span className="drag-handle" aria-hidden="true">
+                            <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
+                              <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
+                              <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
+                              <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
+                            </svg>
+                          </span>
+                        )}
                         <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
                         <span>
                           {m.prenom} {m.nom}
@@ -587,7 +620,31 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       )}
 
       {/* ── Dialog confirmation affectation depuis panneau (P14) ── */}
-      {pendingPanelAssign && (
+      {pendingPanelAssign && (() => {
+        const { med, targetPoste, dayIso: dIso } = pendingPanelAssign;
+        const tIds = [targetPoste.id, ...(targetPoste.combineWith ? [targetPoste.combineWith] : [])];
+
+        // Garde "Toute la semaine" : bloqué si le PH a déjà une affectation, un extra
+        // ou un renfort n'importe où cette semaine (il serait en double ce(s) jour(s))
+        const weekBlock =
+          Object.values(byPoste).some(p => p.medecins?.some(m => m.id === med.id)) ||
+          extras.some(e => e.med_id === med.id) ||
+          renforts.some(r => r.med_id === med.id);
+
+        // Garde "Ce jour" : bloqué si le PH est déjà occupé ce jour dans un autre poste
+        const dayBlock =
+          extras.some(e => e.med_id === med.id && e.jour === dIso && !tIds.includes(e.poste_id)) ||
+          renforts.some(r => r.med_id === med.id && r.jour === dIso && !tIds.includes(r.poste_id)) ||
+          Object.entries(byPoste).some(([pid, data]) =>
+            !tIds.includes(pid) &&
+            data.medecins?.some(m =>
+              m.id === med.id &&
+              !exclusions.some(e => e.poste_id === pid && e.med_id === med.id && e.jour === dIso) &&
+              worksDay(m, dIso, absences)
+            )
+          );
+
+        return (
         <div
           style={{
             position:'fixed', inset:0, background:'rgba(0,0,0,.38)',
@@ -602,31 +659,46 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             fontFamily:'inherit',
           }}>
             <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>
-              Affecter {pendingPanelAssign.med.prenom} {pendingPanelAssign.med.nom}
+              Affecter {med.prenom} {med.nom}
             </div>
             <div style={{ fontSize:12, color:'var(--text2)', marginBottom:18 }}>
-              → <strong>{pendingPanelAssign.targetPoste.lbl}</strong>
+              → <strong>{targetPoste.lbl}</strong>
             </div>
             <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
-              <button onClick={() => confirmPanelAssign('day')}
-                style={{ textAlign:'left', padding:'10px 14px', borderRadius:'var(--r)', cursor:'pointer',
+              <button
+                onClick={dayBlock ? undefined : () => confirmPanelAssign('day')}
+                disabled={dayBlock}
+                title={dayBlock ? 'Déjà en poste ou remplaçant ailleurs ce jour' : undefined}
+                style={{ textAlign:'left', padding:'10px 14px', borderRadius:'var(--r)',
+                  cursor: dayBlock ? 'not-allowed' : 'pointer',
                   border:'1.5px solid var(--border2)', background:'var(--surface2)', color:'var(--text)',
-                  fontSize:12, fontFamily:'inherit', transition:'border-color .1s, background .1s' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; }}
+                  fontSize:12, fontFamily:'inherit', opacity: dayBlock ? 0.45 : 1,
+                  transition:'border-color .1s, background .1s' }}
+                onMouseEnter={!dayBlock ? e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; } : undefined}
+                onMouseLeave={!dayBlock ? e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; } : undefined}
               >
                 <div style={{ fontWeight:700, marginBottom:2 }}>Ce jour uniquement</div>
-                <div style={{ fontSize:10, color:'var(--text2)', textTransform:'capitalize' }}>{panelAssignDayLabel}</div>
+                <div style={{ fontSize:10, textTransform:'capitalize',
+                  color: dayBlock ? '#dc2626' : 'var(--text2)' }}>
+                  {dayBlock ? 'Déjà occupé ce jour' : panelAssignDayLabel}
+                </div>
               </button>
-              <button onClick={() => confirmPanelAssign('week')}
-                style={{ textAlign:'left', padding:'10px 14px', borderRadius:'var(--r)', cursor:'pointer',
+              <button
+                onClick={weekBlock ? undefined : () => confirmPanelAssign('week')}
+                disabled={weekBlock}
+                title={weekBlock ? 'Déjà affecté ou remplaçant quelque part cette semaine' : undefined}
+                style={{ textAlign:'left', padding:'10px 14px', borderRadius:'var(--r)',
+                  cursor: weekBlock ? 'not-allowed' : 'pointer',
                   border:'1.5px solid var(--border2)', background:'var(--surface2)', color:'var(--text)',
-                  fontSize:12, fontFamily:'inherit', transition:'border-color .1s, background .1s' }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; }}
+                  fontSize:12, fontFamily:'inherit', opacity: weekBlock ? 0.45 : 1,
+                  transition:'border-color .1s, background .1s' }}
+                onMouseEnter={!weekBlock ? e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; } : undefined}
+                onMouseLeave={!weekBlock ? e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; } : undefined}
               >
                 <div style={{ fontWeight:700, marginBottom:2 }}>Toute la semaine</div>
-                <div style={{ fontSize:10, color:'var(--text2)' }}>Affectation hebdomadaire</div>
+                <div style={{ fontSize:10, color: weekBlock ? '#dc2626' : 'var(--text2)' }}>
+                  {weekBlock ? 'Déjà affecté / remplaçant cette semaine' : 'Affectation hebdomadaire'}
+                </div>
               </button>
             </div>
             <button onClick={() => setPendingPanelAssign(null)}
@@ -638,7 +710,8 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }

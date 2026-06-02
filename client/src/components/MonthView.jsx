@@ -531,6 +531,9 @@ export default function MonthView({ medecins, absences, isSecretary = false }) {
               {monthPhDisponibles.full.length + monthPhDisponibles.partial.length}
             </span>
           </div>
+          <p className="panel-info-note">
+            Vue semaine pour glisser-déposer
+          </p>
           {monthPhDisponibles.full.length > 0 && (
             <>
               <div className="available-group-label">Présents tout le mois</div>
