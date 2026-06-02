@@ -83,19 +83,6 @@
 
 ---
 
-## P7 — Supprimer le bouton « Copier semaine précédente »
-
-**What:** Retirer le bouton "Copier semaine précédente" de la barre `WeekNav` / `PlanningGrid`, ainsi que la route API correspondante si elle n'est plus utilisée ailleurs.
-**Why:** La fonctionnalité de copie crée des affectations en masse qui ignorent les règles de disponibilité et de couverture minimale (P1/P4-bis). Elle sera remplacée par les scopes étendus de P9.
-**Pros:** Effort XS, simplifie l'UI, évite les affectations non contrôlées.
-**Cons:** Vérifier qu'aucune route API (ex. `POST /api/planning/copy-week`) n'est utilisée autrement avant de la supprimer.
-**Context:** Demande explicite de l'utilisateur (notes 2026-06-02).
-**Effort:** XS (CC: ~15min)
-**Priority:** P7
-**Depends on:** Rien.
-
----
-
 ## P8 — Vue rotation astreintes : supprimer le tri automatique
 
 **What:** Dans `AstreintesTab` vue Rotation, désactiver le tri automatique des lignes. L'ordre d'affichage doit respecter l'ordre de saisie/insertion, ou être manuellement ajustable.
@@ -125,19 +112,6 @@
 **Effort:** M (CC: ~1h)
 **Priority:** P9
 **Depends on:** P4-bis (règles métier couverture) utile mais non bloquant.
-
----
-
-## P10 — Demi-journées en vue semaine planning
-
-**What:** Permettre d'affecter et d'afficher des vacations par demi-journée (matin / après-midi) dans la vue semaine de `PlanningGrid`. Chaque cellule jour × poste devient deux sous-cellules AM/PM indépendantes.
-**Why:** Plusieurs praticiens (mi-temps, consultations ponctuelles, EOPS) n'exercent que sur une demi-journée. La granularité journalière actuelle masque cette réalité et force des workarounds (notes manuelles, conventions implicites).
-**Pros:** Modèle de données plus fidèle, couvre les cas UCC/HDJ/EOPS qui ferment l'après-midi ou le matin.
-**Cons:** **Refacto architecturale majeure** — impacte le schéma `planning` (ajout colonne `periode` enum `AM|PM|FULL`), toutes les routes API, `PlanningGrid`, `AssignModal`, `MonthView`, exports, et règles P1/P4-bis. À planifier en sprint dédié.
-**Context:** Demande explicite de l'utilisateur (notes 2026-06-02). HDJ fermé le mercredi + UCC peut être absent le mercredi (P4-bis) illustrent le besoin réel.
-**Effort:** XL (CC: ~3–4h, humain: ~1 journée de test/validation)
-**Priority:** P10
-**Depends on:** P4-bis (les règles de couverture par activité servent de spec pour AM/PM). À faire après P1.
 
 ---
 
