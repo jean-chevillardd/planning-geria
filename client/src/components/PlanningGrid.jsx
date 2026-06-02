@@ -296,8 +296,8 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
               const holidayName = holidays.get(di);
               return (
                 <div key={i} className={`ghc${isToday ? ' today' : ''}`}
-                  style={!isToday && holidayName ? { background:'var(--holiday-stripe)', color:'#d97706' } : undefined}>
-                  {d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
+                  style={{ ...((!isToday && holidayName) ? { background:'var(--holiday-stripe)', color:'#d97706' } : {}), display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+                  <span>{d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}</span>
                   {holidayName && (
                     <>
                       <div style={{ fontSize:8, fontWeight:600, marginTop:2, lineHeight:1.2, color: isToday ? 'inherit' : '#b45309' }}>
@@ -334,12 +334,11 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                         : ['#dc2626', '#fef2f2'];
                     return (
                       <div style={{
-                        marginTop:4, display:'inline-flex', alignItems:'center',
+                        display:'flex', alignItems:'center',
                         padding:'2px 7px', borderRadius:20,
                         fontSize:9, fontWeight:700, letterSpacing:'.03em',
-                        color: isToday ? 'rgba(255,255,255,.9)' : col,
-                        background: isToday ? 'rgba(255,255,255,.18)' : bg,
-                        border: isToday ? '1.5px solid rgba(255,255,255,.45)' : `1.5px solid ${col}`,
+                        color: col, background: bg,
+                        border: `1.5px solid ${col}`,
                       }}>
                         {count} PH / {quota}
                       </div>
