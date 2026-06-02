@@ -438,7 +438,12 @@ export default function App() {
                   <div style={{ opacity: planLoading ? 0.55 : 1, transition:'opacity .15s', pointerEvents: planLoading ? 'none' : undefined }}>
                     <PlanningGrid monday={monday} planningData={planningData} absences={absences}
                       medecins={medecins} isSecretary={isSecretary} doctorFilter={doctorFilter}
-                      onCellClick={(poste, dayIso) => isSecretary && setModal({ poste, dayIso })}
+                      onCellClick={(poste, dayIso) => {
+                        if (!isSecretary) return;
+                        // HDJ programmé fermé systématiquement le mercredi
+                        if (poste.id === 'hdj' && new Date(dayIso).getDay() === 3) return;
+                        setModal({ poste, dayIso });
+                      }}
                       onOpenAstreintes={handleOpenAstreintes}
                       onMove={handleMove}
                       showAvailablePanel={showAvailablePanel} />

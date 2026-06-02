@@ -529,11 +529,14 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
   const [isOver,  setIsOver]  = useState(false);
   const dragCounter           = useRef(0);
 
-  if (isHoliday) {
+  const isHdjWednesday = poste.id === 'hdj' && new Date(dayIso).getDay() === 3;
+
+  if (isHoliday || isHdjWednesday) {
     return (
       <div
         className={`cell${isToday ? ' today' : ''}`}
-        style={!isToday ? { background:'var(--holiday-stripe)' } : undefined}
+        style={!isToday ? { background:'var(--holiday-stripe)', cursor: isHdjWednesday ? 'not-allowed' : undefined } : undefined}
+        title={isHdjWednesday ? 'HDJ fermé le mercredi' : undefined}
       />
     );
   }
