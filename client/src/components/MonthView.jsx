@@ -84,7 +84,7 @@ function absColor(type) { return ABS_COLORS[type] ?? '#6A6A66'; }
 
 // Même définition que PlanningGrid (sans "Tout afficher")
 const FILTERS = [
-  { id: 'cs',      label: 'Court séjour',  color: '#2563eb', grps: ['Court séjour 1', 'Court séjour 2'] },
+  { id: 'cs',      label: 'Court séjour',  color: '#2563eb', grps: ['Court séjour'] },
   { id: 'ssr',     label: 'SSR',           color: '#1D9E75', grps: ['SSR'] },
   { id: 'hdj',     label: 'HDJ',           color: '#ea580c', grps: ['Hôpital de jour'] },
   { id: 'ucc',     label: 'UCC/EMCC',      color: '#e11d48', grps: ['UCC / EMCC'] },
@@ -104,7 +104,7 @@ const AST_TYPES = {
   csg1:       { label:'CSG 1 8h30→13h30',      c:'#2563eb' },
 };
 
-export default function MonthView({ medecins, absences }) {
+export default function MonthView({ medecins, absences, isSecretary = false }) {
   const [monthDate,    setMonthDate]    = useState(new Date());
   const [weekData,     setWeekData]     = useState({});
   const [astrData,     setAstrData]     = useState([]); // astreintes du mois filtré par médecin
@@ -147,10 +147,32 @@ export default function MonthView({ medecins, absences }) {
   }, [y, mo, doctorFilter]);
 
   const activeFilter  = FILTERS.find(f => f.id === filter) ?? null;
-  // Postes visibles selon le filtre principal + sous-filtre éventuel
   const visiblePostes = activeFilter
     ? POSTES.filter(p => activeFilter.grps.includes(p.grp) && (!subFilter || p.short === subFilter))
     : POSTES;
+
+  // P13 — Panel PH disponibles pour le mois (visible en mode édition)
+  const monthPhDisponibles = useMemo(() => {
+    if (!isSecretary) return { full: [], partial: [] };
+    const monthStart = `${y}-${String(mo + 1).padStart(2,'0')}-01`;
+    const lastDay    = new Date(y, mo + 1, 0).getDate();
+    const monthEnd   = `${y}-${String(mo + 1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+    const full = [], partial = [];
+    for (const m of medecins) {
+      if (!m.actif || m.type !== 'ph') continue;
+      const monthAbsences = absences.filter(a =>
+        a.med_id === m.id && a.date_debut <= monthEnd && a.date_fin >= monthStart
+      );
+      if (monthAbsences.length === 0) {
+        full.push(m);
+      } else {
+        partial.push({ ...m, _monthAbsences: monthAbsences });
+      }
+    }
+    full.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    partial.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    return { full, partial };
+  }, [isSecretary, medecins, absences, y, mo]);
 
   return (
     <div>
@@ -319,7 +341,9 @@ export default function MonthView({ medecins, absences }) {
         </button>
       </div>
 
-      {/* ── Grille mensuelle ── */}
+      {/* ── Grille mensuelle + panneau PH dispo (P13) ── */}
+      <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
+      <div style={{ flex:1, minWidth:0 }}>
       {weeks.map(monday => {
         const wk   = toIso(monday);
         const data = weekData[wk];
@@ -495,6 +519,59 @@ export default function MonthView({ medecins, absences }) {
           </div>
         );
       })}
+      </div>{/* fin grille */}
+
+      {/* Panneau PH disponibles ce mois (P13) */}
+      {isSecretary && (
+        <div className="available-panel print-hide" style={{ marginTop:0 }}>
+          <div className="available-panel-header">
+            PH — {new Date(y, mo, 1).toLocaleDateString('fr-FR', { month:'long' })}
+            <span className="available-count"
+              aria-label={`${monthPhDisponibles.full.length + monthPhDisponibles.partial.length} PH ce mois`}>
+              {monthPhDisponibles.full.length + monthPhDisponibles.partial.length}
+            </span>
+          </div>
+          {monthPhDisponibles.full.length > 0 && (
+            <>
+              <div className="available-group-label">Présents tout le mois</div>
+              <ul className="available-list">
+                {monthPhDisponibles.full.map(m => (
+                  <li key={m.id} className="available-item">
+                    <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
+                    <span>{m.prenom} {m.nom}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {monthPhDisponibles.partial.length > 0 && (
+            <>
+              <div className="available-group-label" style={{ marginTop: monthPhDisponibles.full.length ? 10 : 0 }}>
+                Absents partiellement
+              </div>
+              <ul className="available-list">
+                {monthPhDisponibles.partial.map(m => (
+                  <li key={m.id} className="available-item" style={{ flexDirection:'column', alignItems:'flex-start', gap:2 }}>
+                    <span style={{ display:'flex', alignItems:'center', gap:7 }}>
+                      <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
+                      <span>{m.prenom} {m.nom}</span>
+                    </span>
+                    {m._monthAbsences.map((a, i) => (
+                      <span key={i} className="available-days" style={{ paddingLeft:15 }}>
+                        {a.type_abs} : {a.date_debut} → {a.date_fin}
+                      </span>
+                    ))}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {monthPhDisponibles.full.length === 0 && monthPhDisponibles.partial.length === 0 && (
+            <p className="available-empty">Aucun PH actif</p>
+          )}
+        </div>
+      )}
+      </div>{/* fin flex-layout */}
     </div>
   );
 }

@@ -11,7 +11,20 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   const extras     = planningData?.extras       || [];
   const renforts   = planningData?.renforts     || [];
 
-  const assigned = byPoste[poste?.id]?.medecins || [];
+  const combineWith = poste?.combineWith ?? null;
+  const allPosteIds = poste ? [poste.id, ...(combineWith ? [combineWith] : [])] : [];
+
+  // Fusion postes combinés (ex. csg1a + csg1i1) avec tag _posteId pour les opérations
+  const assigned = [
+    ...(byPoste[poste?.id]?.medecins  || []).map(m => ({ ...m, _posteId: poste?.id })),
+    ...(combineWith ? (byPoste[combineWith]?.medecins || []).map(m => ({ ...m, _posteId: combineWith })) : []),
+  ];
+
+  // Cible correcte pour les affectations : internes → combineWith, autres → poste principal
+  function targetPosteId(m) {
+    if (combineWith && m.type === 'interne') return combineWith;
+    return poste.id;
+  }
 
   const takenThisWeek = useMemo(() => {
     const set = new Set();
@@ -28,38 +41,39 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
 
   if (!poste || !dayIso) return null;
 
-  const isExcluded = medId => exclusions.some(e => e.poste_id === poste.id && e.med_id === medId && e.jour === dayIso);
+  const isExcluded = m => exclusions.some(e => e.poste_id === m._posteId && e.med_id === m.id && e.jour === dayIso);
 
   const dayLabel = new Date(dayIso + 'T12:00:00')
     .toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
 
-  const excludedToday = assigned.filter(m => isExcluded(m.id));
-  const extrasToday   = extras.filter(e => e.poste_id === poste.id && e.jour === dayIso);
-  const renfortsToday = renforts.filter(r => r.poste_id === poste.id && r.jour === dayIso);
+  const excludedToday = assigned.filter(m => isExcluded(m));
+  const extrasToday   = extras.filter(e => allPosteIds.includes(e.poste_id) && e.jour === dayIso);
+  const renfortsToday = renforts.filter(r => allPosteIds.includes(r.poste_id) && r.jour === dayIso);
 
-  // Présents à CE poste ce jour (affectés + non exclus + travaillent, ou extra ponctuel)
+  // Présents à CE poste (ou ses sous-postes) ce jour
   const presentToday = new Set([
-    ...assigned.filter(m => worksDay(m, dayIso, absences) && !isExcluded(m.id)).map(m => m.id),
+    ...assigned.filter(m => worksDay(m, dayIso, absences) && !isExcluded(m)).map(m => m.id),
     ...extrasToday.map(e => e.med_id),
   ]);
 
-  // En poste AILLEURS ce jour (autre poste, affecté, travaille ce jour, non exclu, non absent)
+  // En poste AILLEURS ce jour (exclut le poste principal ET combineWith)
   const takenToday = new Set();
   Object.entries(byPoste).forEach(([pid, data]) => {
-    if (pid === poste.id) return;
+    if (allPosteIds.includes(pid)) return;
     data.medecins?.forEach(m => {
       const excl = exclusions.some(e => e.poste_id === pid && e.med_id === m.id && e.jour === dayIso);
       if (!excl && worksDay(m, dayIso, absences)) takenToday.add(m.id);
     });
   });
-  // Extras sur d'autres postes ce jour
-  extras.forEach(e => { if (e.poste_id !== poste.id && e.jour === dayIso) takenToday.add(e.med_id); });
+  extras.forEach(e => { if (!allPosteIds.includes(e.poste_id) && e.jour === dayIso) takenToday.add(e.med_id); });
 
   // ── Recherche ──────────────────────────────────────────────
   const q         = search.trim().toLowerCase();
   const searching = q.length > 0;
 
-  const candidates    = medecins.filter(m => poste.intern ? m.type === 'interne' : m.type !== 'interne');
+  // Tous les praticiens actifs sont cherchables ; pour les postes combinés (csg1a+csg1i1)
+  // toutes les catégories sont affichées — la fonction targetPosteId route au bon sous-poste.
+  const candidates    = medecins;
   const searchResults = searching ? candidates.filter(m => m.nom.toLowerCase().includes(q)) : [];
 
   // ── Disponibilité "Affecter ce jour" (remplacement ponctuel) ──
@@ -109,12 +123,16 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
           <>
             <div className="msep">Affectés cette semaine</div>
             {assigned.map(m => {
-              const excl   = isExcluded(m.id);
+              const excl   = isExcluded(m);
               const works  = worksDay(m, dayIso, absences);
               const absent = isAbsent(m.id, dayIso, absences);
               return (
-                <div key={m.id} className="mitem" style={{ cursor:'default' }}>
-                  <span style={{ fontSize:12 }}>{m.nom}</span>
+                <div key={m.id + m._posteId} className="mitem" style={{ cursor:'default' }}>
+                  <span style={{ fontSize:12 }}>{m.nom}
+                    {m._posteId === combineWith && (
+                      <span className="mtag" style={{ marginLeft:4 }}>interne</span>
+                    )}
+                  </span>
                   <span style={{ display:'flex', gap:6, alignItems:'center' }}>
                     {excl                          && <span className="minfo">Retiré ce jour</span>}
                     {absent && !excl               && <span className="minfo">Absent (congé)</span>}
@@ -122,16 +140,16 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                     {!works && !excl && !absent    && <span className="minfo">Jour non travaillé</span>}
                     {excl
                       ? <button className="btn-xs btn-ok"
-                          onClick={() => onAction('del_exclusion', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso })}>
+                          onClick={() => onAction('del_exclusion', { week_key:weekKey, poste_id:m._posteId, med_id:m.id, jour:dayIso })}>
                           Restaurer
                         </button>
                       : works && <button className="btn-xs btn-warn"
-                          onClick={() => onAction('add_exclusion', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso })}>
+                          onClick={() => onAction('add_exclusion', { week_key:weekKey, poste_id:m._posteId, med_id:m.id, jour:dayIso })}>
                           Retirer ce jour
                         </button>
                     }
                     <button className="btn-xs btn-danger"
-                      onClick={() => onAction('del_affectation', { week_key:weekKey, poste_id:poste.id, med_id:m.id })}>
+                      onClick={() => onAction('del_affectation', { week_key:weekKey, poste_id:m._posteId, med_id:m.id })}>
                       Retirer sem.
                     </button>
                   </span>
@@ -232,7 +250,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                           className="btn-xs btn-renfort"
                           disabled={!ra.ok}
                           title={ra.ok ? 'Ajouter en double tâche (déjà en poste ailleurs ce jour)' : ra.reason}
-                          onClick={ra.ok ? () => onAction('add_renfort', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso }) : undefined}
+                          onClick={ra.ok ? () => onAction('add_renfort', { week_key:weekKey, poste_id:targetPosteId(m), med_id:m.id, jour:dayIso }) : undefined}
                         >
                           Renfort
                         </button>
@@ -241,7 +259,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                         className="btn-xs btn-primary"
                         disabled={!da.ok}
                         title={da.ok ? 'Remplacement ponctuel ce jour' : da.reason}
-                        onClick={da.ok ? () => onAction('add_extra', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso }) : undefined}
+                        onClick={da.ok ? () => onAction('add_extra', { week_key:weekKey, poste_id:targetPosteId(m), med_id:m.id, jour:dayIso }) : undefined}
                       >
                         Ce jour
                       </button>
@@ -249,7 +267,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                         className="btn-xs btn-primary"
                         disabled={!wa.ok}
                         title={wa.ok ? 'Affecter pour toute la semaine' : wa.reason}
-                        onClick={wa.ok ? () => onAction('add_affectation', { week_key:weekKey, poste_id:poste.id, med_id:m.id }) : undefined}
+                        onClick={wa.ok ? () => onAction('add_affectation', { week_key:weekKey, poste_id:targetPosteId(m), med_id:m.id }) : undefined}
                       >
                         À la semaine
                       </button>

@@ -148,55 +148,45 @@
 
 ---
 
-## P-BUG — Suppression & affectation limitées aux PH
+## ~~P-BUG — Suppression & affectation limitées aux PH~~ ✅ DONE 2026-06-02
 
-**What:** Dans `AssignModal` et dans la logique de suppression d'affectation, seuls les praticiens de type `ph` sont accessibles : la barre de recherche ne retourne aucun résultat pour les autres types (interne, remplaçant, etc.), et le bouton de suppression d'une affectation existante est inopérant pour les non-PH.
-**Why:** Bloque l'utilisation de l'outil pour les postes occupés par des internes ou des remplaçants, ce qui représente une fraction significative des affectations réelles.
-**Pros:** Bug bloquant — correction prioritaire.
-**Cons:** Vérifier que le filtre `type='ph'` n'est pas intentionnel dans certains contextes (ex. panel dispo, qui lui doit rester PH-only).
-**Context:** Signalé par l'utilisateur le 2026-06-02.
-**Effort:** XS–S (localiser le filtre côté API ou client, retirer la restriction, tester)
-**Priority:** P-BUG
-**Depends on:** Rien.
+**Implémenté :**
+- `AssignModal` : `candidates = medecins` (tous types cherchables), filtre intern/non-intern supprimé
+- Postes combinés (`csg1a` + `csg1i1`, `csg2a` + `csg2i1`) : `assigned` inclut les deux sous-postes, tag `_posteId` pour router correctement les opérations (add/del/excl/renfort)
+- `targetPosteId(m)` : internes → `combineWith`, autres → `poste.id`
+- `isExcluded`, `extrasToday`, `renfortsToday`, `takenToday` mis à jour pour tenir compte de `allPosteIds`
+- Panneau dispo (`getDisponiblesPH`) reste PH-only — comportement intentionnel inchangé
 
 ---
 
-## P12 — Panneau « PH dispo » : visibilité conditionnelle (plus de bouton toggle)
+## ~~P12 — Panneau « PH dispo » : visibilité conditionnelle~~ ✅ DONE 2026-06-02
 
-**What:** Supprimer le bouton « PH dispo ▶/◀ » et rendre le panneau dispo **toujours visible en mode édition**, **invisible en mode lecture**.
-**Why:** Le toggle manuel est une friction inutile : en mode édition le panneau est systématiquement utile (choisir qui affecter) ; en mode lecture il est du bruit.
-**Pros:** Effort XS, simplifie l'UI, comportement plus cohérent avec l'intention du mode.
-**Cons:** S'assurer que la prop `showAvailablePanel` / le state local est bien piloté par le mode et non par un toggle interne.
-**Context:** Demande explicite de l'utilisateur (2026-06-02). Fait suite à P5 (panel déjà implémenté).
-**Effort:** XS (CC: ~10min)
-**Priority:** P12
-**Depends on:** Rien.
+**Implémenté :**
+- Bouton toggle `PH dispo ▶/◀` supprimé (`App.jsx`, state `showAvailablePanel` retiré, CSS `.btn-toggle-available` nettoyé)
+- `showAvailablePanel={isSecretary}` : panneau visible si et seulement si mode édition actif
+- `@media (max-width:900px)` nettoyé (référence au bouton supprimée)
 
 ---
 
-## P13 — Panneau « PH dispo » sur la vue calendrier (mensuelle)
+## ~~P13 — Panneau « PH dispo » sur la vue calendrier (mensuelle)~~ ✅ DONE 2026-06-02
 
-**What:** Afficher le panneau de disponibilités des PH également dans la vue mensuelle (`MonthlyView` / `CalendarTab`), en complément de la vue semaine où il existe déjà (P5).
-**Why:** Les médecins naviguent aussi en vue mensuelle pour planifier les rotations longues ; ne pas avoir le panel dispo dans cette vue les oblige à basculer en vue semaine pour consulter les disponibilités.
-**Pros:** Cohérence entre les deux vues, réutilise le composant existant.
-**Cons:** La granularité mensuelle est différente : le panel devra peut-être afficher la disponibilité semaine par semaine ou par mois entier — à définir.
-**Context:** Demande explicite de l'utilisateur (2026-06-02).
-**Effort:** S–M (CC: ~20–40min selon l'adaptation de granularité)
-**Priority:** P13
-**Depends on:** P12 (visibilité conditionnelle idéalement alignée avant).
+**Implémenté :**
+- `MonthView` reçoit prop `isSecretary`
+- `monthPhDisponibles` (`useMemo`) : calcule présence mensuelle depuis `absences` — groupe « Présents tout le mois » / « Absents partiellement » avec détail dates
+- Panel `.available-panel` sticky à droite de la grille, visible en mode édition uniquement
+- Granularité mensuelle : absences listées avec dates début→fin
 
 ---
 
-## P14 — Drag & drop depuis le panneau dispo vers le planning
+## ~~P14 — Drag & drop depuis le panneau dispo vers le planning~~ ✅ DONE 2026-06-02
 
-**What:** Permettre de glisser-déposer un praticien depuis le panneau « PH dispo » directement sur une cellule du planning (vue semaine ou mensuelle) pour créer une affectation, sans ouvrir `AssignModal`.
-**Why:** Réduit le nombre de clics pour l'affectation la plus courante (choisir un dispo → le poser sur un poste libre). Particulièrement utile pour la saisie en rafale d'une semaine entière.
-**Pros:** Gain d'ergonomie majeur pour la saisie ; `@dnd-kit` ou HTML5 Drag API sont disponibles en React.
-**Cons:** Effort M–L : gestion des zones de drop, feedback visuel, collision avec le clic existant, et vérification des règles métier (P4-bis) à la volée. Le D&D mensuel est plus complexe que le D&D semaine.
-**Context:** Demande explicite de l'utilisateur (2026-06-02).
-**Effort:** L (CC: ~1h30–2h)
-**Priority:** P14
-**Depends on:** P12, P13. P4-bis (règles métier) utile pour la validation au drop.
+**Implémenté (vue semaine uniquement) :**
+- Items du panneau dispo : `draggable` + handlers `onDragStart`/`onDragEnd` → `panelDragMed` state dans `PlanningGrid`
+- Cellules : `handleDrop` distingue drop panel (`panelDragMed`) vs chip interne (`dragInfo`) → appel `onPanelCellDrop(poste, dayIso)`
+- `pendingPanelAssign` dialog (similaire à la dialog déplacement) : « Ce jour » → `add_extra` | « Toute la semaine » → `add_affectation`
+- `onAssign` prop ajoutée à `PlanningGrid`, implémentée dans `App.jsx` via `handleAssign` (réutilise `handleAction`)
+- Note CSS : `.available-item[draggable="true"]` → `cursor: grab`
+- Vue mensuelle : non implémentée (structure trop différente)
 
 ---
 
@@ -213,16 +203,14 @@
 
 ---
 
-## P16 — Filtres vue semaine : supprimer « Tout afficher », homogénéiser avec vue mensuelle
+## ~~P16 — Filtres vue semaine : supprimer « Tout afficher », homogénéiser~~ ✅ DONE 2026-06-02
 
-**What:** Dans la vue semaine (barre de filtres catégories), supprimer le bouton « Tout afficher » et structurer les catégories en sous-groupes, comme c'est déjà le cas dans la vue mensuelle. Homogénéiser l'apparence et le comportement des filtres entre les deux vues.
-**Why:** Le bouton « Tout afficher » est redondant (dé-sélectionner tous les filtres produit le même résultat) et la disparité entre vue semaine et vue mensuelle crée une incohérence visuelle.
-**Pros:** Cohérence UI, simplification, réutilisation de la logique existante de la vue mensuelle.
-**Cons:** Vérifier que la vue semaine et la vue mensuelle partagent les mêmes catégories de services.
-**Context:** Signalé par l'utilisateur (2026-06-02, capture Image #4).
-**Effort:** S (CC: ~20min)
-**Priority:** P16
-**Depends on:** Rien.
+**Implémenté :**
+- `{ id: null, label: 'Tout afficher', ... }` retiré de `FILTERS` dans `PlanningGrid`
+- Cliquer sur un filtre actif le désélectionne (retour "tout afficher" sans bouton dédié)
+- `subFilter` state + sub-pills (identiques à `MonthView`) : visibles quand le filtre parent est actif, `setFilter` reset `subFilter`
+- `baseGroups` filtre aussi par `p.short === subFilter` si un sous-filtre est actif
+- `FILTERS.grps` alignés avec la fusion `'Court séjour'` (CSG 1+2 fusionnés dans `utils.js`)
 
 ---
 

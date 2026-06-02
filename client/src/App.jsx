@@ -178,7 +178,6 @@ export default function App() {
   const [pwdModal,       setPwdModal]   = useState(false);
   const [doctorFilter,   setDoctorFilter] = useState('');
   const [astreintesDay,  setAstreintesDay] = useState(null);
-  const [showAvailablePanel, setShowAvailablePanel] = useState(false);
   const toastId       = useRef(0);
   const undoStackRef  = useRef([]);
   const handleUndoRef = useRef(null);
@@ -344,6 +343,14 @@ export default function App() {
     } catch(e) { showToast(e.message || 'Erreur lors du déplacement', 'err'); }
   }
 
+  async function handleAssign({ mode, medId, targetPid, dayIso: assignDay, weekKey: assignWk }) {
+    if (mode === 'week') {
+      await handleAction('add_affectation', { week_key: assignWk, poste_id: targetPid, med_id: medId });
+    } else {
+      await handleAction('add_extra', { week_key: assignWk, poste_id: targetPid, med_id: medId, jour: assignDay });
+    }
+  }
+
   async function handleCopyWeek() {
     const prevKey = toIso(addDays(monday, -7));
     if (!confirm('Copier les affectations de la semaine précédente ? Les affectations actuelles seront écrasées.')) return;
@@ -415,19 +422,10 @@ export default function App() {
             {/* Sous-vue Semaine */}
             {planningView === 'semaine' && (
               <>
-                <div className="print-hide" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, marginBottom:4 }}>
-                  <div style={{ flex:1 }}>
-                    <WeekNav monday={monday} onChange={setMonday} onCopy={handleCopyWeek}
-                      onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isSecretary}
-                      medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
-                  </div>
-                  <button
-                    className={`btn-toggle-available${showAvailablePanel ? ' active' : ''}`}
-                    onClick={() => setShowAvailablePanel(v => !v)}
-                    title="Afficher / masquer les PH disponibles cette semaine"
-                  >
-                    PH dispo {showAvailablePanel ? '◀' : '▶'}
-                  </button>
+                <div className="print-hide" style={{ marginBottom:4 }}>
+                  <WeekNav monday={monday} onChange={setMonday} onCopy={handleCopyWeek}
+                    onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isSecretary}
+                    medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
                 </div>
                 {planLoading && !planningData && (
                   <div style={{ fontFamily:'inherit', fontSize:12, color:'var(--text2)', padding:'1rem 0' }}>
@@ -446,7 +444,8 @@ export default function App() {
                       }}
                       onOpenAstreintes={handleOpenAstreintes}
                       onMove={handleMove}
-                      showAvailablePanel={showAvailablePanel} />
+                      onAssign={handleAssign}
+                      showAvailablePanel={isSecretary} />
                   </div>
                 )}
               </>
@@ -454,7 +453,7 @@ export default function App() {
 
             {/* Sous-vue Calendrier */}
             {planningView === 'calendrier' && (
-              <MonthView medecins={medecins} absences={absences} />
+              <MonthView medecins={medecins} absences={absences} isSecretary={isSecretary} />
             )}
           </>
         )}
