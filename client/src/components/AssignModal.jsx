@@ -1,6 +1,6 @@
 // components/AssignModal.jsx
 import { useMemo, useState, useEffect } from 'react';
-import { TYPE_LBL, worksDay, worksWeekAny, isAbsent, toIso } from '../utils';
+import { TYPE_LBL, worksDay, worksWeekAny, isAbsent, toIso, weekDays, getDisponiblesPH } from '../utils';
 
 export default function AssignModal({ poste, dayIso, monday, planningData, medecins, absences, onClose, onAction }) {
   const [search, setSearch] = useState('');
@@ -11,13 +11,35 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   const extras     = planningData?.extras       || [];
   const renforts   = planningData?.renforts     || [];
 
-  const assigned = byPoste[poste?.id]?.medecins || [];
+  const combineWith = poste?.combineWith ?? null;
 
+  // Memoïsé car utilisé comme dépendance dans takenThisWeek
+  const allPosteIds = useMemo(
+    () => poste ? [poste.id, ...(combineWith ? [combineWith] : [])] : [],
+    [poste?.id, combineWith],
+  );
+
+  // Fusion postes combinés (ex. csg1a + csg1i1) avec tag _posteId pour les opérations
+  const assigned = [
+    ...(byPoste[poste?.id]?.medecins  || []).map(m => ({ ...m, _posteId: poste?.id })),
+    ...(combineWith ? (byPoste[combineWith]?.medecins || []).map(m => ({ ...m, _posteId: combineWith })) : []),
+  ];
+
+  // Cible correcte pour les affectations : internes → combineWith, autres → poste principal
+  function targetPosteId(m) {
+    if (combineWith && m.type === 'interne') return combineWith;
+    return poste.id;
+  }
+
+  // Un PH remplaçant (extra) ou renfort dans un AUTRE poste cette semaine ne peut pas
+  // être affecté à la semaine ici : il serait en double sur le(s) jour(s) concerné(s).
   const takenThisWeek = useMemo(() => {
     const set = new Set();
     Object.values(byPoste).forEach(p => p.medecins?.forEach(m => set.add(m.id)));
+    extras.forEach(e => { if (!allPosteIds.includes(e.poste_id)) set.add(e.med_id); });
+    renforts.forEach(r => { if (!allPosteIds.includes(r.poste_id)) set.add(r.med_id); });
     return set;
-  }, [byPoste]);
+  }, [byPoste, extras, renforts, allPosteIds]);
 
   // Esc → fermer
   useEffect(() => {
@@ -28,38 +50,46 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
 
   if (!poste || !dayIso) return null;
 
-  const isExcluded = medId => exclusions.some(e => e.poste_id === poste.id && e.med_id === medId && e.jour === dayIso);
+  const isExcluded = m => exclusions.some(e => e.poste_id === m._posteId && e.med_id === m.id && e.jour === dayIso);
 
   const dayLabel = new Date(dayIso + 'T12:00:00')
     .toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
 
-  const excludedToday = assigned.filter(m => isExcluded(m.id));
-  const extrasToday   = extras.filter(e => e.poste_id === poste.id && e.jour === dayIso);
-  const renfortsToday = renforts.filter(r => r.poste_id === poste.id && r.jour === dayIso);
+  const excludedToday = assigned.filter(m => isExcluded(m));
+  const extrasToday   = extras.filter(e => allPosteIds.includes(e.poste_id) && e.jour === dayIso);
+  const renfortsToday = renforts.filter(r => allPosteIds.includes(r.poste_id) && r.jour === dayIso);
 
-  // Présents à CE poste ce jour (affectés + non exclus + travaillent, ou extra ponctuel)
+  // Présents à CE poste (ou ses sous-postes) ce jour
   const presentToday = new Set([
-    ...assigned.filter(m => worksDay(m, dayIso, absences) && !isExcluded(m.id)).map(m => m.id),
+    ...assigned.filter(m => worksDay(m, dayIso, absences) && !isExcluded(m)).map(m => m.id),
     ...extrasToday.map(e => e.med_id),
   ]);
 
-  // En poste AILLEURS ce jour (autre poste, affecté, travaille ce jour, non exclu, non absent)
+  // En poste AILLEURS ce jour (exclut le poste principal ET combineWith)
   const takenToday = new Set();
   Object.entries(byPoste).forEach(([pid, data]) => {
-    if (pid === poste.id) return;
+    if (allPosteIds.includes(pid)) return;
     data.medecins?.forEach(m => {
       const excl = exclusions.some(e => e.poste_id === pid && e.med_id === m.id && e.jour === dayIso);
       if (!excl && worksDay(m, dayIso, absences)) takenToday.add(m.id);
     });
   });
-  // Extras sur d'autres postes ce jour
-  extras.forEach(e => { if (e.poste_id !== poste.id && e.jour === dayIso) takenToday.add(e.med_id); });
+  extras.forEach(e => { if (!allPosteIds.includes(e.poste_id) && e.jour === dayIso) takenToday.add(e.med_id); });
+
+  // ── PH disponibles cette semaine (même source que le panneau latéral) ──
+  const days = useMemo(() => weekDays(monday), [monday]);
+  const disponibles = useMemo(
+    () => getDisponiblesPH(medecins, absences, days, byPoste, exclusions),
+    [medecins, absences, days, byPoste, exclusions],
+  );
 
   // ── Recherche ──────────────────────────────────────────────
   const q         = search.trim().toLowerCase();
   const searching = q.length > 0;
 
-  const candidates    = medecins.filter(m => poste.intern ? m.type === 'interne' : m.type !== 'interne');
+  // Tous les praticiens actifs sont cherchables ; pour les postes combinés (csg1a+csg1i1)
+  // toutes les catégories sont affichées — la fonction targetPosteId route au bon sous-poste.
+  const candidates    = medecins;
   const searchResults = searching ? candidates.filter(m => m.nom.toLowerCase().includes(q)) : [];
 
   // ── Disponibilité "Affecter ce jour" (remplacement ponctuel) ──
@@ -82,11 +112,16 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   }
 
   // ── Disponibilité "Affecter à la semaine" ──
-  // Bloqué si : déjà affecté à ce poste, affecté à un autre poste cette semaine,
+  // Bloqué si : déjà affecté à ce poste, affecté/remplaçant/renfort ailleurs cette semaine,
+  // déjà remplaçant ou renfort ICI (doublon sur le(s) jour(s) concerné(s)),
   // ou n'a aucun jour travaillé cette semaine
   function weekAvail(m) {
     if (assigned.find(a => a.id === m.id)) return { ok:false, reason:'Déjà affecté cette semaine' };
     if (takenThisWeek.has(m.id))           return { ok:false, reason:'Déjà affecté ailleurs cette semaine' };
+    if (extras.some(e => allPosteIds.includes(e.poste_id) && e.med_id === m.id))
+      return { ok:false, reason:'Déjà remplaçant ici ce(s) jour(s) — retirer le remplacement avant d\'affecter à la semaine' };
+    if (renforts.some(r => allPosteIds.includes(r.poste_id) && r.med_id === m.id))
+      return { ok:false, reason:'Déjà en renfort ici ce(s) jour(s) — retirer le renfort avant d\'affecter à la semaine' };
     if (!worksWeekAny(m, monday, absences)) return { ok:false, reason:'Aucun jour disponible cette semaine' };
     return { ok:true };
   }
@@ -109,12 +144,16 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
           <>
             <div className="msep">Affectés cette semaine</div>
             {assigned.map(m => {
-              const excl   = isExcluded(m.id);
+              const excl   = isExcluded(m);
               const works  = worksDay(m, dayIso, absences);
               const absent = isAbsent(m.id, dayIso, absences);
               return (
-                <div key={m.id} className="mitem" style={{ cursor:'default' }}>
-                  <span style={{ fontSize:12 }}>{m.nom}</span>
+                <div key={m.id + m._posteId} className="mitem" style={{ cursor:'default' }}>
+                  <span style={{ fontSize:12 }}>{m.nom}
+                    {m._posteId === combineWith && (
+                      <span className="mtag" style={{ marginLeft:4 }}>interne</span>
+                    )}
+                  </span>
                   <span style={{ display:'flex', gap:6, alignItems:'center' }}>
                     {excl                          && <span className="minfo">Retiré ce jour</span>}
                     {absent && !excl               && <span className="minfo">Absent (congé)</span>}
@@ -122,16 +161,16 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                     {!works && !excl && !absent    && <span className="minfo">Jour non travaillé</span>}
                     {excl
                       ? <button className="btn-xs btn-ok"
-                          onClick={() => onAction('del_exclusion', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso })}>
+                          onClick={() => onAction('del_exclusion', { week_key:weekKey, poste_id:m._posteId, med_id:m.id, jour:dayIso })}>
                           Restaurer
                         </button>
                       : works && <button className="btn-xs btn-warn"
-                          onClick={() => onAction('add_exclusion', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso })}>
+                          onClick={() => onAction('add_exclusion', { week_key:weekKey, poste_id:m._posteId, med_id:m.id, jour:dayIso })}>
                           Retirer ce jour
                         </button>
                     }
                     <button className="btn-xs btn-danger"
-                      onClick={() => onAction('del_affectation', { week_key:weekKey, poste_id:poste.id, med_id:m.id })}>
+                      onClick={() => onAction('del_affectation', { week_key:weekKey, poste_id:m._posteId, med_id:m.id })}>
                       Retirer sem.
                     </button>
                   </span>
@@ -218,50 +257,87 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                 Aucun résultat.
               </p>
             ) : (
-              searchResults.map(m => {
-                const wa = weekAvail(m);
-                const da = dayAvail(m);
-                return (
-                  <div key={m.id} className="mitem" style={{ cursor:'default', flexWrap:'nowrap' }}>
-                    <span style={{ fontSize:12, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', minWidth:0, flex:'1 1 0' }}>
-                      {m.nom} <span className="mtag">{TYPE_LBL[m.type]}</span>
-                    </span>
-                    <span style={{ display:'flex', gap:5, alignItems:'center', flexShrink:0 }}>
-                      {(renfortAvail(m).ok || takenToday.has(m.id)) && (() => { const ra = renfortAvail(m); return (
-                        <button
-                          className="btn-xs btn-renfort"
-                          disabled={!ra.ok}
-                          title={ra.ok ? 'Ajouter en double tâche (déjà en poste ailleurs ce jour)' : ra.reason}
-                          onClick={ra.ok ? () => onAction('add_renfort', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso }) : undefined}
-                        >
-                          Renfort
-                        </button>
-                      ); })()}
-                      <button
-                        className="btn-xs btn-primary"
-                        disabled={!da.ok}
-                        title={da.ok ? 'Remplacement ponctuel ce jour' : da.reason}
-                        onClick={da.ok ? () => onAction('add_extra', { week_key:weekKey, poste_id:poste.id, med_id:m.id, jour:dayIso }) : undefined}
-                      >
-                        Ce jour
-                      </button>
-                      <button
-                        className="btn-xs btn-primary"
-                        disabled={!wa.ok}
-                        title={wa.ok ? 'Affecter pour toute la semaine' : wa.reason}
-                        onClick={wa.ok ? () => onAction('add_affectation', { week_key:weekKey, poste_id:poste.id, med_id:m.id }) : undefined}
-                      >
-                        À la semaine
-                      </button>
-                    </span>
-                  </div>
-                );
-              })
+              searchResults.map(m => <CandidateRow key={m.id} m={m} subtitle={TYPE_LBL[m.type]}
+                dayAvail={dayAvail} weekAvail={weekAvail} renfortAvail={renfortAvail}
+                takenToday={takenToday} weekKey={weekKey} dayIso={dayIso}
+                targetPosteId={targetPosteId} onAction={onAction} />)
+            )}
+          </>
+        )}
+
+        {/* ── PH disponibles (liste par défaut quand pas de recherche) ── */}
+        {!searching && (
+          <>
+            {disponibles.full.length > 0 && (
+              <>
+                <div className="msep">PH disponibles — présents toute la semaine</div>
+                {disponibles.full.map(m => <CandidateRow key={m.id} m={m} subtitle={m.schedNote || TYPE_LBL[m.type]}
+                  dayAvail={dayAvail} weekAvail={weekAvail} renfortAvail={renfortAvail}
+                  takenToday={takenToday} weekKey={weekKey} dayIso={dayIso}
+                  targetPosteId={targetPosteId} onAction={onAction} />)}
+              </>
+            )}
+            {disponibles.partial.length > 0 && (
+              <>
+                <div className="msep">PH disponibles — présents partiellement</div>
+                {disponibles.partial.map(m => <CandidateRow key={m.id} m={m} subtitle={m.joursPresents?.join(' ')}
+                  dayAvail={dayAvail} weekAvail={weekAvail} renfortAvail={renfortAvail}
+                  takenToday={takenToday} weekKey={weekKey} dayIso={dayIso}
+                  targetPosteId={targetPosteId} onAction={onAction} />)}
+              </>
+            )}
+            {disponibles.full.length === 0 && disponibles.partial.length === 0 && (
+              <p style={{ fontSize:11, fontFamily:'sans-serif', color:'var(--text3)', padding:'4px 8px' }}>
+                Aucun PH disponible cette semaine. Rechercher un praticien ci-dessus.
+              </p>
             )}
           </>
         )}
 
       </div>
+    </div>
+  );
+}
+
+// ── Ligne candidat (search + liste disponibles) ──────────────
+function CandidateRow({ m, subtitle, dayAvail, weekAvail, renfortAvail, takenToday, weekKey, dayIso, targetPosteId, onAction }) {
+  const wa = weekAvail(m);
+  const da = dayAvail(m);
+  const ra = renfortAvail(m);
+  return (
+    <div className="mitem" style={{ cursor:'default', flexWrap:'nowrap' }}>
+      <span style={{ fontSize:12, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', minWidth:0, flex:'1 1 0' }}>
+        {m.nom}
+        {subtitle && <span className="mtag" style={{ marginLeft:4 }}>{subtitle}</span>}
+      </span>
+      <span style={{ display:'flex', gap:5, alignItems:'center', flexShrink:0 }}>
+        {(ra.ok || takenToday.has(m.id)) && (
+          <button
+            className="btn-xs btn-renfort"
+            disabled={!ra.ok}
+            title={ra.ok ? 'Ajouter en double tâche (déjà en poste ailleurs ce jour)' : ra.reason}
+            onClick={ra.ok ? () => onAction('add_renfort', { week_key:weekKey, poste_id:targetPosteId(m), med_id:m.id, jour:dayIso }) : undefined}
+          >
+            Renfort
+          </button>
+        )}
+        <button
+          className="btn-xs btn-primary"
+          disabled={!da.ok}
+          title={da.ok ? 'Remplacement ponctuel ce jour' : da.reason}
+          onClick={da.ok ? () => onAction('add_extra', { week_key:weekKey, poste_id:targetPosteId(m), med_id:m.id, jour:dayIso }) : undefined}
+        >
+          Ce jour
+        </button>
+        <button
+          className="btn-xs btn-primary"
+          disabled={!wa.ok}
+          title={wa.ok ? 'Affecter pour toute la semaine' : wa.reason}
+          onClick={wa.ok ? () => onAction('add_affectation', { week_key:weekKey, poste_id:targetPosteId(m), med_id:m.id }) : undefined}
+        >
+          À la semaine
+        </button>
+      </span>
     </div>
   );
 }

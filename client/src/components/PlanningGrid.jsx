@@ -27,9 +27,9 @@ function isSenior(type) { return type === 'ph'; }
 
 const TYPE_LABEL = { interne: 'Interne', externe: 'Externe', padhue: 'PADHUE', ipa: 'IPA' };
 
+// P16 — « Tout afficher » supprimé ; sous-groupes identiques à la vue mensuelle
 const FILTERS = [
-  { id: null,      label: 'Tout afficher',    color: null,      grps: null },
-  { id: 'cs',      label: 'Court séjour',     color: '#2563eb', grps: ['Court séjour 1', 'Court séjour 2'] },
+  { id: 'cs',      label: 'Court séjour',     color: '#2563eb', grps: ['Court séjour'] },
   { id: 'ssr',     label: 'SSR',              color: '#1D9E75', grps: ['SSR'] },
   { id: 'hdj',     label: 'HDJ',              color: '#ea580c', grps: ['Hôpital de jour'] },
   { id: 'ucc',     label: 'UCC/EMCC',         color: '#e11d48', grps: ['UCC / EMCC'] },
@@ -41,10 +41,15 @@ const FILTERS = [
 
 // ── Composant principal ────────────────────────────────────
 
-export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick, doctorFilter = '', onOpenAstreintes, onMove, showAvailablePanel = false }) {
-  const [filter,      setFilter]      = useState(null);
-  const [dragInfo,    setDragInfo]    = useState(null);   // chip en cours de drag
-  const [pendingMove, setPendingMove] = useState(null);   // en attente de confirmation
+export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick, doctorFilter = '', onOpenAstreintes, onMove, onAssign, showAvailablePanel = false }) {
+  const [filter,             setFilterState]       = useState(null);
+  const [subFilter,          setSubFilter]         = useState(null);
+  const [dragInfo,           setDragInfo]          = useState(null);   // chip en cours de drag (déplacement)
+  const [pendingMove,        setPendingMove]       = useState(null);   // déplacement en attente de confirmation
+  const [panelDragMed,       setPanelDragMed]      = useState(null);   // PH glissé depuis le panneau dispo
+  const [pendingPanelAssign, setPendingPanelAssign] = useState(null);  // affectation depuis panneau en attente
+
+  function setFilter(id) { setFilterState(id); setSubFilter(null); }
 
   const days     = weekDays(monday);
   const todayIso = toIso(new Date());
@@ -71,6 +76,41 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     return getDisponiblesPH(medecins, absences, days, byPoste, exclusions);
   }, [showAvailablePanel, medecins, absences, monday, byPoste, exclusions]);
 
+  // ── Compteur PH présents par jour ──
+  // Restreint aux services indispensables (dispensable:false).
+  // Les demi-journées (sched am OU pm uniquement) comptent 0,5.
+  // Pas de plafond : au-delà du quota le compteur continue d'augmenter.
+  const phPerDay = useMemo(() => {
+    const result = {};
+    days.forEach(d => {
+      const di = toIso(d);
+      if (holidays.has(di)) { result[di] = null; return; }
+      // medId → contribution max (0.5 demi-journée, 1 journée complète)
+      const phContrib = new Map();
+      const addContrib = (medId, contrib) =>
+        phContrib.set(medId, Math.max(phContrib.get(medId) ?? 0, contrib));
+
+      POSTES_DISPLAY.filter(p => !p.dispensable).forEach(p => {
+        const allIds = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
+        const excl = exclusions
+          .filter(e => allIds.includes(e.poste_id) && e.jour === di)
+          .map(e => e.med_id);
+        allIds.forEach(pid => {
+          (byPoste[pid]?.medecins || [])
+            .filter(m => m.type === 'ph' && worksDay(m, di, absences) && !excl.includes(m.id))
+            .forEach(m => addContrib(m.id, getSchedHalfDay(m, di) ? 0.5 : 1));
+        });
+        extras
+          .filter(e => allIds.includes(e.poste_id) && e.jour === di && e.type === 'ph')
+          .forEach(e => addContrib(e.med_id, 1));
+      });
+      const total = [...phContrib.values()].reduce((a, b) => a + b, 0);
+      // Arrondi au 0,5 le plus proche pour éviter les erreurs float
+      result[di] = Math.round(total * 2) / 2;
+    });
+    return result;
+  }, [planningData, absences, monday, holidays]);
+
   // ── Alertes ──────────────────────────────────────────────
   const alerts = useMemo(() => {
     const warns = [];
@@ -83,7 +123,6 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         const excl     = exclusions.filter(e => allIds.includes(e.poste_id) && e.jour === di).map(e => e.med_id);
         const ext      = extras.filter(e => allIds.includes(e.poste_id) && e.jour === di);
         if (p.minPH) {
-          // Vérifier uniquement les PH (praticiens hospitaliers) pour les postes avec seuil PH
           const phPresent = [
             ...assigned.filter(m => m.type === 'ph' && worksDay(m, di, absences) && !excl.includes(m.id)),
             ...ext.filter(e => e.type === 'ph'),
@@ -109,7 +148,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     return map;
   }, []);
 
-  const activeFilter = FILTERS.find(f => f.id === filter);
+  const activeFilter = FILTERS.find(f => f.id === filter) ?? null;
 
   const doctorPostes = useMemo(() => {
     if (!doctorFilter) return null;
@@ -125,9 +164,16 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     return ids;
   }, [doctorFilter, byPoste, extras, days]);
 
-  const baseGroups = filter === null
+  // P16 — filtrage par groupe + sous-filtre
+  let baseGroups = filter === null
     ? Object.entries(allGroups)
     : Object.entries(allGroups).filter(([grp]) => activeFilter?.grps?.includes(grp));
+
+  if (subFilter) {
+    baseGroups = baseGroups
+      .map(([grp, postes]) => [grp, postes.filter(p => p.short === subFilter)])
+      .filter(([, postes]) => postes.length > 0);
+  }
 
   const visibleGroups = doctorPostes
     ? baseGroups
@@ -135,21 +181,14 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         .filter(([, postes]) => postes.length > 0)
     : baseGroups;
 
-  // ── Drag & Drop handlers ──────────────────────────────────
+  // ── Drag & Drop chip (déplacement entre postes) ──────────
 
-  function handleChipDragStart(info) {
-    setDragInfo(info);
-  }
-
-  function handleChipDragEnd() {
-    setDragInfo(null);
-  }
+  function handleChipDragStart(info) { setDragInfo(info); }
+  function handleChipDragEnd()       { setDragInfo(null); }
 
   function handleCellDrop(targetPoste) {
     if (!dragInfo) return;
-    // Même poste : annuler
     if (targetPoste.id === dragInfo.sourcePid) { setDragInfo(null); return; }
-    // Incompatibilité interne/non-interne
     if (targetPoste.intern && dragInfo.medType !== 'interne') { setDragInfo(null); return; }
     if (!targetPoste.intern && dragInfo.medType === 'interne') { setDragInfo(null); return; }
     setPendingMove({ ...dragInfo, targetPoste });
@@ -170,13 +209,42 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     setPendingMove(null);
   }
 
-  // Labels pour la dialog
+  // ── Drag & Drop panneau → cellule (P14) ──────────────────
+
+  function handlePanelDragStart(m) { setPanelDragMed(m); }
+  function handlePanelDragEnd()    { setPanelDragMed(null); }
+
+  function handlePanelCellDrop(targetPoste, dayIso) {
+    if (!panelDragMed) return;
+    setPendingPanelAssign({ med: panelDragMed, targetPoste, dayIso });
+    setPanelDragMed(null);
+  }
+
+  async function confirmPanelAssign(mode) {
+    if (!pendingPanelAssign || !onAssign) return;
+    await onAssign({
+      mode,
+      medId:     pendingPanelAssign.med.id,
+      targetPid: pendingPanelAssign.targetPoste.id,
+      dayIso:    pendingPanelAssign.dayIso,
+      weekKey,
+    });
+    setPendingPanelAssign(null);
+  }
+
+  // Labels dialog déplacement
   const moveDayLabel = pendingMove
     ? new Date(pendingMove.dayIso + 'T12:00:00')
         .toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })
     : '';
   const moveSrcName = pendingMove ? (POSTES_MAP[pendingMove.sourcePid]?.lbl ?? pendingMove.sourcePid) : '';
   const moveTgtName = pendingMove ? pendingMove.targetPoste.lbl : '';
+
+  // Labels dialog affectation depuis panneau
+  const panelAssignDayLabel = pendingPanelAssign
+    ? new Date(pendingPanelAssign.dayIso + 'T12:00:00')
+        .toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' })
+    : '';
 
   return (
     <div>
@@ -192,42 +260,77 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
           : `⚠ ${alerts.length} créneau(x) non couvert(s) : ${alerts.slice(0, 6).join(' · ')}${alerts.length > 6 ? ' …' : ''}`}
       </div>
 
-      {/* ── Filtres / légende ── */}
-      <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:12, alignItems:'center' }}>
+      {/* ── Filtres / légende (P16) ── */}
+      <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:12, alignItems:'flex-start' }}>
         {FILTERS.map(f => {
-          const active = filter === f.id;
-          const col    = f.color || 'var(--accent)';
+          const active     = filter === f.id;
+          const subShorts  = [...new Set(
+            POSTES_DISPLAY.filter(p => f.grps.includes(p.grp)).map(p => p.short).filter(Boolean)
+          )];
+          const hasSubPills = subShorts.length > 1;
           return (
-            <button
-              key={String(f.id)}
-              onClick={() => setFilter(f.id)}
-              style={{
-                display:'inline-flex', alignItems:'center', gap:5,
-                padding:'4px 11px', border:`1.5px solid ${col}`, borderRadius:20,
-                fontSize:10, fontFamily:'inherit',
-                fontWeight:700, letterSpacing:'.04em', cursor:'pointer',
-                transition:'background .12s, color .12s',
-                background: active ? col : 'transparent',
-                color:      active ? '#fff' : col, outline:'none',
-              }}
-            >
-              {f.color && (
+            <div key={f.id} style={{ display:'flex', flexDirection:'column', alignItems:'flex-start', gap:4 }}>
+              <button
+                onClick={() => { setFilter(active ? null : f.id); }}
+                title={active ? 'Cliquer pour tout réafficher' : ''}
+                style={{
+                  display:'inline-flex', alignItems:'center', gap:5,
+                  padding:'4px 11px', border:`1.5px solid ${f.color}`, borderRadius:20,
+                  fontSize:10, fontFamily:'inherit',
+                  fontWeight:700, letterSpacing:'.04em', cursor:'pointer',
+                  transition:'background .12s, color .12s',
+                  background: active ? f.color : 'transparent',
+                  color:      active ? '#fff'  : f.color, outline:'none',
+                }}
+              >
                 <span style={{ width:7, height:7, borderRadius:'50%', flexShrink:0,
                   background: active ? 'rgba(255,255,255,.75)' : f.color }} />
+                {f.label}
+                {hasSubPills && (
+                  <svg width="8" height="8" viewBox="0 0 10 10" fill="none"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ opacity: active ? .85 : .5, marginLeft:1, flexShrink:0,
+                             transform: active ? 'rotate(180deg)' : 'none', transition:'transform .15s' }}>
+                    <path d="M2 3.5 5 6.5 8 3.5"/>
+                  </svg>
+                )}
+              </button>
+              {active && hasSubPills && (
+                <div style={{ display:'flex', flexWrap:'wrap', gap:3, paddingLeft:10,
+                  borderLeft:`2px solid ${f.color}55`, marginLeft:7 }}>
+                  {subShorts.map(short => {
+                    const isSub = subFilter === short;
+                    return (
+                      <button key={short}
+                        onClick={() => setSubFilter(isSub ? null : short)}
+                        style={{
+                          padding:'2px 9px', borderRadius:14, fontSize:9, fontFamily:'inherit',
+                          fontWeight: isSub ? 700 : 500, letterSpacing:'.03em',
+                          cursor:'pointer', outline:'none',
+                          transition:'background .1s, color .1s',
+                          border:`1.5px solid ${f.color}${isSub ? 'cc' : '66'}`,
+                          background: isSub ? f.color + '22' : 'transparent',
+                          color: f.color,
+                        }}
+                      >
+                        {short}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-              {f.label}
-            </button>
+            </div>
           );
         })}
-        <span style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }} />
-        <div className="li">
+        <span style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px', alignSelf:'center' }} />
+        <div className="li" style={{ alignSelf:'center' }}>
           <div className="l-hatch" />
           <span style={{ fontSize:10, fontFamily:'sans-serif', color:'var(--text2)' }}>Jour non travaillé</span>
         </div>
         {isSecretary && (
           <>
-            <span style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px' }} />
-            <div className="li">
+            <span style={{ width:1, height:16, background:'var(--border2)', margin:'0 3px', alignSelf:'center' }} />
+            <div className="li" style={{ alignSelf:'center' }}>
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none" style={{ opacity:.5 }}>
                 <circle cx="5.5" cy="5.5" r="4.5" stroke="currentColor" strokeWidth="1.2"/>
                 <path d="M3.5 5.5h4M5.5 3.5v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
@@ -243,7 +346,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             fontFamily:'inherit', fontWeight:700,
             letterSpacing:'.04em', cursor:'pointer',
             border:'1.5px solid var(--border2)', background:'transparent', color:'var(--text2)',
-            display:'inline-flex', alignItems:'center', gap:5,
+            display:'inline-flex', alignItems:'center', gap:5, alignSelf:'center',
           }}
         >
           <svg width="13" height="13" viewBox="0 0 14 14" fill="none"
@@ -270,8 +373,8 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
               const holidayName = holidays.get(di);
               return (
                 <div key={i} className={`ghc${isToday ? ' today' : ''}`}
-                  style={!isToday && holidayName ? { background:'var(--holiday-stripe)', color:'#d97706' } : undefined}>
-                  {d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}
+                  style={{ ...((!isToday && holidayName) ? { background:'var(--holiday-stripe)', color:'#d97706' } : {}), display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+                  <span>{d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}</span>
                   {holidayName && (
                     <>
                       <div style={{ fontSize:8, fontWeight:600, marginTop:2, lineHeight:1.2, color: isToday ? 'inherit' : '#b45309' }}>
@@ -297,6 +400,28 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                       )}
                     </>
                   )}
+                  {phPerDay[di] != null && (() => {
+                    const count = phPerDay[di];
+                    const quota = new Date(di + 'T12:00:00').getDay() === 3 ? 11 : 12;
+                    const ratio = count / quota;
+                    const [col, bg] = ratio >= 1
+                      ? ['#16a34a', '#f0fdf4']
+                      : ratio >= 0.75
+                        ? ['#c2410c', '#fff7ed']
+                        : ['#dc2626', '#fef2f2'];
+                    const displayCount = count % 1 === 0 ? count : count.toFixed(1);
+                    return (
+                      <div style={{
+                        display:'flex', alignItems:'center',
+                        padding:'2px 7px', borderRadius:20,
+                        fontSize:9, fontWeight:700, letterSpacing:'.03em',
+                        color: col, background: bg,
+                        border: `1.5px solid ${col}`,
+                      }}>
+                        {displayCount} PH / {quota}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -332,6 +457,8 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                         onChipDragStart={handleChipDragStart}
                         onChipDragEnd={handleChipDragEnd}
                         onCellDrop={handleCellDrop}
+                        panelDragMed={panelDragMed}
+                        onPanelCellDrop={handlePanelCellDrop}
                       />
                     );
                   })}
@@ -342,6 +469,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         </div>
       </div>
 
+      {/* ── Panneau PH disponibles (P12 : visible si isSecretary via prop showAvailablePanel) ── */}
       {showAvailablePanel && (
         <div className="available-panel print-hide">
           <div className="available-panel-header">
@@ -353,6 +481,16 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
               {disponibles.full.length + disponibles.partial.length}
             </span>
           </div>
+          {isSecretary && (
+            <div className="panel-drag-hint" aria-label="Glisser un PH sur une cellule pour l'affecter">
+              <svg width="9" height="13" viewBox="0 0 9 13" fill="currentColor" aria-hidden="true" style={{ flexShrink:0 }}>
+                <circle cx="2" cy="2"  r="1.3"/><circle cx="7" cy="2"  r="1.3"/>
+                <circle cx="2" cy="6.5" r="1.3"/><circle cx="7" cy="6.5" r="1.3"/>
+                <circle cx="2" cy="11" r="1.3"/><circle cx="7" cy="11" r="1.3"/>
+              </svg>
+              Glisser un PH sur une cellule
+            </div>
+          )}
           {disponibles.full.length === 0 && disponibles.partial.length === 0 ? (
             <p className="available-empty">Aucun PH disponible cette semaine</p>
           ) : (
@@ -362,7 +500,20 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                   <div className="available-group-label">Présents 5j</div>
                   <ul className="available-list">
                     {disponibles.full.map(m => (
-                      <li key={m.id} className="available-item">
+                      <li key={m.id} className="available-item"
+                        draggable={isSecretary ? true : undefined}
+                        onDragStart={isSecretary ? e => { e.stopPropagation(); handlePanelDragStart(m); } : undefined}
+                        onDragEnd={isSecretary ? handlePanelDragEnd : undefined}
+                      >
+                        {isSecretary && (
+                          <span className="drag-handle" aria-hidden="true">
+                            <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
+                              <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
+                              <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
+                              <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
+                            </svg>
+                          </span>
+                        )}
                         <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
                         <span>
                           {m.prenom} {m.nom}
@@ -378,7 +529,20 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                   <div className="available-group-label" style={{ marginTop: disponibles.full.length ? 10 : 0 }}>Présents partiellement</div>
                   <ul className="available-list">
                     {disponibles.partial.map(m => (
-                      <li key={m.id} className="available-item">
+                      <li key={m.id} className="available-item"
+                        draggable={isSecretary ? true : undefined}
+                        onDragStart={isSecretary ? e => { e.stopPropagation(); handlePanelDragStart(m); } : undefined}
+                        onDragEnd={isSecretary ? handlePanelDragEnd : undefined}
+                      >
+                        {isSecretary && (
+                          <span className="drag-handle" aria-hidden="true">
+                            <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
+                              <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
+                              <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
+                              <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
+                            </svg>
+                          </span>
+                        )}
                         <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
                         <span>
                           {m.prenom} {m.nom}
@@ -395,7 +559,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       )}
       </div>
 
-      {/* ── Dialog confirmation déplacement ── */}
+      {/* ── Dialog confirmation déplacement chip ── */}
       {pendingMove && (
         <div
           style={{
@@ -410,7 +574,6 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             width:400, boxShadow:'0 8px 32px rgba(0,0,0,.18)',
             fontFamily:'inherit',
           }}>
-            {/* Titre */}
             <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>
               Déplacer {pendingMove.medNom}
             </div>
@@ -421,66 +584,141 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
               </svg>
               <span style={{ fontWeight:600 }}>{moveTgtName}</span>
             </div>
-
-            {/* Options */}
             <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
-              <button
-                onClick={() => confirmMove('day')}
-                style={{
-                  textAlign:'left', padding:'10px 14px',
-                  borderRadius:'var(--r)', cursor:'pointer',
-                  border:'1.5px solid var(--border2)',
-                  background:'var(--surface2)', color:'var(--text)',
-                  fontSize:12, fontFamily:'inherit',
-                  transition:'border-color .1s, background .1s',
-                }}
+              <button onClick={() => confirmMove('day')}
+                style={{ textAlign:'left', padding:'10px 14px', borderRadius:'var(--r)', cursor:'pointer',
+                  border:'1.5px solid var(--border2)', background:'var(--surface2)', color:'var(--text)',
+                  fontSize:12, fontFamily:'inherit', transition:'border-color .1s, background .1s' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; }}
               >
                 <div style={{ fontWeight:700, marginBottom:2 }}>Ce jour uniquement</div>
                 <div style={{ fontSize:10, color:'var(--text2)', textTransform:'capitalize' }}>{moveDayLabel}</div>
               </button>
-
-              <button
-                onClick={() => confirmMove('week')}
-                style={{
-                  textAlign:'left', padding:'10px 14px',
-                  borderRadius:'var(--r)', cursor:'pointer',
-                  border:'1.5px solid var(--border2)',
-                  background:'var(--surface2)', color:'var(--text)',
-                  fontSize:12, fontFamily:'inherit',
-                  transition:'border-color .1s, background .1s',
-                }}
+              <button onClick={() => confirmMove('week')}
+                style={{ textAlign:'left', padding:'10px 14px', borderRadius:'var(--r)', cursor:'pointer',
+                  border:'1.5px solid var(--border2)', background:'var(--surface2)', color:'var(--text)',
+                  fontSize:12, fontFamily:'inherit', transition:'border-color .1s, background .1s' }}
                 onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; }}
               >
                 <div style={{ fontWeight:700, marginBottom:2 }}>Toute la semaine</div>
                 <div style={{ fontSize:10, color:'var(--text2)' }}>
-                  {pendingMove.isExtra ? 'Remplace l\'affectation ponctuelle par une affectation semaine' : 'Toutes les vacations sont déplacées'}
+                  {pendingMove.isExtra ? "Remplace l'affectation ponctuelle par une affectation semaine" : 'Toutes les vacations sont déplacées'}
                 </div>
               </button>
             </div>
-
-            <button
-              onClick={() => setPendingMove(null)}
-              style={{
-                width:'100%', padding:'6px', border:'1px solid var(--border2)',
+            <button onClick={() => setPendingMove(null)}
+              style={{ width:'100%', padding:'6px', border:'1px solid var(--border2)',
                 borderRadius:'var(--r)', background:'transparent', cursor:'pointer',
-                fontSize:11, color:'var(--text3)', fontFamily:'inherit',
-              }}
+                fontSize:11, color:'var(--text3)', fontFamily:'inherit' }}
             >
               Annuler
             </button>
           </div>
         </div>
       )}
+
+      {/* ── Dialog confirmation affectation depuis panneau (P14) ── */}
+      {pendingPanelAssign && (() => {
+        const { med, targetPoste, dayIso: dIso } = pendingPanelAssign;
+        const tIds = [targetPoste.id, ...(targetPoste.combineWith ? [targetPoste.combineWith] : [])];
+
+        // Garde "Toute la semaine" : bloqué si le PH a déjà une affectation, un extra
+        // ou un renfort n'importe où cette semaine (il serait en double ce(s) jour(s))
+        const weekBlock =
+          Object.values(byPoste).some(p => p.medecins?.some(m => m.id === med.id)) ||
+          extras.some(e => e.med_id === med.id) ||
+          renforts.some(r => r.med_id === med.id);
+
+        // Garde "Ce jour" : bloqué si le PH est déjà occupé ce jour dans un autre poste
+        const dayBlock =
+          extras.some(e => e.med_id === med.id && e.jour === dIso && !tIds.includes(e.poste_id)) ||
+          renforts.some(r => r.med_id === med.id && r.jour === dIso && !tIds.includes(r.poste_id)) ||
+          Object.entries(byPoste).some(([pid, data]) =>
+            !tIds.includes(pid) &&
+            data.medecins?.some(m =>
+              m.id === med.id &&
+              !exclusions.some(e => e.poste_id === pid && e.med_id === med.id && e.jour === dIso) &&
+              worksDay(m, dIso, absences)
+            )
+          );
+
+        return (
+        <div
+          style={{
+            position:'fixed', inset:0, background:'rgba(0,0,0,.38)',
+            zIndex:700, display:'flex', alignItems:'center', justifyContent:'center',
+          }}
+          onClick={e => { if (e.target === e.currentTarget) setPendingPanelAssign(null); }}
+        >
+          <div style={{
+            background:'var(--surface)', borderRadius:'var(--rl)',
+            border:'1px solid var(--border2)', padding:'1.5rem',
+            width:380, boxShadow:'0 8px 32px rgba(0,0,0,.18)',
+            fontFamily:'inherit',
+          }}>
+            <div style={{ fontSize:15, fontWeight:700, marginBottom:4 }}>
+              Affecter {med.prenom} {med.nom}
+            </div>
+            <div style={{ fontSize:12, color:'var(--text2)', marginBottom:18 }}>
+              → <strong>{targetPoste.lbl}</strong>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:16 }}>
+              <button
+                onClick={dayBlock ? undefined : () => confirmPanelAssign('day')}
+                disabled={dayBlock}
+                title={dayBlock ? 'Déjà en poste ou remplaçant ailleurs ce jour' : undefined}
+                style={{ textAlign:'left', padding:'10px 14px', borderRadius:'var(--r)',
+                  cursor: dayBlock ? 'not-allowed' : 'pointer',
+                  border:'1.5px solid var(--border2)', background:'var(--surface2)', color:'var(--text)',
+                  fontSize:12, fontFamily:'inherit', opacity: dayBlock ? 0.45 : 1,
+                  transition:'border-color .1s, background .1s' }}
+                onMouseEnter={!dayBlock ? e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; } : undefined}
+                onMouseLeave={!dayBlock ? e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; } : undefined}
+              >
+                <div style={{ fontWeight:700, marginBottom:2 }}>Ce jour uniquement</div>
+                <div style={{ fontSize:10, textTransform:'capitalize',
+                  color: dayBlock ? '#dc2626' : 'var(--text2)' }}>
+                  {dayBlock ? 'Déjà occupé ce jour' : panelAssignDayLabel}
+                </div>
+              </button>
+              <button
+                onClick={weekBlock ? undefined : () => confirmPanelAssign('week')}
+                disabled={weekBlock}
+                title={weekBlock ? 'Déjà affecté ou remplaçant quelque part cette semaine' : undefined}
+                style={{ textAlign:'left', padding:'10px 14px', borderRadius:'var(--r)',
+                  cursor: weekBlock ? 'not-allowed' : 'pointer',
+                  border:'1.5px solid var(--border2)', background:'var(--surface2)', color:'var(--text)',
+                  fontSize:12, fontFamily:'inherit', opacity: weekBlock ? 0.45 : 1,
+                  transition:'border-color .1s, background .1s' }}
+                onMouseEnter={!weekBlock ? e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; } : undefined}
+                onMouseLeave={!weekBlock ? e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; } : undefined}
+              >
+                <div style={{ fontWeight:700, marginBottom:2 }}>Toute la semaine</div>
+                <div style={{ fontSize:10, color: weekBlock ? '#dc2626' : 'var(--text2)' }}>
+                  {weekBlock ? 'Déjà affecté / remplaçant cette semaine' : 'Affectation hebdomadaire'}
+                </div>
+              </button>
+            </div>
+            <button onClick={() => setPendingPanelAssign(null)}
+              style={{ width:'100%', padding:'6px', border:'1px solid var(--border2)',
+                borderRadius:'var(--r)', background:'transparent', cursor:'pointer',
+                fontSize:11, color:'var(--text3)', fontFamily:'inherit' }}
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
+        );
+      })()}
     </div>
   );
 }
 
 // ── Ligne de poste ──────────────────────────────────────────
 
-function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts, absences, doctorFilter, holidays, isSecretary, onCellClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop }) {
+function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts, absences, doctorFilter, holidays, isSecretary, onCellClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop, panelDragMed, onPanelCellDrop }) {
   const daysPresent = {};
   assigned.forEach(m => {
     daysPresent[m.id] = days.filter(d => worksDay(m, toIso(d), absences)).length;
@@ -516,6 +754,8 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts
             onChipDragStart={onChipDragStart}
             onChipDragEnd={onChipDragEnd}
             onCellDrop={onCellDrop}
+            panelDragMed={panelDragMed}
+            onPanelCellDrop={onPanelCellDrop}
           />
         );
       })}
@@ -525,15 +765,18 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts
 
 // ── Cellule ────────────────────────────────────────────────
 
-function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, extras, renforts, absences, doctorFilter, isHoliday, isSecretary, onClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop }) {
+function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, extras, renforts, absences, doctorFilter, isHoliday, isSecretary, onClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop, panelDragMed, onPanelCellDrop }) {
   const [isOver,  setIsOver]  = useState(false);
   const dragCounter           = useRef(0);
 
-  if (isHoliday) {
+  const isHdjWednesday = poste.id === 'hdj' && new Date(dayIso).getDay() === 3;
+
+  if (isHoliday || isHdjWednesday) {
     return (
       <div
         className={`cell${isToday ? ' today' : ''}`}
-        style={!isToday ? { background:'var(--holiday-stripe)' } : undefined}
+        style={!isToday ? { background:'var(--holiday-stripe)', cursor: isHdjWednesday ? 'not-allowed' : undefined } : undefined}
+        title={isHdjWednesday ? 'HDJ fermé le mercredi' : undefined}
       />
     );
   }
@@ -561,8 +804,6 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
     ? { background:'var(--off-stripe)', cursor: isSecretary ? 'pointer' : 'default' }
     : {};
 
-  // Fusion présents + extras dans une liste unique triée :
-  // 1. typeRank  2. réguliers avant extras (même type)  3. stableOrder / alphabétique
   const allChips = [
     ...present.map(m => ({
       key: m.id,
@@ -591,13 +832,9 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
   ].sort((a, b) => {
     const ra = typeRank(a.type ?? ''), rb = typeRank(b.type ?? '');
     if (ra !== rb) return ra - rb;
-    // Renforts en dernier
     if (a.isRenfort !== b.isRenfort) return a.isRenfort ? 1 : -1;
-    // Même type : régulier avant extra
     if (a.isExtra !== b.isExtra) return a.isExtra ? 1 : -1;
-    // Réguliers : ordre stable calculé sur la semaine
     if (!a.isExtra && !a.isRenfort) return (stableOrder[a.id] ?? 9999) - (stableOrder[b.id] ?? 9999);
-    // Extras / renforts : alphabétique
     return a.nom.localeCompare(b.nom, 'fr');
   });
 
@@ -615,15 +852,18 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
     e.preventDefault();
     dragCounter.current = 0;
     setIsOver(false);
-    onCellDrop(poste);
+    if (panelDragMed) {
+      onPanelCellDrop(poste, dayIso);
+    } else {
+      onCellDrop(poste);
+    }
   }
 
-  // Est-ce que le drag en cours vient de cette cellule ?
-  const isDragSource = dragInfo && dragInfo.sourcePid === poste.id && dragInfo.dayIso === dayIso;
+  const isDropActive = isOver && (dragInfo || panelDragMed);
 
   return (
     <div
-      className={`cell${isSecretary ? ' avail' : ''}${isToday ? ' today' : ''}${isOver && dragInfo ? ' drop-target' : ''}`}
+      className={`cell${isSecretary ? ' avail' : ''}${isToday ? ' today' : ''}${isDropActive ? ' drop-target' : ''}`}
       style={cellBg}
       onClick={isSecretary ? onClick : undefined}
       onDragOver={isSecretary ? e => e.preventDefault() : undefined}

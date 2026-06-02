@@ -34,19 +34,8 @@
       "mcp__github__push_files",
       "mcp__github__create_or_update_file",
       "Bash(gh auth *)",
-      "Bash(git remote *)"
-    ]
-  },
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cd \"/Users/jeanchevillard/Documents/tests de code/planning-geriatrie\" && git add -A && git diff --cached --quiet || git commit -m \"Auto-commit: session changes $(date '+%Y-%m-%d %H:%M')\" && git push 2>/dev/null || true"
-          }
-        ]
-      }
+      "Bash(git remote *)",
+      "Bash(lsof -ti:3001)"
     ]
   }
 }
