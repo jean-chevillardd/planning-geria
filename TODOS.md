@@ -17,7 +17,7 @@
 **Priority:** P1
 **Depends on:** Rien (P4-bis a résolu la dépendance métier).
 
-## ~~P2 — Alerte couverture minimale~~ ✅ DONE 2026-06-02
+## P2 — Alerte couverture minimale
 
 **What:** Afficher une alerte visuelle (ligne rouge ou icône) sur les lignes de service dont le nombre de PH affectés est inférieur au seuil minimal défini dans P4-bis.
 
@@ -37,6 +37,8 @@
 **Effort:** XS (CC: ~15min)
 **Priority:** P2
 **Depends on:** Rien (seuils définis dans P4-bis).
+
+> **Note (2026-06-02) :** une première implémentation (flags POSTES, alertes enrichies, bannière dispensables) a été tentée dans le commit 85de787 puis **revertée** (commit 93fe6e5) — à reprendre proprement.
 
 ## P3 — Export PDF planning semaine (dédié)
 **What:** Bouton "Exporter PDF" générant un PDF de la semaine courante avec mise en page correcte, distinct du CSS @media print existant.
@@ -83,6 +85,8 @@
 **Effort:** L (plusieurs sous-tâches indépendantes, à décomposer)
 **Priority:** P4-bis (démarrer par les données / config avant l'UI)
 **Depends on:** Rien (les règles sont désormais connues).
+
+> **Note (2026-06-02) :** implémentation partielle (flags POSTES, alertes, bannière dispensables) tentée dans 85de787 et **revertée** (93fe6e5) — à reprendre pas à pas avec l'utilisateur.
 
 ---
 
