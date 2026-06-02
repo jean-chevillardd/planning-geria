@@ -24,7 +24,9 @@
       "Bash(sqlite3 '/Users/jeanchevillard/Documents/tests de code/planning-geriatrie/server/database.sqlite' ' *)",
       "WebSearch",
       "Bash(npx skillfish *)",
-      "Bash(npm test *)"
+      "Bash(npm test *)",
+      "mcp__github__search_repositories",
+      "mcp__github__search_code"
     ]
   },
   "hooks": {
