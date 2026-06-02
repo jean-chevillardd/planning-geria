@@ -120,15 +120,14 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
       .map(a => a.med_id)
   );
 
-  // medId → Set des posteIds où ce praticien est affecté
-  const medPostes = {};
+  // medId → Set des posteIds où ce praticien est affecté (Map pour préserver le type des clés)
+  const medPosteMap = new Map();
   for (const [posteId, posteData] of Object.entries(byPoste)) {
     for (const m of (posteData.medecins || [])) {
-      if (!medPostes[m.id]) medPostes[m.id] = new Set();
-      medPostes[m.id].add(posteId);
+      if (!medPosteMap.has(m.id)) medPosteMap.set(m.id, new Set());
+      medPosteMap.get(m.id).add(posteId);
     }
   }
-  const assignedIds = new Set(Object.keys(medPostes).map(Number));
 
   const full = [];
   const partial = [];
@@ -136,7 +135,7 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
   for (const m of medecins) {
     if (!m.actif || m.type !== 'ph' || absentIds.has(m.id)) continue;
 
-    if (!assignedIds.has(m.id)) {
+    if (!medPosteMap.has(m.id)) {
       // Non affecté : logique originale
       const joursPresents = dayIsos
         .map((iso, i) => worksDay(m, iso, absences) ? DAYS_FR[i] : null)
@@ -145,7 +144,7 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
       else if (joursPresents.length > 0)        partial.push({ ...m, joursPresents });
     } else {
       // Affecté : libre uniquement les jours où il est exclu de TOUS ses postes
-      const myPostes = [...(medPostes[m.id] || [])];
+      const myPostes = [...medPosteMap.get(m.id)];
       const joursLibres = dayIsos
         .map((iso, i) => {
           if (!worksDay(m, iso, absences)) return null;
