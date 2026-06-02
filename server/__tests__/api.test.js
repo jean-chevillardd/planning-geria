@@ -177,6 +177,119 @@ describe('PATCH /api/medecins/:id/archiver', () => {
   });
 });
 
+describe('PATCH /api/medecins/:id/desarchiver', () => {
+  test('désarchive un médecin — réapparaît dans la liste active', async () => {
+    const cr = await request(app).post('/api/medecins').send({ nom: 'Dr Reanimate', type: 'ph' });
+    const id = cr.body.id;
+    await request(app).patch(`/api/medecins/${id}/archiver`);
+    const archived = await request(app).get('/api/medecins');
+    expect(archived.body.find(m => m.id === id)).toBeUndefined();
+
+    const res = await request(app).patch(`/api/medecins/${id}/desarchiver`);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    const active = await request(app).get('/api/medecins');
+    expect(active.body.find(m => m.id === id)).toBeDefined();
+  });
+
+  test('ID inexistant — retourne 404', async () => {
+    const res = await request(app).patch('/api/medecins/id_fantome/desarchiver');
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('PUT /api/medecins/:id — champs email, service, tel', () => {
+  let medId;
+
+  beforeAll(async () => {
+    const res = await request(app).post('/api/medecins').send({ nom: 'Dr Fields', type: 'ph' });
+    medId = res.body.id;
+  });
+
+  test('met à jour email', async () => {
+    const res = await request(app).put(`/api/medecins/${medId}`).send({ email: 'dr@chu.fr' });
+    expect(res.status).toBe(200);
+    expect(res.body.email).toBe('dr@chu.fr');
+  });
+
+  test('met à jour service', async () => {
+    const res = await request(app).put(`/api/medecins/${medId}`).send({ service: 'ssr' });
+    expect(res.status).toBe(200);
+    expect(res.body.service).toBe('ssr');
+  });
+
+  test('met à jour tel', async () => {
+    const res = await request(app).put(`/api/medecins/${medId}`).send({ tel: '0601020304' });
+    expect(res.status).toBe(200);
+    expect(res.body.tel).toBe('0601020304');
+  });
+
+  test('email null efface l\'email', async () => {
+    const res = await request(app).put(`/api/medecins/${medId}`).send({ email: null });
+    expect(res.status).toBe(200);
+    expect(res.body.email).toBeNull();
+  });
+
+  test('sched invalide (9 chars) → 400', async () => {
+    const res = await request(app).put(`/api/medecins/${medId}`).send({ sched: '111111111' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/sched invalide/);
+  });
+
+  test('sched invalide (caractère non-binaire) → 400', async () => {
+    const res = await request(app).put(`/api/medecins/${medId}`).send({ sched: '111111111X' });
+    expect(res.status).toBe(400);
+  });
+
+  test('PUT sans champ — retourne le médecin inchangé', async () => {
+    const res = await request(app).put(`/api/medecins/${medId}`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe(medId);
+  });
+});
+
+describe('POST /api/medecins — validation sched', () => {
+  test('sched invalide (longueur 9) → 400', async () => {
+    const res = await request(app).post('/api/medecins').send({ nom: 'Dr SchedBad', type: 'ph', sched: [1,1,1,1,1,1,1,1,1] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/sched invalide/);
+  });
+
+  test('sched valide personnalisé → 200', async () => {
+    const res = await request(app).post('/api/medecins').send({ nom: 'Dr SchedOk', type: 'ph', sched: [1,0,1,0,1,0,1,0,1,0] });
+    expect(res.status).toBe(200);
+    expect(res.body.sched).toEqual([1,0,1,0,1,0,1,0,1,0]);
+  });
+});
+
+describe('POST /api/affectations/move', () => {
+  let medId;
+
+  beforeAll(async () => {
+    const res = await request(app).post('/api/medecins').send({ nom: 'Dr Move', type: 'ph' });
+    medId = res.body.id;
+    await request(app).post('/api/affectations').send({ week_key: '2025-09-01', poste_id: 'csg1a', med_id: medId });
+  });
+
+  test('déplace atomiquement une affectation — source disparaît, cible apparaît', async () => {
+    const res = await request(app).post('/api/affectations/move').send({
+      week_key: '2025-09-01', source_poste_id: 'csg1a', target_poste_id: 'ssr3', med_id: medId
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    const plan = await request(app).get('/api/planning/2025-09-01');
+    expect(plan.body.affectations['csg1a']?.medecins?.some(m => m.id === medId)).toBeFalsy();
+    expect(plan.body.affectations['ssr3']?.medecins?.some(m => m.id === medId)).toBe(true);
+  });
+
+  test('400 si champs manquants', async () => {
+    const res = await request(app).post('/api/affectations/move').send({ week_key: '2025-09-01' });
+    expect(res.status).toBe(400);
+  });
+});
+
 // ════════════════════════════════════════════════════════════════════════════
 // ABSENCES
 // ════════════════════════════════════════════════════════════════════════════
@@ -783,17 +896,21 @@ describe('Statistiques', () => {
 describe('Congés self-service', () => {
   let medId, validToken;
 
-  beforeAll(async () => {
-    const res = await request(app).post('/api/medecins').send({ nom: 'Dr Conge', type: 'ph' });
-    medId = res.body.id;
-    // Insérer directement un token valide via dbLib
+  function insertToken(suffix = '') {
     const now = new Date();
-    validToken = 'test_token_valide_' + Date.now();
+    const token = 'test_token_' + Date.now() + suffix;
     const expires = new Date(now.getTime() + 72 * 60 * 60 * 1000).toISOString();
     dbLib.run(
       'INSERT INTO conge_tokens (token,med_id,created_at,expires_at) VALUES (?,?,?,?)',
-      [validToken, medId, now.toISOString(), expires]
+      [token, medId, now.toISOString(), expires]
     );
+    return token;
+  }
+
+  beforeAll(async () => {
+    const res = await request(app).post('/api/medecins').send({ nom: 'Dr Conge', type: 'ph' });
+    medId = res.body.id;
+    validToken = insertToken('_base');
   });
 
   test('GET /api/conge/token/:token — token valide → 200 avec infos médecin', async () => {
@@ -810,13 +927,29 @@ describe('Congés self-service', () => {
   });
 
   test('POST /api/conge/submit — happy path', async () => {
+    const token = insertToken('_submit');
     const res = await request(app).post('/api/conge/submit').send({
-      token: validToken,
+      token,
       absences: [{ date_debut: '2025-09-01', date_fin: '2025-09-05', type_abs: 'Congé annuel (CA)' }]
     });
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.count).toBe(1);
+  });
+
+  test('POST /api/conge/submit — token invalidé après usage (pas de double soumission)', async () => {
+    const token = insertToken('_once');
+    // Première soumission : ok
+    await request(app).post('/api/conge/submit').send({
+      token,
+      absences: [{ date_debut: '2025-10-01', date_fin: '2025-10-01', type_abs: 'RTT' }]
+    });
+    // Deuxième soumission avec le même token : 404
+    const res2 = await request(app).post('/api/conge/submit').send({
+      token,
+      absences: [{ date_debut: '2025-10-02', date_fin: '2025-10-02', type_abs: 'RTT' }]
+    });
+    expect(res2.status).toBe(404);
   });
 
   test('POST /api/conge/submit — 400 si token manquant', async () => {
@@ -827,8 +960,9 @@ describe('Congés self-service', () => {
   });
 
   test('POST /api/conge/submit — 400 si absences vide', async () => {
+    const token = insertToken('_empty');
     const res = await request(app).post('/api/conge/submit').send({
-      token: validToken, absences: []
+      token, absences: []
     });
     expect(res.status).toBe(400);
   });

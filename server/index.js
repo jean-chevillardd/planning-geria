@@ -64,6 +64,7 @@ function createApp(dbLib) {
   const app = express();
 
   const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+  if (!process.env.JWT_SECRET) console.warn('⚠ JWT_SECRET non défini — sessions invalidées à chaque redémarrage');
   let DB_READY = false;
   let SECRETARY_HASH = '';
 
@@ -165,6 +166,7 @@ function createApp(dbLib) {
         );
         count++;
       }
+      dbLib.run('DELETE FROM conge_tokens WHERE token=?', [token]);
     });
     res.json({ ok: true, count });
   });
@@ -196,12 +198,16 @@ function createApp(dbLib) {
     res.json(rows.map(r => ({ ...r, sched: r.sched.split('').map(Number) })));
   });
 
+  const SCHED_RE = /^[01]{10}$/;
+
   app.post('/api/medecins', (req, res) => {
     const { nom, type, sched, service, tel, email } = req.body;
     if (!nom || !type) return res.status(400).json({ error: 'nom et type requis' });
     if (!MED_TYPES.has(type)) return res.status(400).json({ error: 'type invalide' });
     const id = 'm_' + Date.now();
     const schedStr = (sched || Array(10).fill(1)).join('');
+    if (!SCHED_RE.test(schedStr))
+      return res.status(400).json({ error: 'sched invalide (10 caractères 0/1 attendus)' });
     const svc   = service || 'geriatrie';
     const phone = tel || '';
     const mail  = email || null;
@@ -215,15 +221,25 @@ function createApp(dbLib) {
     const { id } = req.params;
     if (type !== undefined && !MED_TYPES.has(type))
       return res.status(400).json({ error: 'type invalide' });
-    if (nom     !== undefined) dbLib.run('UPDATE medecins SET nom=?     WHERE id=?', [nom, id]);
-    if (type    !== undefined) dbLib.run('UPDATE medecins SET type=?    WHERE id=?', [type, id]);
+    const sets = [];
+    const vals = [];
+    if (nom     !== undefined) { sets.push('nom=?');     vals.push(nom); }
+    if (type    !== undefined) { sets.push('type=?');    vals.push(type); }
     if (sched   !== undefined) {
       const s = Array.isArray(sched) ? sched.join('') : sched;
-      dbLib.run('UPDATE medecins SET sched=? WHERE id=?', [s, id]);
+      if (!SCHED_RE.test(s))
+        return res.status(400).json({ error: 'sched invalide (10 caractères 0/1 attendus)' });
+      sets.push('sched=?'); vals.push(s);
     }
-    if (service !== undefined) dbLib.run('UPDATE medecins SET service=? WHERE id=?', [service, id]);
-    if (tel     !== undefined) dbLib.run('UPDATE medecins SET tel=?     WHERE id=?', [tel, id]);
-    if (email   !== undefined) dbLib.run('UPDATE medecins SET email=?   WHERE id=?', [email || null, id]);
+    if (service !== undefined) { sets.push('service=?'); vals.push(service); }
+    if (tel     !== undefined) { sets.push('tel=?');     vals.push(tel); }
+    if (email   !== undefined) { sets.push('email=?');   vals.push(email || null); }
+    if (sets.length > 0) {
+      vals.push(id);
+      dbLib.transaction(() => {
+        dbLib.run(`UPDATE medecins SET ${sets.join(', ')} WHERE id=?`, vals);
+      });
+    }
     const updated = dbLib.queryOne('SELECT * FROM medecins WHERE id=?', [id]);
     if (!updated) return res.status(404).json({ error: 'Médecin non trouvé' });
     res.json({ ...updated, sched: updated.sched.split('').map(Number) });
@@ -251,11 +267,15 @@ function createApp(dbLib) {
   // ABSENCES
   // ═══════════════════════════════════════════════════════
   app.get('/api/absences', (req, res) => {
+    const year = new Date().getFullYear();
+    const from = `${year - 1}-01-01`;
+    const to   = `${year + 1}-12-31`;
     const rows = dbLib.queryAll(`
       SELECT a.id, a.med_id, a.date_debut, a.date_fin, a.type_abs, a.demi_journee, m.nom as med_nom
       FROM absences a JOIN medecins m ON a.med_id=m.id
+      WHERE a.date_fin >= ? AND a.date_debut <= ?
       ORDER BY a.date_debut DESC
-    `);
+    `, [from, to]);
     res.json(rows);
   });
 
@@ -357,6 +377,21 @@ function createApp(dbLib) {
     if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
     dbLib.run('DELETE FROM affectations WHERE week_key=? AND poste_id=? AND med_id=?', [week_key, poste_id, med_id]);
     dbLib.run('DELETE FROM exclusions   WHERE week_key=? AND poste_id=? AND med_id=?', [week_key, poste_id, med_id]);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/affectations/move', (req, res) => {
+    const { week_key, source_poste_id, target_poste_id, med_id } = req.body;
+    if (!week_key || !source_poste_id || !target_poste_id || !med_id)
+      return res.status(400).json({ error: 'Champs manquants' });
+    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+    if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
+    dbLib.transaction(() => {
+      dbLib.run('DELETE FROM affectations WHERE week_key=? AND poste_id=? AND med_id=?',
+        [week_key, source_poste_id, med_id]);
+      dbLib.run('INSERT OR IGNORE INTO affectations (week_key,poste_id,med_id) VALUES (?,?,?)',
+        [week_key, target_poste_id, med_id]);
+    });
     res.json({ ok: true });
   });
 

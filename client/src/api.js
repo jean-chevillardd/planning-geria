@@ -41,6 +41,7 @@ export const getPlanning = (weekKey) => req('GET', `/planning/${weekKey}`);
 // ── Affectations hebdo ──────────────────────────────────
 export const addAffectation    = (data) => req('POST',   '/affectations', data);
 export const deleteAffectation = (data) => req('DELETE', '/affectations', data);
+export const moveAffectation   = (data) => req('POST',   '/affectations/move', data);
 
 // ── Exclusions journalières ─────────────────────────────
 export const addExclusion    = (data) => req('POST',   '/exclusions', data);

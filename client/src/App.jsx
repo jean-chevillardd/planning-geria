@@ -322,15 +322,21 @@ export default function App() {
           reloadPlan();
         };
       } else {
-        if (isExtra) await api.deleteExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
-        else         await api.deleteAffectation({ week_key:weekKey, poste_id:sourcePid, med_id:medId });
-        await api.addAffectation({ week_key:weekKey, poste_id:targetPid, med_id:medId });
-        undoFn = async () => {
-          await api.deleteAffectation({ week_key:weekKey, poste_id:targetPid, med_id:medId });
-          if (isExtra) await api.addExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
-          else         await api.addAffectation({ week_key:weekKey, poste_id:sourcePid, med_id:medId });
-          reloadPlan();
-        };
+        if (isExtra) {
+          await api.deleteExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
+          await api.addAffectation({ week_key:weekKey, poste_id:targetPid, med_id:medId });
+          undoFn = async () => {
+            await api.deleteAffectation({ week_key:weekKey, poste_id:targetPid, med_id:medId });
+            await api.addExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
+            reloadPlan();
+          };
+        } else {
+          await api.moveAffectation({ week_key:weekKey, source_poste_id:sourcePid, target_poste_id:targetPid, med_id:medId });
+          undoFn = async () => {
+            await api.moveAffectation({ week_key:weekKey, source_poste_id:targetPid, target_poste_id:sourcePid, med_id:medId });
+            reloadPlan();
+          };
+        }
       }
       pushUndo('Déplacement', undoFn);
       reloadPlan();
