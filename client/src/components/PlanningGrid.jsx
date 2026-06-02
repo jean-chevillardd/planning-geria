@@ -68,11 +68,8 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
   // ── Disponibles PH cette semaine (groupés 5j / partiels) ──
   const disponibles = useMemo(() => {
     if (!showAvailablePanel) return { full: [], partial: [] };
-    const assignedIds = new Set(
-      Object.values(byPoste).flatMap(p => (p.medecins || []).map(m => m.id))
-    );
-    return getDisponiblesPH(medecins, absences, days, assignedIds);
-  }, [showAvailablePanel, medecins, absences, monday, byPoste]);
+    return getDisponiblesPH(medecins, absences, days, byPoste, exclusions);
+  }, [showAvailablePanel, medecins, absences, monday, byPoste, exclusions]);
 
   // ── Alertes ──────────────────────────────────────────────
   const alerts = useMemo(() => {

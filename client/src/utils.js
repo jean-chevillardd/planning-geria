@@ -110,27 +110,55 @@ export function worksWeekAny(med, monday, absences = []) {
  * Ne retourne que les praticiens de type 'ph' (Praticien Hospitalier).
  * SQLite stocke actif comme INTEGER — utiliser !!m.actif, pas m.actif === true.
  */
-export function getDisponiblesPH(medecins, absences, days, assignedIds = new Set()) {
+export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusions = []) {
   if (!medecins || !absences || !days?.length) return { full: [], partial: [] };
   const dayIsos = days.map(d => toIso(d));
+
   const absentIds = new Set(
     absences
       .filter(a => dayIsos.some(d => d >= a.date_debut && d <= a.date_fin))
       .map(a => a.med_id)
   );
-  const phDispo = medecins.filter(m => !!m.actif && m.type === 'ph' && !absentIds.has(m.id) && !assignedIds.has(m.id));
-  const full = [];
-  const partial = [];
-  for (const m of phDispo) {
-    const joursPresents = dayIsos
-      .map((iso, i) => worksDay(m, iso, absences) ? DAYS_FR[i] : null)
-      .filter(Boolean);
-    if (joursPresents.length === days.length) {
-      full.push(m);
-    } else if (joursPresents.length > 0) {
-      partial.push({ ...m, joursPresents });
+
+  // medId → Set des posteIds où ce praticien est affecté
+  const medPostes = {};
+  for (const [posteId, posteData] of Object.entries(byPoste)) {
+    for (const m of (posteData.medecins || [])) {
+      if (!medPostes[m.id]) medPostes[m.id] = new Set();
+      medPostes[m.id].add(posteId);
     }
   }
+  const assignedIds = new Set(Object.keys(medPostes).map(Number));
+
+  const full = [];
+  const partial = [];
+
+  for (const m of medecins) {
+    if (!m.actif || m.type !== 'ph' || absentIds.has(m.id)) continue;
+
+    if (!assignedIds.has(m.id)) {
+      // Non affecté : logique originale
+      const joursPresents = dayIsos
+        .map((iso, i) => worksDay(m, iso, absences) ? DAYS_FR[i] : null)
+        .filter(Boolean);
+      if (joursPresents.length === days.length) full.push(m);
+      else if (joursPresents.length > 0)        partial.push({ ...m, joursPresents });
+    } else {
+      // Affecté : libre uniquement les jours où il est exclu de TOUS ses postes
+      const myPostes = [...(medPostes[m.id] || [])];
+      const joursLibres = dayIsos
+        .map((iso, i) => {
+          if (!worksDay(m, iso, absences)) return null;
+          const excluDeTous = myPostes.every(pid =>
+            exclusions.some(e => e.med_id === m.id && e.poste_id === pid && e.jour === iso)
+          );
+          return excluDeTous ? DAYS_FR[i] : null;
+        })
+        .filter(Boolean);
+      if (joursLibres.length > 0) partial.push({ ...m, joursPresents: joursLibres });
+    }
+  }
+
   full.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
   partial.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
   return { full, partial };
