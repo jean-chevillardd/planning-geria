@@ -1,6 +1,6 @@
 // components/PlanningGrid.jsx
 import { useMemo, useState, useRef } from 'react';
-import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getSchedHalfDay, getFrenchHolidays, getDisponiblesPH, dispensablesStatus, ssrPhCount } from '../utils';
+import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getSchedHalfDay, getFrenchHolidays, getDisponiblesPH } from '../utils';
 
 function fmtWeek(monday, days) {
   const opts = { day: 'numeric', month: 'long', year: 'numeric' };
@@ -71,98 +71,35 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     return getDisponiblesPH(medecins, absences, days, byPoste, exclusions);
   }, [showAvailablePanel, medecins, absences, monday, byPoste, exclusions]);
 
-  // ── Statut services dispensables (par jour) ──────────────
-  const dispStatus = useMemo(
-    () => dispensablesStatus(medecins, absences, days),
-    [medecins, absences, monday]
-  );
-
   // ── Alertes ──────────────────────────────────────────────
   const alerts = useMemo(() => {
     const warns = [];
-
-    days.forEach(d => {
-      const di  = toIso(d);
-      const dow = new Date(di + 'T12:00:00').getDay();
-      const isWed = dow === 3;
-      if (holidays.has(di)) return;
-
-      POSTES_DISPLAY
-        .filter(p => p.obligatoire === true && (p.min > 0 || p.minPH > 0))
-        .forEach(p => {
-          // HDJ fermé le mercredi : pas d'alerte
-          if (p.closedWednesday && isWed) return;
-          // UCC : absence tolérée le mercredi
-          if (p.noAlertWednesday && isWed) return;
-          // SSR : géré séparément via la règle consécutive ci-dessous
-          if (p.ssrGroup) return;
-          // EHPAD : continuité gérée séparément ci-dessous
-          if (p.ehpadContinuity) return;
-
-          const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
-          const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
-          const excl     = exclusions.filter(e => allIds.includes(e.poste_id) && e.jour === di).map(e => e.med_id);
-          const ext      = extras.filter(e => allIds.includes(e.poste_id) && e.jour === di);
-
-          if (p.minPH) {
-            const phPresent = [
-              ...assigned.filter(m => m.type === 'ph' && worksDay(m, di, absences) && !excl.includes(m.id)),
-              ...ext.filter(e => e.type === 'ph'),
-            ];
-            if (phPresent.length < p.minPH) warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
-          } else {
-            const present = [
-              ...assigned.filter(m => worksDay(m, di, absences) && !excl.includes(m.id)),
-              ...ext,
-            ];
-            if (present.length < p.min) warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
-          }
-        });
-    });
-
-    // ── SSR : alerte par sous-service + règle consécutive ──
-    const ssrPostes = POSTES_DISPLAY.filter(p => p.ssrGroup);
     days.forEach(d => {
       const di = toIso(d);
       if (holidays.has(di)) return;
-      ssrPostes.forEach(p => {
-        const assigned = byPoste[p.id]?.medecins || [];
-        const excl = exclusions.filter(e => e.poste_id === p.id && e.jour === di).map(e => e.med_id);
-        const ext  = extras.filter(e => e.poste_id === p.id && e.jour === di);
-        const present = [
-          ...assigned.filter(m => worksDay(m, di, absences) && !excl.includes(m.id)),
-          ...ext,
-        ];
-        if (present.length < p.min) warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
+      POSTES_DISPLAY.filter(p => p.min > 0 || p.minPH > 0).forEach(p => {
+        const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
+        const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
+        const excl     = exclusions.filter(e => allIds.includes(e.poste_id) && e.jour === di).map(e => e.med_id);
+        const ext      = extras.filter(e => allIds.includes(e.poste_id) && e.jour === di);
+        if (p.minPH) {
+          // Vérifier uniquement les PH (praticiens hospitaliers) pour les postes avec seuil PH
+          const phPresent = [
+            ...assigned.filter(m => m.type === 'ph' && worksDay(m, di, absences) && !excl.includes(m.id)),
+            ...ext.filter(e => e.type === 'ph'),
+          ];
+          if (phPresent.length < p.minPH)
+            warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
+        } else {
+          const present = [
+            ...assigned.filter(m => worksDay(m, di, absences) && !excl.includes(m.id)),
+            ...ext,
+          ];
+          if (present.length < p.min)
+            warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
+        }
       });
     });
-
-    // SSR consécutif : si total SSR PH < 3 deux jours de suite → alerte supplémentaire
-    const ssrCounts = days.map(d => {
-      const di = toIso(d);
-      if (holidays.has(di)) return 3;
-      return ssrPhCount(byPoste, exclusions, absences, di);
-    });
-    for (let i = 0; i < ssrCounts.length - 1; i++) {
-      if (ssrCounts[i] < 3 && ssrCounts[i + 1] < 3) {
-        warns.push(`SSR sous-effectif 2 jours consécutifs (${DAYS_FR[i]}-${DAYS_FR[i + 1]})`);
-        break;
-      }
-    }
-
-    // ── EHPAD : 1 PH titulaire doit couvrir ≥ 3j/5 ──
-    const ehpadPhs = (byPoste['ehpad']?.medecins || []).filter(m => m.type === 'ph');
-    if (ehpadPhs.length > 0) {
-      const maxCoverage = Math.max(0, ...ehpadPhs.map(m =>
-        days.filter(d => {
-          const di = toIso(d);
-          return worksDay(m, di, absences) &&
-            !exclusions.some(e => e.med_id === m.id && e.poste_id === 'ehpad' && e.jour === di);
-        }).length
-      ));
-      if (maxCoverage < 3) warns.push('EHPAD : aucun PH ne couvre ≥ 3 jours cette semaine');
-    }
-
     return warns;
   }, [planningData, absences, monday, holidays]);
 
@@ -249,21 +186,10 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       </div>
 
       {/* ── Alerte couverture ── */}
-      <div className={`alert print-hide ${alerts.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom:8 }}>
+      <div className={`alert print-hide ${alerts.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom:10 }}>
         {alerts.length === 0
           ? '✓ Tous les postes obligatoires sont couverts.'
           : `⚠ ${alerts.length} créneau(x) non couvert(s) : ${alerts.slice(0, 6).join(' · ')}${alerts.length > 6 ? ' …' : ''}`}
-      </div>
-
-      {/* ── Bannière services dispensables ── */}
-      <div className="disp-banner print-hide">
-        <span className="disp-label">Dispensables</span>
-        {dispStatus.map((s, i) => (
-          <span key={s.dayIso} className={`disp-day ${s.accessible ? 'disp-ok' : 'disp-nok'}`}>
-            <span className="disp-day-name">{DAYS_FR[i]}</span>
-            <span className="disp-day-count">{s.accessible ? `✓ ${s.count}` : `✗ ${s.count}/${s.seuil}`}</span>
-          </span>
-        ))}
       </div>
 
       {/* ── Filtres / légende ── */}
