@@ -418,9 +418,9 @@ export default function App() {
                   <button
                     className={`btn-toggle-available${showAvailablePanel ? ' active' : ''}`}
                     onClick={() => setShowAvailablePanel(v => !v)}
-                    title="Afficher / masquer les disponibilités"
+                    title="Afficher / masquer les PH disponibles cette semaine"
                   >
-                    {showAvailablePanel ? '◀ Disponibles' : 'Disponibles ▶'}
+                    PH dispo {showAvailablePanel ? '◀' : '▶'}
                   </button>
                 </div>
                 {planLoading && !planningData && (

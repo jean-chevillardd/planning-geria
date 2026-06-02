@@ -7,6 +7,7 @@ import { describe, test, expect } from 'vitest';
 import {
   getMonday, toIso, addDays, weekDays, fmtDay, fmtDayLong,
   schedIdx, worksDay, isAbsent, countDemiJournees, worksWeekAny,
+  getDisponiblesPH,
   POSTES, TYPE_LBL, DAYS_FR
 } from '../utils.js';
 
@@ -516,5 +517,71 @@ describe('Edge cases', () => {
     // audrey : '1100111111' → 2 + 6 = 8
     const med = { sched: [1,1,0,0,1,1,1,1,1,1] };
     expect(countDemiJournees(med)).toBe(8);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// getDisponiblesPH
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('getDisponiblesPH()', () => {
+  const monday = new Date('2025-06-02T00:00:00'); // lundi
+  const days = weekDays(monday);
+
+  const phFull     = { id: 'ph1', actif: 1, type: 'ph',     sched: [1,1,1,1,1,1,1,1,1,1] };
+  const phPartial  = { id: 'ph2', actif: 1, type: 'ph',     sched: [1,1,0,0,1,1,1,1,1,1] }; // pas mar
+  const phInactif  = { id: 'ph3', actif: 0, type: 'ph',     sched: [1,1,1,1,1,1,1,1,1,1] };
+  const interne    = { id: 'in1', actif: 1, type: 'interne', sched: [1,1,1,1,1,1,1,1,1,1] };
+
+  test('exclut les praticiens non-PH', () => {
+    const { full, partial } = getDisponiblesPH([phFull, interne], [], days);
+    expect(full.some(m => m.id === 'in1')).toBe(false);
+    expect(full.some(m => m.id === 'ph1')).toBe(true);
+  });
+
+  test('exclut les praticiens inactifs — SQLite integer actif=0', () => {
+    const { full, partial } = getDisponiblesPH([phFull, phInactif], [], days);
+    expect(full.some(m => m.id === 'ph3')).toBe(false);
+  });
+
+  test('actif=1 (integer SQLite) est inclus — pas actif===true', () => {
+    const { full } = getDisponiblesPH([phFull], [], days);
+    expect(full).toHaveLength(1);
+    expect(full[0].id).toBe('ph1');
+  });
+
+  test('PH présent toute la semaine va dans full', () => {
+    const { full, partial } = getDisponiblesPH([phFull], [], days);
+    expect(full).toHaveLength(1);
+    expect(partial).toHaveLength(0);
+  });
+
+  test('PH avec sched partiel va dans partial avec joursPresents', () => {
+    const { full, partial } = getDisponiblesPH([phPartial], [], days);
+    expect(full).toHaveLength(0);
+    expect(partial).toHaveLength(1);
+    expect(partial[0].joursPresents).not.toContain('Mar');
+    expect(partial[0].joursPresents).toContain('Lun');
+  });
+
+  test('PH absent toute la semaine est exclu des deux groupes', () => {
+    const absences = [{ med_id: 'ph1', date_debut: '2025-06-02', date_fin: '2025-06-06' }];
+    const { full, partial } = getDisponiblesPH([phFull], absences, days);
+    expect(full).toHaveLength(0);
+    expect(partial).toHaveLength(0);
+  });
+
+  test('args null/undefined → résultat vide sans erreur', () => {
+    expect(getDisponiblesPH(null, [], days)).toEqual({ full: [], partial: [] });
+    expect(getDisponiblesPH([], null, days)).toEqual({ full: [], partial: [] });
+    expect(getDisponiblesPH([], [], null)).toEqual({ full: [], partial: [] });
+  });
+
+  test('résultats triés alphabétiquement par nom', () => {
+    const phZ = { id: 'phZ', actif: 1, type: 'ph', sched: [1,1,1,1,1,1,1,1,1,1], nom: 'Zorba' };
+    const phA = { id: 'phA', actif: 1, type: 'ph', sched: [1,1,1,1,1,1,1,1,1,1], nom: 'Arnaud' };
+    const { full } = getDisponiblesPH([phZ, phA], [], days);
+    expect(full[0].nom).toBe('Arnaud');
+    expect(full[1].nom).toBe('Zorba');
   });
 });

@@ -128,15 +128,15 @@
 
 ---
 
-## ~~P5 — Vue disponibilités praticiens (semaine)~~ ✅ DONE 2026-06-01
+## ~~P5 — Vue disponibilités praticiens (semaine)~~ ✅ DONE 2026-06-02
 
 **Implémenté :**
-- Prop `showAvailablePanel` ajoutée à `PlanningGrid.jsx`
-- `useMemo` calculant les disponibles : `!!m.actif` (SQLite retourne `1`/`0`, pas de booléens) + pas d'absence chevauchant la semaine (filtre sur `med_id` / `date_debut` / `date_fin`)
-- Column fixe 188px à droite de la grille, toggle bouton dans la barre WeekNav
-- Header "DISPONIBLES" + badge compteur + liste scrollable avec dots colorés
-- Bug détecté en test : `actif === true` toujours faux (SQLite integers) → corrigé en `!!m.actif`
-- **Reste hors scope :** vue mensuelle, tooltip affectations au survol, praticiens "pleins"
+- `getDisponiblesPH(medecins, absences, days)` dans `utils.js` : filtre **PH uniquement** (`type='ph'`), exclut absents, groupe en **Présents 5j** / **Présents partiellement** avec jours affichés pour les partiels
+- Prop `showAvailablePanel` dans `PlanningGrid.jsx`, bouton toggle label fixe "PH dispo ▶/◀"
+- Column fixe 188px à droite de la grille, masquée automatiquement sous 900px (`@media`)
+- Badge compteur avec ARIA label (`aria-label="N praticiens PH disponibles cette semaine"`)
+- Bug détecté et documenté : `actif === true` toujours faux (SQLite integer) → `!!m.actif`, couvert par tests Vitest
+- **Reste hors scope :** vue mensuelle, tooltip affectations au survol, praticiens "pleins" (affectés 5/5j)
 
 ## ~~P4 — UI désarchivage praticien (TeamTab)~~ ✅ DONE 2026-05-30
 **What:** Section "Archivés" repliable en bas de l'onglet Équipe (mode secrétariat uniquement), listant les médecins `actif=0` avec un bouton "Réactiver" qui appelle `PATCH /api/medecins/:id/desarchiver`.

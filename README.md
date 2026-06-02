@@ -12,6 +12,7 @@ planning-geriatrie/
 ├── server/
 │   ├── index.js           ← API REST Express (port 3001)
 │   ├── db.js              ← Init SQLite + migrations
+│   ├── db_schema.js       ← Schéma SQLite partagé (source unique)
 │   ├── db_testable.js     ← Version isolée pour les tests
 │   ├── seed.js            ← Peuplement initial depuis CSV
 │   ├── database.sqlite    ← Créé automatiquement au premier lancement
@@ -19,7 +20,7 @@ planning-geriatrie/
 ├── client/
 │   ├── src/
 │   │   ├── api.js                      ← Toutes les requêtes HTTP centralisées
-│   │   ├── utils.js                    ← Dates, postes, schedule helpers
+│   │   ├── utils.js                    ← Dates, postes, schedule helpers, getDisponiblesPH
 │   │   ├── App.jsx                     ← Composant racine, état global, undo
 │   │   ├── main.jsx                    ← Routing SPA (App ou CongePublicPage)
 │   │   ├── styles.css                  ← CSS global (variables, composants)

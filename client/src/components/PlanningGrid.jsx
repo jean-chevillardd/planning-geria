@@ -1,6 +1,6 @@
 // components/PlanningGrid.jsx
 import { useMemo, useState, useRef } from 'react';
-import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getSchedHalfDay, getFrenchHolidays } from '../utils';
+import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getSchedHalfDay, getFrenchHolidays, getDisponiblesPH } from '../utils';
 
 function fmtWeek(monday, days) {
   const opts = { day: 'numeric', month: 'long', year: 'numeric' };
@@ -65,17 +65,10 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
   const extras     = planningData?.extras       || [];
   const renforts   = planningData?.renforts     || [];
 
-  // ── Disponibles cette semaine ─────────────────────────────
+  // ── Disponibles PH cette semaine (groupés 5j / partiels) ──
   const disponibles = useMemo(() => {
-    if (!showAvailablePanel || !medecins || !absences) return [];
-    const actifs = medecins.filter(m => !!m.actif);
-    const dayIsos = days.map(d => toIso(d));
-    const absentIds = new Set(
-      absences
-        .filter(a => dayIsos.some(d => d >= a.date_debut && d <= a.date_fin))
-        .map(a => a.med_id)
-    );
-    return actifs.filter(m => !absentIds.has(m.id));
+    if (!showAvailablePanel) return { full: [], partial: [] };
+    return getDisponiblesPH(medecins, absences, days);
   }, [showAvailablePanel, medecins, absences, monday]);
 
   // ── Alertes ──────────────────────────────────────────────
@@ -342,20 +335,49 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       {showAvailablePanel && (
         <div className="available-panel print-hide">
           <div className="available-panel-header">
-            Disponibles
-            <span className="available-count">{disponibles.length}</span>
+            PH disponibles
+            <span
+              className="available-count"
+              aria-label={`${disponibles.full.length + disponibles.partial.length} praticiens PH disponibles cette semaine`}
+            >
+              {disponibles.full.length + disponibles.partial.length}
+            </span>
           </div>
-          <ul className="available-list">
-            {disponibles.map(m => (
-              <li key={m.id} className="available-item">
-                <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
-                {m.prenom} {m.nom}
-              </li>
-            ))}
-            {disponibles.length === 0 && (
-              <li className="available-empty">Aucun praticien disponible cette semaine</li>
-            )}
-          </ul>
+          {disponibles.full.length === 0 && disponibles.partial.length === 0 ? (
+            <p className="available-empty">Aucun PH disponible cette semaine</p>
+          ) : (
+            <>
+              {disponibles.full.length > 0 && (
+                <>
+                  <div className="available-group-label">Présents 5j</div>
+                  <ul className="available-list">
+                    {disponibles.full.map(m => (
+                      <li key={m.id} className="available-item">
+                        <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
+                        {m.prenom} {m.nom}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {disponibles.partial.length > 0 && (
+                <>
+                  <div className="available-group-label" style={{ marginTop: disponibles.full.length ? 10 : 0 }}>Présents partiellement</div>
+                  <ul className="available-list">
+                    {disponibles.partial.map(m => (
+                      <li key={m.id} className="available-item">
+                        <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
+                        <span>
+                          {m.prenom} {m.nom}
+                          <span className="available-days">{m.joursPresents.join(' ')}</span>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </>
+          )}
         </div>
       )}
       </div>

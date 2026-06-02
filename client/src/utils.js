@@ -102,6 +102,40 @@ export function worksWeekAny(med, monday, absences = []) {
   return weekDays(monday).some(d => worksDay(med, toIso(d), absences));
 }
 
+/**
+ * Retourne les PH disponibles pour la semaine, groupés en deux catégories :
+ * - full : présents les 5 jours (selon sched, hors absences)
+ * - partial : présents seulement certains jours, avec liste des jours
+ *
+ * Ne retourne que les praticiens de type 'ph' (Praticien Hospitalier).
+ * SQLite stocke actif comme INTEGER — utiliser !!m.actif, pas m.actif === true.
+ */
+export function getDisponiblesPH(medecins, absences, days) {
+  if (!medecins || !absences || !days?.length) return { full: [], partial: [] };
+  const dayIsos = days.map(d => toIso(d));
+  const absentIds = new Set(
+    absences
+      .filter(a => dayIsos.some(d => d >= a.date_debut && d <= a.date_fin))
+      .map(a => a.med_id)
+  );
+  const phDispo = medecins.filter(m => !!m.actif && m.type === 'ph' && !absentIds.has(m.id));
+  const full = [];
+  const partial = [];
+  for (const m of phDispo) {
+    const joursPresents = dayIsos
+      .map((iso, i) => worksDay(m, iso, absences) ? DAYS_FR[i] : null)
+      .filter(Boolean);
+    if (joursPresents.length === days.length) {
+      full.push(m);
+    } else if (joursPresents.length > 0) {
+      partial.push({ ...m, joursPresents });
+    }
+  }
+  full.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  partial.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  return { full, partial };
+}
+
 // ── Jours fériés français ─────────────────────────────────
 function easterSunday(year) {
   const a = year % 19, b = Math.floor(year / 100), c = year % 100;
