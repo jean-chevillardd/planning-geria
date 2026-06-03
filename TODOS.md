@@ -17,7 +17,7 @@
 **Priority:** P1
 **Depends on:** Rien (P4-bis a résolu la dépendance métier).
 
-## P2 — Alerte couverture minimale
+## ~~P2 — Alerte couverture minimale~~ ✅ DONE 2026-06-03
 
 **What:** Afficher une alerte visuelle (ligne rouge ou icône) sur les lignes de service dont le nombre de PH affectés est inférieur au seuil minimal défini dans P4-bis.
 
@@ -40,6 +40,8 @@
 
 > **Note (2026-06-02) :** une première implémentation (flags POSTES, alertes enrichies, bannière dispensables) a été tentée dans le commit 85de787 puis **revertée** (commit 93fe6e5) — à reprendre proprement.
 
+> **Repasse 2026-06-03 (final) :** Indicateur inline ⚠/✓ implémenté — chaque ligne de poste obligatoire affiche ✓ vert (couverture OK) ou ⚠ orange (au moins un créneau sous-couvert cette semaine). La bannière globale utilise `alerts.warns`. Fausse alerte HDJ-mercredi corrigée. Bannière "dispensables" non implémentée (info suffisante dans les compteurs PH des en-têtes). Contraintes de continuité (CSG/SSR) reportées.
+
 ## P3 — Export PDF planning semaine (dédié)
 **What:** Bouton "Exporter PDF" générant un PDF de la semaine courante avec mise en page correcte, distinct du CSS @media print existant.
 **Why:** L'impression physique du planning est une pratique courante dans les services hospitaliers (affichage au tableau, transmission au secrétariat). La vue mensuelle est déjà améliorée dans ce plan ; la vue semaine pourrait nécessiter un rendu PDF dédié si @media print ne suffit pas.
@@ -50,7 +52,7 @@
 **Priority:** P3
 **Depends on:** Feedback des médecins sur le besoin réel vs la vue @media print améliorée.
 
-## P4-bis — Règles métier activités & effectifs (source : email 2026-06-01)
+## ~~P4-bis — Règles métier activités & effectifs (source : email 2026-06-01)~~ ✅ CLÔTURÉ 2026-06-03
 
 **What:** Modéliser dans l'application les règles d'activités et d'effectifs transmises par l'utilisatrice, et les exposer dans l'interface :
 1. Distinction activités **obligatoires** vs **dispensables** (seuil d'ouverture : >12 PH, ou >11 les mercredis)
@@ -88,18 +90,18 @@
 
 > **Note (2026-06-02) :** implémentation partielle (flags POSTES, alertes, bannière dispensables) tentée dans 85de787 et **revertée** (93fe6e5) — à reprendre pas à pas avec l'utilisateur.
 
+> **Repasse 2026-06-03 (final) :** (1) Fermeture HDJ mercredi : guard ajouté dans `alerts` — plus de fausse alerte. (2) Indicateur inline ⚠/✓ implémenté dans `GridRow` — postes obligatoires affichent l'état de couverture semaine. (3) Bannière dispensables : non implémentée (décision utilisateur). (4) Contraintes de continuité : reportées.
+
+> **Clôture 2026-06-03 :** Les règles métier sont documentées ici comme référence mais ne seront **pas implémentées dans l'UI** — trop contraignantes d'un point de vue UX. Seuls les éléments déjà livrés (guard HDJ mercredi, indicateurs ⚠/✓ P2) sont conservés. P25 (ordre d'affichage services) reste ouvert de façon indépendante.
+
 ---
 
-## P6 — Numéro de semaine dans WeekNav (suppression du libellé date)
+## ~~P6 — Numéro de semaine dans WeekNav (suppression du libellé date)~~ ✅ DONE 2026-06-03
 
-**What:** Remplacer le libellé « Semaine du 30 novembre » par le numéro ISO de semaine (« Semaine 48 ») dans `WeekNav` et partout où la semaine est affichée en titre.
-**Why:** Le numéro de semaine est le repère naturel utilisé à l'hôpital (« je suis de garde S46 »). Le libellé « semaine du XX » est redondant avec les dates visibles dans la grille.
-**Pros:** Effort XS, lisibilité immédiate, cohérence avec le vocabulaire médical.
-**Cons:** Nécessite de calculer `getISOWeek(date)` — librairie `date-fns` déjà présente.
-**Context:** Demande explicite de l'utilisateur (notes 2026-06-02).
-**Effort:** XS (CC: ~10min)
-**Priority:** P6
-**Depends on:** Rien.
+**Implémenté :**
+- `WeekNav.jsx` ligne 141 : `S{getISOWeek(monday)}` — affiche le numéro ISO de semaine (ex. « S23 »)
+- Le libellé date reste en secondaire (« · 2 – 6 juin ») pour le contexte visuel
+- `getISOWeek` déjà importé depuis `utils.js`
 
 ---
 
@@ -116,22 +118,85 @@
 
 ---
 
-## P9 — AssignModal : scope étendu + taux de présence praticiens
+## P9 — MonthView : Mode Rotation + panels interactifs (affectations longues)
 
-**What:** Deux améliorations liées de `AssignModal` :
-1. **Scope d'affectation étendu** : en plus de "ce jour" et "cette semaine", ajouter "ce mois" et "les X prochaines semaines" (saisie numérique 1–12). Même logique pour le retrait : ce jour / cette semaine / ce mois.
-2. **Taux de présence visible** : dans la liste des praticiens du modal, afficher le taux de présence de chaque praticien (calculé depuis `jours_presence` ou la colonne dédiée) — ex. « 80 % » ou « 4j/5 » — pour aider au choix.
+**Périmètre : `MonthView.jsx` uniquement — aucun changement à la vue Semaine ni à `AssignModal` en vue Semaine.**
 
-**Why:**
-- Le scope "semaine entière" est insuffisant pour placer un praticien sur plusieurs semaines consécutives (rotation longue, remplacement maladie prolongé). Ajouter "mois" et "X semaines" couvre les cas réels sans réécrire l'architecture.
-- La liste actuelle n'indique pas qui est à temps partiel. Afficher le taux évite d'affecter par erreur un 50 % sur 5 jours.
+### Pourquoi
 
-**Pros:** Gain de temps significatif pour la saisie de rotations longues. Taux de présence : lecture immédiate sans aller dans l'onglet Équipe.
-**Cons:** Scope "mois" et "X semaines" génère potentiellement beaucoup d'insertions en base — penser à une transaction et un feedback de progression. Taux de présence : calcul à exposer côté API ou à dériver côté client depuis `useBaseData`.
-**Context:** Demande explicite de l'utilisateur (notes 2026-06-02). Lié à P1/P4-bis : les nouvelles règles de couverture minimale devront être vérifiées par vacation insérée.
-**Effort:** M (CC: ~1h)
+Les utilisatrices (secrétaires médicales) ont besoin de travailler **en vue mensuelle** pour placer des praticiens sur des rotations longues (> 1 semaine : remplacement maladie prolongé, rotation CSG/SSR de 1,5–3 mois). Aujourd'hui, rien n'est fait pour affecter depuis MonthView. La grille calendaire actuelle (jours × chips tous-postes mélangés) ne permet pas de cibler un poste précis sur plusieurs semaines.
+
+### Solution : toggle "Mode Rotation" (postes × semaines)
+
+Bouton toggle **"Mode Rotation"** visible uniquement en `isSecretary`. La grille bascule vers :
+
+| Lignes | Colonnes | Cellule |
+|--------|----------|---------|
+| Postes filtrés (pills service actives) | Semaines du mois (4–5 colonnes : S23 / S24…) | Liste compacte des PH affectés ce poste × semaine |
+
+Header de chaque colonne semaine **cliquable** → navigue vers cette semaine en vue Semaine.
+
+**Densité maîtrisée :**
+- 4–5 colonnes (semaines) au lieu de 20–23 (jours) → espace cellule ×4
+- Filtres service existants réduisent les lignes (filtre CSG → 2 lignes ; SSR → 1 ligne)
+- Sticky header groupe de service pour se repérer sans filtre actif
+- Par défaut : grille calendaire inchangée (Mode Rotation = opt-in explicite)
+
+---
+
+### Sous-fonctionnalités
+
+#### 1. Click-to-assign sur cellule (poste × semaine)
+- Cliquer sur une cellule ouvre `AssignModal` avec une section **durée** supplémentaire (prop `monthViewMode`, visible uniquement en Mode Rotation) :
+  - `Cette semaine` — `add_affectation` pour cette week_key
+  - `Ce mois` — boucle sur toutes les semaines du mois affiché
+  - `N semaines` — input numérique 1–12, à partir de la semaine cliquée
+- La **suppression** (croix sur un chip en Mode Rotation) propose les mêmes scopes
+- **Transaction** : séquentiel avec rollback côté client si une semaine échoue (supprime les week_keys déjà insérés)
+- **Undo global** : `pushUndo` supprime toutes les affectations créées d'un bloc (Ctrl+Z)
+
+#### 2. Drag & drop depuis le panneau PH Disponibles
+- Items du panneau `draggable` en Mode Rotation (cursor: grab, même pattern que P14 en vue Semaine)
+- Drop sur une cellule (poste × semaine) → dialog de confirmation :
+  - `Cette semaine` / `Ce mois` / `N semaines` (input)
+- Garde-fous : vérifier que le PH n'est pas déjà affecté à ce poste cette semaine avant d'activer le bouton
+
+#### 3. Panel "PH Disponibles" mensuel enrichi
+- Le panneau P13 existant (sticky à droite, granularité mensuelle) reste inchangé en grille calendaire
+- En Mode Rotation : items deviennent `draggable`, cursor: grab — même style que P14
+- Tag de disponibilité mensuelle ("Absent partiellement" avec dates) conservé
+
+#### 4. Panel "En congés ce mois"
+- Second panneau sous PH Disponibles, même pattern que "En congés cette semaine" dans `PlanningGrid.jsx`
+- `useMemo enCongesMois` : PH actifs avec ≥ 1 absence chevauchant le mois affiché
+- Format : `Dr Dupont — CA du 10 au 21`
+- Badge compteur fond gris neutre (différencié du panel dispo bleu)
+- Masqué en impression
+- **Indépendant du Mode Rotation** : visible en grille calendaire et en Mode Rotation
+
+---
+
+### Ce qui n'est PAS dans ce scope
+
+- Drag & drop *entre cellules* de la grille rotation (déplacement poste → poste en vue mensuelle)
+- Affectation ponctuelle jour par jour depuis MonthView (→ utiliser la vue Semaine)
+- Modification de la grille calendaire pour les non-secrétaires
+
+---
+
+### Implémentation (ordre recommandé)
+
+1. **Panel "En congés ce mois"** — `useMemo enCongesMois` + rendu dans MonthView (livrable indépendant, ~20 min)
+2. **Toggle Mode Rotation** — state `rotationMode` + rendu conditionnel dans MonthView
+3. **Grille rotation** — `.rotation-grid` (CSS table-layout), colonne par semaine, ligne par poste filtré
+4. **D&D PH Disponibles → cellule** — `panelDragMed` state + handlers + dialog durée
+5. **`handleAssignMonthView`** dans `App.jsx` — boucle week_keys, rollback, undo groupé
+6. **Click-to-assign** — réutilise `AssignModal` avec prop `monthViewMode` pour afficher les options de durée
+7. **Styles** — `.rotation-grid`, `.rotation-cell`, `.rotation-cell.drop-target`
+
+**Effort :** L (CC: ~1h30–2h)
 **Priority:** P9
-**Depends on:** P4-bis (règles métier couverture) utile mais non bloquant.
+**Depends on:** P4-bis (règles métier) utile mais non bloquant. Points 1 et 3–4 du plan ci-dessus sont indépendants et peuvent être livrés en avance.
 
 ---
 
@@ -277,6 +342,81 @@
 
 ---
 
+---
+
+## P22 — Panel PH Dispo : renommer "Présents 5J" et inclure les partiels
+
+**What:** Dans le panneau "PH Disponibles" (vue semaine), les PH présents moins de 5 jours (partiels) doivent également apparaître dans la section actuellement libellée "Présents 5J". Renommer ce libellé pour ne pas laisser croire qu'il ne concerne que les présents à temps plein.
+
+**Proposition de libellé :** "Présents cette semaine" (avec le détail jours pour les partiels dans la sous-section existante), ou deux sections "Présents 5J" / "Présents partiellement" mais avec les partiels inclus dans le total si besoin.
+
+**Why:** Le libellé "5J" est trompeur — un PH absent le lundi mais présent mar–ven est quand même disponible pour le planning. L'interface actuelle risque de les faire passer pour absents.
+**Pros:** Effort XS, correction de lisibilité immédiate.
+**Cons:** Vérifier que la logique `getDisponiblesPH` dans `utils.js` regroupe déjà les partiels en section séparée — seul le libellé et la section cible sont à ajuster.
+**Context:** Signalé par l'utilisateur (2026-06-03).
+**Effort:** XS (CC: ~10min)
+**Priority:** P22
+**Depends on:** Rien.
+
+---
+
+## P23 — Bug : Esc sur AssignModal provoque un scroll vers le bas
+
+**What:** Quand on clique pour affecter (ouverture de l'`AssignModal`), puis qu'on appuie sur `Échap` pour fermer la popup, la page se retrouve scrollée vers le bas de façon inattendue.
+
+**Cause probable :** L'event `keydown` Esc est capturé par la modal mais le focus retourne sur un élément en bas de page (bouton, input caché), ou un scroll natif du navigateur est déclenché par le déplacement du focus.
+
+**What to check:**
+- `onKeyDown` dans `AssignModal` ou son overlay : vérifier que `e.preventDefault()` est appelé sur Esc
+- Focus management à la fermeture : `ref.current?.focus()` doit viser l'élément déclencheur (trigger button), pas le body
+- Overlay `role="dialog"` avec `aria-modal="true"` pour empêcher le scroll du body pendant l'ouverture
+
+**Why:** UX dégradée — l'utilisateur doit rescroller après chaque annulation.
+**Pros:** Effort XS, correction d'un bug de friction signalé.
+**Cons:** Peut nécessiter de gérer le focus trap manuellement si la modal n'en a pas.
+**Context:** Signalé par l'utilisateur (2026-06-03).
+**Effort:** XS (CC: ~10–15min)
+**Priority:** P23
+**Depends on:** Rien.
+
+---
+
+## P24 — Vue Rotation : fusionner les absences consécutives multi-semaines en une seule ligne
+
+**What:** Dans `AstreintesTab` vue Rotation, quand un PH est absent plusieurs semaines de suite (ex. "Form. du 5 au 8", "Form. du 12 au 13", "Form. du 15 au 21", "Form. du 26 au 29"), afficher une seule ligne fusionnée plutôt qu'une entrée par semaine.
+
+**Comportement attendu :** Si les absences sont du même type et se suivent (ou se chevauchent sur la période affichée), les regrouper en une seule entrée avec la plage complète (ex. "Form. du 5 au 29").
+
+**Why:** La répétition de lignes pour une longue absence encombre la vue Rotation et nuit à la lisibilité — l'image montre 4 lignes "Form." pour un seul praticien sur un même mois.
+**Pros:** Vue plus compacte et lisible, en ligne avec la demande P8 (pas de tri automatique).
+**Cons:** La logique de fusion doit gérer les absences de types différents (ne pas fusionner CA + Form.) et les chevauchements partiels. Tester avec absences non-consécutives.
+**Context:** Signalé par l'utilisateur (2026-06-03, Image #1).
+**Effort:** S (CC: ~20–30min)
+**Priority:** P24
+**Depends on:** P8 (ordre d'affichage vue Rotation).
+
+---
+
+## P25 — Refacto ordre d'affichage des services (vue Semaine + vue Rotation)
+
+**What:** Réorganiser l'ordre de présentation des services dans la vue Semaine (`PlanningGrid`) et la vue Rotation (`AstreintesTab`) pour respecter la hiérarchie métier :
+1. **Services indispensables** en premier (CSG 1, CSG 2, SSR, EOPS, UCC, HDJ, HdJNP, EHPAD)
+2. **Services dispensables** ensuite (ouverts uniquement si ≥ 12 PH ou ≥ 11 le mercredi)
+
+**Ordre cible (à valider avec l'utilisateur) :**
+- Obligatoires : Court séjour (CSG 1 + CSG 2) → SSR → EOPS → UCC → HDJ → HdJNP → EHPAD
+- Dispensables : après les obligatoires, dans l'ordre existant
+
+**Why:** L'ordre actuel est historique (ordre de création en base). Un ordre calé sur la criticité métier aide les secrétaires à scanner le planning de haut en bas dans l'ordre de priorité de tirage (P4-bis : CSG → SSR → autres oblig. → dispensables).
+**Pros:** Impact fort sur la lisibilité quotidienne, effort modéré (principalement dans `utils.js` / `POSTES` config).
+**Cons:** Nécessite de définir l'ordre exact avec l'utilisateur avant d'implémenter. La vue Rotation peut avoir une logique d'affichage différente à adapter.
+**Context:** Demande explicite de l'utilisateur (2026-06-03). Cohérent avec les règles métier P4-bis.
+**Effort:** S–M (CC: ~30–45min — dépend du nombre de points d'entrée à modifier)
+**Priority:** P25
+**Depends on:** P4-bis (définition indispensable/dispensable). Idéalement coordonner avec P24 pour la vue Rotation.
+
+---
+
 ## ~~P5 — Vue disponibilités praticiens (semaine)~~ ✅ DONE 2026-06-02
 
 **Implémenté :**
@@ -286,6 +426,27 @@
 - Badge compteur avec ARIA label (`aria-label="N praticiens PH disponibles cette semaine"`)
 - Bug détecté et documenté : `actif === true` toujours faux (SQLite integer) → `!!m.actif`, couvert par tests Vitest
 - **Reste hors scope :** vue mensuelle, tooltip affectations au survol, praticiens "pleins" (affectés 5/5j)
+
+---
+
+## Tableau récapitulatif — P ouvertes (trié par effort)
+
+| Effort | # | Titre | Dépendances | Priorité |
+|--------|---|-------|-------------|----------|
+| **XS** | P8 | Vue Rotation : supprimer le tri automatique | — | P8 |
+| **XS** | P22 | Panel PH Dispo : renommer "Présents 5J", inclure les partiels | — | P22 |
+| **XS** | P23 | Bug : Esc sur AssignModal → scroll inattendu vers le bas | — | 🐛 P23 |
+| **S** | P15 | Refonte bandeau « créneaux non couverts » | — | P15 |
+| **S** | P24 | Vue Rotation : fusionner absences consécutives multi-semaines | P8 | P24 |
+| **S–M** | P17 | Sélecteurs de dates : homogénéiser (Astreintes + autres onglets) | — | P17 |
+| **S–M** | P25 | Refacto ordre d'affichage services (indispensables → dispensables) | — | P25 |
+| **M** | P3 | Export PDF planning semaine (dédié, distinct de @media print) | Feedback utilisateur | P3 |
+| **L** | P9 | MonthView : Mode Rotation + D&D + click-to-assign multi-semaines | — | P9 |
+| **L** | P11 | Refonte onglet Absences (UX, flux de saisie, synthèse) | Session spec UX | P11 |
+
+> Effort CC indicatif : XS ≤ 15 min · S ≤ 30 min · S–M ≤ 45 min · M ≤ 1h · L > 1h30
+
+---
 
 ## ~~P4 — UI désarchivage praticien (TeamTab)~~ ✅ DONE 2026-05-30
 **What:** Section "Archivés" repliable en bas de l'onglet Équipe (mode secrétariat uniquement), listant les médecins `actif=0` avec un bouton "Réactiver" qui appelle `PATCH /api/medecins/:id/desarchiver`.
