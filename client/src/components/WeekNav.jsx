@@ -181,7 +181,7 @@ export default function WeekNav({ monday, onChange, onCopy, onGoToday, isSecreta
             Vue médecin :
           </span>
           <DoctorSearch
-            medecins={medecins}
+            medecins={medecins.filter(m => m.type !== 'externe')}
             value={doctorFilter}
             onChange={onDoctorFilterChange}
           />

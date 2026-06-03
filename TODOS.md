@@ -177,6 +177,25 @@
 - Regroupement par praticien (si affecté à plusieurs postes, un seul message avec la liste des services)
 - Masqué en impression (`print-hide`)
 
+> **Révision 2026-06-03 :** bandeau remplacé par un 2e panel latéral "En congés cette semaine" (voir P21).
+
+---
+
+## ~~P21 — Panel "En congés cette semaine" + filtrage médecins extérieurs~~ ✅ DONE 2026-06-03
+
+**What :** (1) Supprimer les médecins de type `externe` des search bars de l'onglet Planning (vue médecin + search d'affectation). (2) Ajouter un 2e panel latéral "En congés cette semaine" sous le panel "PH Disponibles".
+
+**Implémenté :**
+- `WeekNav` : `DoctorSearch` filtre `m.type !== 'externe'`
+- `MonthView` : `DoctorSearch` filtre `m.type !== 'externe'`
+- `AssignModal` : `candidates` filtre `m.type !== 'externe'`
+- `PlanningGrid` : nouveau `useMemo enCongesSemaine` — pour chaque PH actif avec au moins une absence chevauchant la semaine, calcule les jours travaillés couverts et formate le label ("le X", "du X au Y", "les X, Y et Z") selon la même logique que les "Présents partiellement"
+- Les deux panels sont enveloppés dans un wrapper `sticky` (flex-column) ; chacun a son propre scroll et max-height (`55vh`/`40vh`)
+- Badge de comptage sur fond gris neutre pour différencier du panel dispo (fond accent)
+- Pas de drag & drop ; les infos restent même si le praticien est affecté quelque part
+- Type d'absence abrégé : `CA`, `CM`, `RTT`, `Form.`, `Récup.`, etc.
+- Masqué en impression (wrapper `print-hide`)
+
 ---
 
 ## ~~P-BUG — Suppression & affectation limitées aux PH~~ ✅ DONE 2026-06-02

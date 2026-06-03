@@ -76,6 +76,56 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     return getDisponiblesPH(medecins, absences, days, byPoste, exclusions, extras);
   }, [showAvailablePanel, medecins, absences, monday, byPoste, exclusions, extras]);
 
+  // ── PH en congés cette semaine (panel informatif, toujours affiché si mode édition) ──
+  const TYPE_ABS_SHORT = {
+    'Congé annuel (CA)': 'CA', 'Congé maladie': 'CM', 'Congé maternité': 'C. Mat.',
+    'RTT': 'RTT', 'Récupération de garde': 'Récup.', 'Formation': 'Form.',
+    'Activité hors site': 'Hors site',
+  };
+  const enCongesSemaine = useMemo(() => {
+    if (!showAvailablePanel) return [];
+    const dayIsos  = days.map(d => toIso(d));
+    const firstIso = dayIsos[0];
+    const lastIso  = dayIsos[dayIsos.length - 1];
+    const result   = [];
+    for (const m of medecins) {
+      if (!m.actif || m.type !== 'ph') continue;
+      const semAbs = absences.filter(a =>
+        a.med_id === m.id && a.date_debut <= lastIso && a.date_fin >= firstIso
+      );
+      if (semAbs.length === 0) continue;
+      const absItems = [];
+      for (const a of semAbs) {
+        const coveredDays = dayIsos.filter(iso => {
+          if (iso < a.date_debut || iso > a.date_fin) return false;
+          const dow = new Date(iso + 'T12:00:00').getDay();
+          if (dow === 0 || dow === 6) return false;
+          const idx = (dow - 1) * 2;
+          return !!(m.sched[idx] || m.sched[idx + 1]);
+        });
+        if (coveredDays.length === 0) continue;
+        const nums         = coveredDays.map(d => parseInt(d.split('-')[2], 10));
+        const coveredSet   = new Set(coveredDays);
+        const workBetween  = dayIsos.filter(iso => {
+          if (iso < coveredDays[0] || iso > coveredDays[coveredDays.length - 1]) return false;
+          const dow = new Date(iso + 'T12:00:00').getDay();
+          if (dow === 0 || dow === 6) return false;
+          const idx = (dow - 1) * 2;
+          return !!(m.sched[idx] || m.sched[idx + 1]);
+        });
+        const isContiguous = workBetween.every(d => coveredSet.has(d));
+        let label;
+        if (nums.length === 1)      label = `le ${nums[0]}`;
+        else if (isContiguous)      label = `du ${nums[0]} au ${nums[nums.length - 1]}`;
+        else                        label = `les ${nums.slice(0, -1).join(', ')} et ${nums[nums.length - 1]}`;
+        absItems.push({ typeShort: TYPE_ABS_SHORT[a.type_abs] ?? a.type_abs, label });
+      }
+      if (absItems.length > 0) result.push({ ...m, absItems });
+    }
+    result.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    return result;
+  }, [showAvailablePanel, medecins, absences, monday]);
+
   // ── Compteur PH présents par jour ──
   // Restreint aux services indispensables (dispensable:false).
   // Les demi-journées (sched am OU pm uniquement) comptent 0,5.
@@ -109,39 +159,6 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       result[di] = Math.round(total * 2) / 2;
     });
     return result;
-  }, [planningData, absences, monday, holidays]);
-
-  // ── Warnings absences (praticiens affectés mais absents sur certains jours) ──
-  const absenceWarnings = useMemo(() => {
-    const byMed = new Map();
-    POSTES_DISPLAY.forEach(p => {
-      const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
-      const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
-      assigned.forEach(m => {
-        const absDayIsos = days.map(d => toIso(d)).filter(di => {
-          if (holidays.has(di)) return false;
-          if (exclusions.some(e => allIds.includes(e.poste_id) && e.med_id === m.id && e.jour === di)) return false;
-          const dow = new Date(di + 'T12:00:00').getDay();
-          const idx = (dow - 1) * 2;
-          if (!(m.sched[idx] || m.sched[idx + 1])) return false;
-          return isAbsent(m.id, di, absences);
-        });
-        if (absDayIsos.length > 0) {
-          if (!byMed.has(m.id)) byMed.set(m.id, { nom: m.nom, absDayIsos: new Set(), services: new Set() });
-          absDayIsos.forEach(di => byMed.get(m.id).absDayIsos.add(di));
-          byMed.get(m.id).services.add(p.lbl);
-        }
-      });
-    });
-    return [...byMed.values()].map(({ nom, absDayIsos, services }) => {
-      const dayLabels = [...absDayIsos].sort().map(iso =>
-        new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' })
-      );
-      const daysStr = dayLabels.length === 1
-        ? `le ${dayLabels[0]}`
-        : `les ${dayLabels.slice(0, -1).join(', ')} et le ${dayLabels[dayLabels.length - 1]}`;
-      return `Pour info : Dr ${nom} est absent(e) ${daysStr} (${[...services].join(', ')})`;
-    });
   }, [planningData, absences, monday, holidays]);
 
   // ── Alertes ──────────────────────────────────────────────
@@ -288,23 +305,11 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       </div>
 
       {/* ── Alerte couverture ── */}
-      <div className={`alert print-hide ${alerts.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom: absenceWarnings.length > 0 ? 6 : 10 }}>
+      <div className={`alert print-hide ${alerts.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom: 10 }}>
         {alerts.length === 0
           ? '✓ Tous les postes obligatoires sont couverts.'
           : `⚠ ${alerts.length} créneau(x) non couvert(s) : ${alerts.slice(0, 6).join(' · ')}${alerts.length > 6 ? ' …' : ''}`}
       </div>
-
-      {/* ── Warnings absences praticiens affectés ── */}
-      {absenceWarnings.length > 0 && (
-        <div className="print-hide" style={{
-          marginBottom: 10, padding:'7px 14px',
-          background:'#fffbeb', border:'1px solid #fcd34d',
-          borderRadius:'var(--r)', fontSize:11, fontFamily:'inherit',
-          color:'#92400e', lineHeight:1.8,
-        }}>
-          {absenceWarnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
-        </div>
-      )}
 
       {/* ── Filtres / légende (P16) ── */}
       <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:12, alignItems:'flex-start' }}>
@@ -515,92 +520,124 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         </div>
       </div>
 
-      {/* ── Panneau PH disponibles (P12 : visible si isSecretary via prop showAvailablePanel) ── */}
+      {/* ── Panneaux latéraux (disponibles + congés) ── */}
       {showAvailablePanel && (
-        <div className="available-panel print-hide">
-          <div className="available-panel-header">
-            PH disponibles
-            <span
-              className="available-count"
-              aria-label={`${disponibles.full.length + disponibles.partial.length} praticiens PH disponibles cette semaine`}
-            >
-              {disponibles.full.length + disponibles.partial.length}
-            </span>
+        <div className="print-hide" style={{ position:'sticky', top:60, alignSelf:'flex-start', display:'flex', flexDirection:'column', gap:10, width:188, flexShrink:0 }}>
+
+          {/* Panneau PH disponibles */}
+          <div className="available-panel" style={{ position:'static', maxHeight:'calc(55vh - 50px)' }}>
+            <div className="available-panel-header">
+              PH disponibles
+              <span
+                className="available-count"
+                aria-label={`${disponibles.full.length + disponibles.partial.length} praticiens PH disponibles cette semaine`}
+              >
+                {disponibles.full.length + disponibles.partial.length}
+              </span>
+            </div>
+            {isSecretary && (
+              <div className="panel-drag-hint" aria-label="Glisser un PH sur une cellule pour l'affecter">
+                <svg width="9" height="13" viewBox="0 0 9 13" fill="currentColor" aria-hidden="true" style={{ flexShrink:0 }}>
+                  <circle cx="2" cy="2"  r="1.3"/><circle cx="7" cy="2"  r="1.3"/>
+                  <circle cx="2" cy="6.5" r="1.3"/><circle cx="7" cy="6.5" r="1.3"/>
+                  <circle cx="2" cy="11" r="1.3"/><circle cx="7" cy="11" r="1.3"/>
+                </svg>
+                Glisser un PH sur une cellule
+              </div>
+            )}
+            {disponibles.full.length === 0 && disponibles.partial.length === 0 ? (
+              <p className="available-empty">Aucun PH disponible cette semaine</p>
+            ) : (
+              <>
+                {disponibles.full.length > 0 && (
+                  <>
+                    <div className="available-group-label">Présents 5j</div>
+                    <ul className="available-list">
+                      {disponibles.full.map(m => (
+                        <li key={m.id} className="available-item"
+                          draggable={isSecretary ? true : undefined}
+                          onDragStart={isSecretary ? e => { e.stopPropagation(); handlePanelDragStart(m); } : undefined}
+                          onDragEnd={isSecretary ? handlePanelDragEnd : undefined}
+                        >
+                          {isSecretary && (
+                            <span className="drag-handle" aria-hidden="true">
+                              <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
+                                <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
+                                <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
+                                <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
+                              </svg>
+                            </span>
+                          )}
+                          <span className="available-dot" style={{ background: '#16a34a' }} />
+                          <span>
+                            {m.prenom} {m.nom}
+                            {m.schedNote && <span className="available-days">{m.schedNote}</span>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {disponibles.partial.length > 0 && (
+                  <>
+                    <div className="available-group-label" style={{ marginTop: disponibles.full.length ? 10 : 0 }}>Présents partiellement</div>
+                    <ul className="available-list">
+                      {disponibles.partial.map(m => (
+                        <li key={m.id} className="available-item"
+                          draggable={isSecretary ? true : undefined}
+                          onDragStart={isSecretary ? e => { e.stopPropagation(); handlePanelDragStart(m); } : undefined}
+                          onDragEnd={isSecretary ? handlePanelDragEnd : undefined}
+                        >
+                          {isSecretary && (
+                            <span className="drag-handle" aria-hidden="true">
+                              <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
+                                <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
+                                <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
+                                <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
+                              </svg>
+                            </span>
+                          )}
+                          <span className="available-dot" style={{ background: '#f59e0b' }} />
+                          <span>
+                            {m.prenom} {m.nom}
+                            <span className="available-days">{m.joursPresents.join(' ')}</span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </>
+            )}
           </div>
-          {isSecretary && (
-            <div className="panel-drag-hint" aria-label="Glisser un PH sur une cellule pour l'affecter">
-              <svg width="9" height="13" viewBox="0 0 9 13" fill="currentColor" aria-hidden="true" style={{ flexShrink:0 }}>
-                <circle cx="2" cy="2"  r="1.3"/><circle cx="7" cy="2"  r="1.3"/>
-                <circle cx="2" cy="6.5" r="1.3"/><circle cx="7" cy="6.5" r="1.3"/>
-                <circle cx="2" cy="11" r="1.3"/><circle cx="7" cy="11" r="1.3"/>
-              </svg>
-              Glisser un PH sur une cellule
+
+          {/* Panneau En congés cette semaine */}
+          {enCongesSemaine.length > 0 && (
+            <div className="available-panel" style={{ position:'static', maxHeight:'none', overflowY:'visible' }}>
+              <div className="available-panel-header">
+                En congés cette sem.
+                <span className="available-count" style={{ background:'var(--text3)' }}>
+                  {enCongesSemaine.length}
+                </span>
+              </div>
+              <ul className="available-list">
+                {enCongesSemaine.map(m => (
+                  <li key={m.id} className="available-item" style={{ cursor:'default' }}>
+                    <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
+                    <span>
+                      {m.prenom} {m.nom}
+                      {m.absItems.map((a, i) => (
+                        <span key={i} className="available-days">
+                          {a.typeShort} {a.label}
+                        </span>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
-          {disponibles.full.length === 0 && disponibles.partial.length === 0 ? (
-            <p className="available-empty">Aucun PH disponible cette semaine</p>
-          ) : (
-            <>
-              {disponibles.full.length > 0 && (
-                <>
-                  <div className="available-group-label">Présents 5j</div>
-                  <ul className="available-list">
-                    {disponibles.full.map(m => (
-                      <li key={m.id} className="available-item"
-                        draggable={isSecretary ? true : undefined}
-                        onDragStart={isSecretary ? e => { e.stopPropagation(); handlePanelDragStart(m); } : undefined}
-                        onDragEnd={isSecretary ? handlePanelDragEnd : undefined}
-                      >
-                        {isSecretary && (
-                          <span className="drag-handle" aria-hidden="true">
-                            <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
-                              <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
-                              <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
-                              <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
-                            </svg>
-                          </span>
-                        )}
-                        <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
-                        <span>
-                          {m.prenom} {m.nom}
-                          {m.schedNote && <span className="available-days">{m.schedNote}</span>}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {disponibles.partial.length > 0 && (
-                <>
-                  <div className="available-group-label" style={{ marginTop: disponibles.full.length ? 10 : 0 }}>Présents partiellement</div>
-                  <ul className="available-list">
-                    {disponibles.partial.map(m => (
-                      <li key={m.id} className="available-item"
-                        draggable={isSecretary ? true : undefined}
-                        onDragStart={isSecretary ? e => { e.stopPropagation(); handlePanelDragStart(m); } : undefined}
-                        onDragEnd={isSecretary ? handlePanelDragEnd : undefined}
-                      >
-                        {isSecretary && (
-                          <span className="drag-handle" aria-hidden="true">
-                            <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
-                              <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
-                              <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
-                              <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
-                            </svg>
-                          </span>
-                        )}
-                        <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
-                        <span>
-                          {m.prenom} {m.nom}
-                          <span className="available-days">{m.joursPresents.join(' ')}</span>
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-            </>
-          )}
+
         </div>
       )}
       </div>

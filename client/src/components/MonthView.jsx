@@ -225,7 +225,7 @@ export default function MonthView({ medecins, absences, isSecretary = false }) {
               Vue médecin :
             </span>
             <DoctorSearch
-              medecins={medecins}
+              medecins={medecins.filter(m => m.type !== 'externe')}
               value={doctorFilter}
               onChange={setDoctorFilter}
             />

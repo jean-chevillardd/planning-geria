@@ -196,13 +196,19 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
           partial.push({ ...m, joursPresents: [`(${label})`] });
         }
       } else {
-        // Aucun congé posé → "Présents 5j" si travaille ≥1 jour selon sched
-        const travailleUnJour = dayIsos.some(iso => {
+        // Aucun congé posé → full si travaille tous les jours, partial sinon
+        const joursActifs = dayIsos.filter(iso => {
           const dow = new Date(iso + 'T12:00:00').getDay();
           const idx = schedIdx(dow);
           return !!(m.sched[idx] || m.sched[idx + 1]);
         });
-        if (travailleUnJour) full.push({ ...m, schedNote: buildSchedNote(m) });
+        if (joursActifs.length === 0) continue;
+        if (joursActifs.length === dayIsos.length) {
+          full.push({ ...m, schedNote: buildSchedNote(m) });
+        } else {
+          // Travaille seulement certains jours selon sched → partial avec jours travaillés
+          partial.push({ ...m, joursPresents: joursActifs.map(iso => DAYS_FR[dayIsos.indexOf(iso)]) });
+        }
       }
     } else {
       // Assigné : libre uniquement les jours où exclu de TOUS ses postes

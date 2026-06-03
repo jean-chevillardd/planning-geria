@@ -101,7 +101,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   // Tous les praticiens actifs sont cherchables ; pour les postes combinés (csg1a+csg1i1)
   // toutes les catégories sont affichées — la fonction targetPosteId route au bon sous-poste.
   // Recherche sur le nom ET sur le type (ex : "interne", "externe", "padhue", "ph").
-  const candidates    = medecins;
+  const candidates    = medecins.filter(m => m.type !== 'externe');
   const searchResults = searching ? candidates.filter(m =>
     m.nom.toLowerCase().includes(q) ||
     m.type.toLowerCase().includes(q) ||
