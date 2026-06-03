@@ -119,7 +119,7 @@ export function worksWeekAny(med, monday, absences = []) {
  * Ne retourne que les praticiens de type 'ph' (Praticien Hospitalier).
  * SQLite stocke actif comme INTEGER — utiliser !!m.actif, pas m.actif === true.
  */
-export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusions = []) {
+export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusions = [], extras = []) {
   if (!medecins || !absences || !days?.length) return { full: [], partial: [] };
   const dayIsos = days.map(d => toIso(d));
 
@@ -213,7 +213,10 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
           const excluDeTous = myPostes.every(pid =>
             exclusions.some(e => e.med_id === m.id && e.poste_id === pid && e.jour === iso)
           );
-          return excluDeTous ? DAYS_FR[i] : null;
+          if (!excluDeTous) return null;
+          // Pas libre si déjà remplaçant (extra) dans un autre poste ce jour
+          if (extras.some(e => e.med_id === m.id && e.jour === iso)) return null;
+          return DAYS_FR[i];
         })
         .filter(Boolean);
       if (joursLibres.length > 0) partial.push({ ...m, joursPresents: joursLibres });

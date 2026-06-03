@@ -31,15 +31,26 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
     return poste.id;
   }
 
-  // Un PH remplaçant (extra) ou renfort dans un AUTRE poste cette semaine ne peut pas
-  // être affecté à la semaine ici : il serait en double sur le(s) jour(s) concerné(s).
+  // Un PH avec affectation régulière ou renfort dans un AUTRE poste cette semaine ne peut pas
+  // être affecté à la semaine ici. Les extras (remplaçants ponctuels) sont tolérés : les jours
+  // concernés seront automatiquement exclus à la confirmation.
   const takenThisWeek = useMemo(() => {
     const set = new Set();
     Object.values(byPoste).forEach(p => p.medecins?.forEach(m => set.add(m.id)));
-    extras.forEach(e => { if (!allPosteIds.includes(e.poste_id)) set.add(e.med_id); });
     renforts.forEach(r => { if (!allPosteIds.includes(r.poste_id)) set.add(r.med_id); });
     return set;
-  }, [byPoste, extras, renforts, allPosteIds]);
+  }, [byPoste, renforts, allPosteIds]);
+
+  // Jours où le praticien est déjà remplaçant (extra) dans un AUTRE poste cette semaine
+  const extraConflictsThisWeek = useMemo(() => {
+    const map = new Map();
+    extras.forEach(e => {
+      if (allPosteIds.includes(e.poste_id)) return;
+      if (!map.has(e.med_id)) map.set(e.med_id, []);
+      map.get(e.med_id).push(e.jour);
+    });
+    return map;
+  }, [extras, allPosteIds]);
 
   // Esc → fermer
   useEffect(() => {
@@ -79,8 +90,8 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   // ── PH disponibles cette semaine (même source que le panneau latéral) ──
   const days = useMemo(() => weekDays(monday), [monday]);
   const disponibles = useMemo(
-    () => getDisponiblesPH(medecins, absences, days, byPoste, exclusions),
-    [medecins, absences, days, byPoste, exclusions],
+    () => getDisponiblesPH(medecins, absences, days, byPoste, exclusions, extras),
+    [medecins, absences, days, byPoste, exclusions, extras],
   );
 
   // ── Recherche ──────────────────────────────────────────────
@@ -89,8 +100,13 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
 
   // Tous les praticiens actifs sont cherchables ; pour les postes combinés (csg1a+csg1i1)
   // toutes les catégories sont affichées — la fonction targetPosteId route au bon sous-poste.
+  // Recherche sur le nom ET sur le type (ex : "interne", "externe", "padhue", "ph").
   const candidates    = medecins;
-  const searchResults = searching ? candidates.filter(m => m.nom.toLowerCase().includes(q)) : [];
+  const searchResults = searching ? candidates.filter(m =>
+    m.nom.toLowerCase().includes(q) ||
+    m.type.toLowerCase().includes(q) ||
+    (TYPE_LBL[m.type] || '').toLowerCase().includes(q)
+  ) : [];
 
   // ── Disponibilité "Affecter ce jour" (remplacement ponctuel) ──
   // Bloqué si : déjà présent ici aujourd'hui, en congé, ou en poste ailleurs ce jour
@@ -112,9 +128,10 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   }
 
   // ── Disponibilité "Affecter à la semaine" ──
-  // Bloqué si : déjà affecté à ce poste, affecté/remplaçant/renfort ailleurs cette semaine,
+  // Bloqué si : déjà affecté à ce poste, affecté/renfort ailleurs cette semaine,
   // déjà remplaçant ou renfort ICI (doublon sur le(s) jour(s) concerné(s)),
-  // ou n'a aucun jour travaillé cette semaine
+  // ou n'a aucun jour travaillé cette semaine.
+  // Si remplaçant ponctuel ailleurs → autorisé avec auto-exclusion sur ces jours.
   function weekAvail(m) {
     if (assigned.find(a => a.id === m.id)) return { ok:false, reason:'Déjà affecté cette semaine' };
     if (takenThisWeek.has(m.id))           return { ok:false, reason:'Déjà affecté ailleurs cette semaine' };
@@ -123,7 +140,8 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
     if (renforts.some(r => allPosteIds.includes(r.poste_id) && r.med_id === m.id))
       return { ok:false, reason:'Déjà en renfort ici ce(s) jour(s) — retirer le renfort avant d\'affecter à la semaine' };
     if (!worksWeekAny(m, monday, absences)) return { ok:false, reason:'Aucun jour disponible cette semaine' };
-    return { ok:true };
+    const autoExcludeDays = extraConflictsThisWeek.get(m.id) || [];
+    return { ok:true, autoExcludeDays };
   }
 
   return (
@@ -299,11 +317,18 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   );
 }
 
+function fmtExcludeDays(dayIsos) {
+  return dayIsos
+    .map(d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' }))
+    .join(', ');
+}
+
 // ── Ligne candidat (search + liste disponibles) ──────────────
 function CandidateRow({ m, subtitle, dayAvail, weekAvail, renfortAvail, takenToday, weekKey, dayIso, targetPosteId, onAction }) {
   const wa = weekAvail(m);
   const da = dayAvail(m);
   const ra = renfortAvail(m);
+  const hasAutoExclude = wa.ok && wa.autoExcludeDays?.length > 0;
   return (
     <div className="mitem" style={{ cursor:'default', flexWrap:'nowrap' }}>
       <span style={{ fontSize:12, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', minWidth:0, flex:'1 1 0' }}>
@@ -332,10 +357,17 @@ function CandidateRow({ m, subtitle, dayAvail, weekAvail, renfortAvail, takenTod
         <button
           className="btn-xs btn-primary"
           disabled={!wa.ok}
-          title={wa.ok ? 'Affecter pour toute la semaine' : wa.reason}
-          onClick={wa.ok ? () => onAction('add_affectation', { week_key:weekKey, poste_id:targetPosteId(m), med_id:m.id }) : undefined}
+          title={wa.ok
+            ? (hasAutoExclude
+                ? `Affecter à la semaine — sera exclu automatiquement le ${fmtExcludeDays(wa.autoExcludeDays)} (déjà remplaçant)`
+                : 'Affecter pour toute la semaine')
+            : wa.reason}
+          onClick={wa.ok ? () => onAction('add_affectation', {
+            week_key:weekKey, poste_id:targetPosteId(m), med_id:m.id,
+            ...(hasAutoExclude ? { auto_exclude_days: wa.autoExcludeDays } : {}),
+          }) : undefined}
         >
-          À la semaine
+          À la semaine{hasAutoExclude ? ' *' : ''}
         </button>
       </span>
     </div>

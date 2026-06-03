@@ -148,6 +148,37 @@
 
 ---
 
+## ~~P18 — AssignModal : recherche par type de praticien~~ ✅ DONE 2026-06-03
+
+**Implémenté :**
+- Filtre de recherche étendu : `m.nom`, `m.type` (ex : "interne", "padhue") et `TYPE_LBL[m.type]` (ex : "Praticien hosp.") sont tous cherchables
+- Taper "interne" liste tous les internes ; "externe" liste les externes ; "padhue" liste les PADHUEs, etc.
+- Aucune modification de l'UX existante, comportement transparent.
+
+---
+
+## ~~P19 — Bug : bouton "À la semaine" grisé si PH déjà remplaçant~~ ✅ DONE 2026-06-03
+
+**Implémenté :**
+- `takenThisWeek` ne comprend plus les extras (remplaçants ponctuels) d'autres postes — seules les affectations régulières et les renforts bloquent
+- Nouveau memo `extraConflictsThisWeek` : map `medId → [jours]` des jours de remplacement ailleurs
+- `weekAvail` retourne `{ ok:true, autoExcludeDays }` au lieu de bloquer
+- Bouton "À la semaine" reste actif avec tooltip explicatif ("sera exclu automatiquement le…") et indicateur `*`
+- À la confirmation, `add_affectation` dans `App.jsx` crée automatiquement les exclusions pour les jours concernés (undo les supprime aussi)
+
+---
+
+## ~~P20 — Suppression chips "absent" + warning absences hebdomadaire~~ ✅ DONE 2026-06-03
+
+**Implémenté :**
+- Chips `chip-abs` "Dr X (absent)" supprimés de toutes les cellules (désencombrement vue)
+- Nouveau memo `absenceWarnings` dans `PlanningGrid` : pour chaque praticien affecté à la semaine, détecte les jours où il est absent mais normalement présent (selon sched), en ignorant les jours déjà exclus
+- Bandeau warning ambre (⚠) affiché sous le bandeau couverture : "Pour info : Dr X est absent(e) le mar. 3 et le jeu. 5 (SSR 3ème)"
+- Regroupement par praticien (si affecté à plusieurs postes, un seul message avec la liste des services)
+- Masqué en impression (`print-hide`)
+
+---
+
 ## ~~P-BUG — Suppression & affectation limitées aux PH~~ ✅ DONE 2026-06-02
 
 **Implémenté :**

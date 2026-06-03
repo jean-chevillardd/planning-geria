@@ -73,8 +73,8 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
   // ── Disponibles PH cette semaine (groupés 5j / partiels) ──
   const disponibles = useMemo(() => {
     if (!showAvailablePanel) return { full: [], partial: [] };
-    return getDisponiblesPH(medecins, absences, days, byPoste, exclusions);
-  }, [showAvailablePanel, medecins, absences, monday, byPoste, exclusions]);
+    return getDisponiblesPH(medecins, absences, days, byPoste, exclusions, extras);
+  }, [showAvailablePanel, medecins, absences, monday, byPoste, exclusions, extras]);
 
   // ── Compteur PH présents par jour ──
   // Restreint aux services indispensables (dispensable:false).
@@ -109,6 +109,39 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       result[di] = Math.round(total * 2) / 2;
     });
     return result;
+  }, [planningData, absences, monday, holidays]);
+
+  // ── Warnings absences (praticiens affectés mais absents sur certains jours) ──
+  const absenceWarnings = useMemo(() => {
+    const byMed = new Map();
+    POSTES_DISPLAY.forEach(p => {
+      const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
+      const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
+      assigned.forEach(m => {
+        const absDayIsos = days.map(d => toIso(d)).filter(di => {
+          if (holidays.has(di)) return false;
+          if (exclusions.some(e => allIds.includes(e.poste_id) && e.med_id === m.id && e.jour === di)) return false;
+          const dow = new Date(di + 'T12:00:00').getDay();
+          const idx = (dow - 1) * 2;
+          if (!(m.sched[idx] || m.sched[idx + 1])) return false;
+          return isAbsent(m.id, di, absences);
+        });
+        if (absDayIsos.length > 0) {
+          if (!byMed.has(m.id)) byMed.set(m.id, { nom: m.nom, absDayIsos: new Set(), services: new Set() });
+          absDayIsos.forEach(di => byMed.get(m.id).absDayIsos.add(di));
+          byMed.get(m.id).services.add(p.lbl);
+        }
+      });
+    });
+    return [...byMed.values()].map(({ nom, absDayIsos, services }) => {
+      const dayLabels = [...absDayIsos].sort().map(iso =>
+        new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' })
+      );
+      const daysStr = dayLabels.length === 1
+        ? `le ${dayLabels[0]}`
+        : `les ${dayLabels.slice(0, -1).join(', ')} et le ${dayLabels[dayLabels.length - 1]}`;
+      return `Pour info : Dr ${nom} est absent(e) ${daysStr} (${[...services].join(', ')})`;
+    });
   }, [planningData, absences, monday, holidays]);
 
   // ── Alertes ──────────────────────────────────────────────
@@ -220,14 +253,15 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     setPanelDragMed(null);
   }
 
-  async function confirmPanelAssign(mode) {
+  async function confirmPanelAssign(mode, autoExcludeDays = []) {
     if (!pendingPanelAssign || !onAssign) return;
     await onAssign({
       mode,
-      medId:     pendingPanelAssign.med.id,
-      targetPid: pendingPanelAssign.targetPoste.id,
-      dayIso:    pendingPanelAssign.dayIso,
+      medId:          pendingPanelAssign.med.id,
+      targetPid:      pendingPanelAssign.targetPoste.id,
+      dayIso:         pendingPanelAssign.dayIso,
       weekKey,
+      autoExcludeDays,
     });
     setPendingPanelAssign(null);
   }
@@ -254,11 +288,23 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       </div>
 
       {/* ── Alerte couverture ── */}
-      <div className={`alert print-hide ${alerts.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom:10 }}>
+      <div className={`alert print-hide ${alerts.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom: absenceWarnings.length > 0 ? 6 : 10 }}>
         {alerts.length === 0
           ? '✓ Tous les postes obligatoires sont couverts.'
           : `⚠ ${alerts.length} créneau(x) non couvert(s) : ${alerts.slice(0, 6).join(' · ')}${alerts.length > 6 ? ' …' : ''}`}
       </div>
+
+      {/* ── Warnings absences praticiens affectés ── */}
+      {absenceWarnings.length > 0 && (
+        <div className="print-hide" style={{
+          marginBottom: 10, padding:'7px 14px',
+          background:'#fffbeb', border:'1px solid #fcd34d',
+          borderRadius:'var(--r)', fontSize:11, fontFamily:'inherit',
+          color:'#92400e', lineHeight:1.8,
+        }}>
+          {absenceWarnings.map((w, i) => <div key={i}>⚠ {w}</div>)}
+        </div>
+      )}
 
       {/* ── Filtres / légende (P16) ── */}
       <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:12, alignItems:'flex-start' }}>
@@ -624,12 +670,17 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         const { med, targetPoste, dayIso: dIso } = pendingPanelAssign;
         const tIds = [targetPoste.id, ...(targetPoste.combineWith ? [targetPoste.combineWith] : [])];
 
-        // Garde "Toute la semaine" : bloqué si le PH a déjà une affectation, un extra
-        // ou un renfort n'importe où cette semaine (il serait en double ce(s) jour(s))
+        // Garde "Toute la semaine" : bloqué si le PH a une affectation régulière ou un renfort
+        // ailleurs. Les extras (remplaçants ponctuels) ne bloquent plus — leurs jours seront
+        // automatiquement exclus à la confirmation (même logique que AssignModal / P19).
         const weekBlock =
           Object.values(byPoste).some(p => p.medecins?.some(m => m.id === med.id)) ||
-          extras.some(e => e.med_id === med.id) ||
           renforts.some(r => r.med_id === med.id);
+
+        // Jours à auto-exclure si le PH est déjà remplaçant dans un autre poste cette semaine
+        const weekAutoExcludeDays = extras
+          .filter(e => e.med_id === med.id && !tIds.includes(e.poste_id))
+          .map(e => e.jour);
 
         // Garde "Ce jour" : bloqué si le PH est déjà occupé ce jour dans un autre poste
         const dayBlock =
@@ -684,9 +735,13 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                 </div>
               </button>
               <button
-                onClick={weekBlock ? undefined : () => confirmPanelAssign('week')}
+                onClick={weekBlock ? undefined : () => confirmPanelAssign('week', weekAutoExcludeDays)}
                 disabled={weekBlock}
-                title={weekBlock ? 'Déjà affecté ou remplaçant quelque part cette semaine' : undefined}
+                title={weekBlock
+                  ? 'Déjà affecté quelque part cette semaine'
+                  : weekAutoExcludeDays.length > 0
+                    ? `Affecter à la semaine — sera exclu automatiquement le ${weekAutoExcludeDays.map(d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' })).join(', ')} (déjà remplaçant)`
+                    : undefined}
                 style={{ textAlign:'left', padding:'10px 14px', borderRadius:'var(--r)',
                   cursor: weekBlock ? 'not-allowed' : 'pointer',
                   border:'1.5px solid var(--border2)', background:'var(--surface2)', color:'var(--text)',
@@ -695,9 +750,15 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                 onMouseEnter={!weekBlock ? e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.background = 'var(--accent-light)'; } : undefined}
                 onMouseLeave={!weekBlock ? e => { e.currentTarget.style.borderColor = 'var(--border2)'; e.currentTarget.style.background = 'var(--surface2)'; } : undefined}
               >
-                <div style={{ fontWeight:700, marginBottom:2 }}>Toute la semaine</div>
+                <div style={{ fontWeight:700, marginBottom:2 }}>
+                  Toute la semaine{weekAutoExcludeDays.length > 0 && !weekBlock ? ' *' : ''}
+                </div>
                 <div style={{ fontSize:10, color: weekBlock ? '#dc2626' : 'var(--text2)' }}>
-                  {weekBlock ? 'Déjà affecté / remplaçant cette semaine' : 'Affectation hebdomadaire'}
+                  {weekBlock
+                    ? 'Déjà affecté cette semaine'
+                    : weekAutoExcludeDays.length > 0
+                      ? `Exclu automatiquement le ${weekAutoExcludeDays.map(d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' })).join(', ')}`
+                      : 'Affectation hebdomadaire'}
                 </div>
               </button>
             </div>
@@ -925,16 +986,6 @@ function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, 
         );
       })}
 
-      {absent.map(m => {
-        const absSenior = isSenior(m.type);
-        return (
-          <div key={m.id} className="chip-abs">
-            {m.nom}
-            {!absSenior && TYPE_LABEL[m.type] && <em style={{ fontStyle:'italic', opacity:.75 }}> — {TYPE_LABEL[m.type]}</em>}
-            {' '}(absent)
-          </div>
-        );
-      })}
 
       {isSecretary && <span className="add-lnk print-hide">+ affecter</span>}
     </div>

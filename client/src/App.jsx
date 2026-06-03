@@ -251,11 +251,20 @@ export default function App() {
       let undoFn = null;
       let undoLabel = '';
       switch (type) {
-        case 'add_affectation':
+        case 'add_affectation': {
           await api.addAffectation(payload);
+          const autoExcludeDays = payload.auto_exclude_days || [];
+          for (const jour of autoExcludeDays)
+            await api.addExclusion({ week_key: payload.week_key, poste_id: payload.poste_id, med_id: payload.med_id, jour });
           undoLabel = 'Ajout affectation';
-          undoFn = async () => { await api.deleteAffectation(payload); reloadPlan(); };
+          undoFn = async () => {
+            await api.deleteAffectation(payload);
+            for (const jour of autoExcludeDays)
+              await api.deleteExclusion({ week_key: payload.week_key, poste_id: payload.poste_id, med_id: payload.med_id, jour });
+            reloadPlan();
+          };
           break;
+        }
         case 'del_affectation': {
           const excls = (planningData?.exclusions || [])
             .filter(e => e.poste_id === payload.poste_id && e.med_id === payload.med_id);
@@ -343,9 +352,12 @@ export default function App() {
     } catch(e) { showToast(e.message || 'Erreur lors du déplacement', 'err'); }
   }
 
-  async function handleAssign({ mode, medId, targetPid, dayIso: assignDay, weekKey: assignWk }) {
+  async function handleAssign({ mode, medId, targetPid, dayIso: assignDay, weekKey: assignWk, autoExcludeDays }) {
     if (mode === 'week') {
-      await handleAction('add_affectation', { week_key: assignWk, poste_id: targetPid, med_id: medId });
+      await handleAction('add_affectation', {
+        week_key: assignWk, poste_id: targetPid, med_id: medId,
+        ...(autoExcludeDays?.length ? { auto_exclude_days: autoExcludeDays } : {}),
+      });
     } else {
       await handleAction('add_extra', { week_key: assignWk, poste_id: targetPid, med_id: medId, jour: assignDay });
     }
