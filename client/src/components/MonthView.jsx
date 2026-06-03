@@ -207,6 +207,36 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
     return order.map(g => [g, map[g]]);
   })();
 
+  // Ordre stable par poste : typeRank → semaines présent (desc) → nom
+  const rotationStableOrder = useMemo(() => {
+    const result = {};
+    rotationPostes.forEach(poste => {
+      const allIds = [poste.id, ...(poste.combineWith ? [poste.combineWith] : [])];
+      const medWeeks = {};
+      weeks.forEach(w => {
+        const wk = toIso(w);
+        const data = weekData[wk];
+        if (!data) return;
+        allIds.forEach(pid => {
+          (data.affectations?.[pid]?.medecins || []).forEach(m => {
+            if (!medWeeks[m.id]) medWeeks[m.id] = { m, count: 0 };
+            medWeeks[m.id].count++;
+          });
+        });
+      });
+      const sorted = Object.values(medWeeks).sort((a, b) => {
+        const ra = TYPE_RANK[a.m.type] ?? 3, rb = TYPE_RANK[b.m.type] ?? 3;
+        if (ra !== rb) return ra - rb;
+        if (a.count !== b.count) return b.count - a.count;
+        return a.m.nom.localeCompare(b.m.nom, 'fr');
+      });
+      const order = {};
+      sorted.forEach(({ m }, i) => { order[m.id] = i; });
+      result[poste.id] = order;
+    });
+    return result;
+  }, [weekData, filter, subFilter]);
+
   // P13 — Panel PH disponibles pour le mois
   const monthPhDisponibles = useMemo(() => {
     if (!isSecretary) return { full: [], partial: [] };
@@ -507,6 +537,10 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                           const assigned = allIds
                             .flatMap(pid => data?.affectations?.[pid]?.medecins || [])
                             .filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+                          const stableOrder = rotationStableOrder[poste.id] ?? {};
+                          const sortedAssigned = [...assigned].sort((a, b) =>
+                            (stableOrder[a.id] ?? 9999) - (stableOrder[b.id] ?? 9999)
+                          );
                           return (
                             <td key={wk} className="rotation-cell"
                               onClick={isSecretary ? () => {
@@ -520,15 +554,15 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                                 setPanelDragMed(null);
                               } : undefined}
                             >
-                              {assigned.map(m => (
+                              {sortedAssigned.map(m => (
                                 <div key={m.id} className="rotation-chip"
                                   style={{ background: poste.c + '18', borderColor: poste.c + '55', color: poste.c }}>
                                   <span style={{ fontWeight: m.type === 'ph' ? 700 : 400, fontStyle: m.type === 'ph' ? 'normal' : 'italic' }}>
                                     {m.nom}
+                                    {m.type !== 'ph' && TYPE_LBL[m.type] && (
+                                      <em style={{ fontStyle:'italic', opacity:.7, fontSize:9 }}> — {TYPE_LBL[m.type]}</em>
+                                    )}
                                   </span>
-                                  {m.type !== 'ph' && TYPE_LBL[m.type] && (
-                                    <em style={{ fontStyle:'italic', opacity:.7, fontSize:9 }}> {TYPE_LBL[m.type]}</em>
-                                  )}
                                 </div>
                               ))}
                               {isSecretary && <span className="add-lnk print-hide">+ affecter</span>}
