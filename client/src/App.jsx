@@ -70,8 +70,9 @@ const TABS = [
 ];
 
 const PLANNING_VIEWS = [
-  { id:'semaine',    label:'Semaine',    desc:'Cette semaine en grand' },
-  { id:'calendrier', label:'Calendrier', desc:'Vue mensuelle'         },
+  { id:'semaine',  label:'Semaine',  desc:'Cette semaine en grand', secretaryOnly: false },
+  { id:'rotation', label:'Rotation', desc:'Postes × semaines',     secretaryOnly: true  },
+  { id:'mois',     label:'Mois',     desc:'Vue mensuelle',         secretaryOnly: false },
 ];
 
 const SESSION_KEY = 'secretary_key';
@@ -178,6 +179,7 @@ export default function App() {
   const [pwdModal,       setPwdModal]   = useState(false);
   const [doctorFilter,   setDoctorFilter] = useState('');
   const [astreintesDay,  setAstreintesDay] = useState(null);
+  const [monthReloadKey, setMonthReloadKey] = useState(0);
   const toastId       = useRef(0);
   const undoStackRef  = useRef([]);
   const handleUndoRef = useRef(null);
@@ -363,6 +365,121 @@ export default function App() {
     }
   }
 
+  // ── Affectation multi-semaines depuis MonthView (Mode Rotation) ──
+  async function handleMonthAssign({ medId, posteId, weekKey, mode, nWeeks, monthY, monthM }) {
+    const weekKeys = [];
+    if (mode === 'week') {
+      weekKeys.push(weekKey);
+    } else if (mode === 'month') {
+      let c = getMonday(new Date(monthY, monthM, 1));
+      const end = new Date(monthY, monthM + 1, 0);
+      while (c <= end) { weekKeys.push(toIso(c)); c = addDays(c, 7); }
+    } else if (mode === 'nweeks') {
+      let c = new Date(weekKey + 'T12:00:00');
+      for (let i = 0; i < nWeeks; i++) { weekKeys.push(toIso(c)); c = addDays(c, 7); }
+    }
+    const inserted = [];
+    try {
+      for (const wk of weekKeys) {
+        await api.addAffectation({ week_key: wk, poste_id: posteId, med_id: medId });
+        inserted.push(wk);
+      }
+      pushUndo(`Rotation (${inserted.length} sem.)`, async () => {
+        for (const wk of inserted)
+          await api.deleteAffectation({ week_key: wk, poste_id: posteId, med_id: medId }).catch(() => {});
+        setMonthReloadKey(k => k + 1);
+      });
+      setMonthReloadKey(k => k + 1);
+      showToast(`Affecté sur ${inserted.length} semaine(s)`);
+    } catch(e) {
+      for (const wk of inserted)
+        await api.deleteAffectation({ week_key: wk, poste_id: posteId, med_id: medId }).catch(() => {});
+      showToast(e.message || 'Erreur lors de l\'affectation', 'err');
+    }
+  }
+
+  // ── Modification de durée depuis MonthView (Mode Rotation) ──
+  async function handleMonthModify({ medId, posteId, weeksToRemove, mode, nWeeks, monthY, monthM, weekKey }) {
+    const weeksToAdd = [];
+    if (mode === 'week') {
+      weeksToAdd.push(weekKey);
+    } else if (mode === 'month') {
+      let c = getMonday(new Date(monthY, monthM, 1));
+      const end = new Date(monthY, monthM + 1, 0);
+      while (c <= end) { weeksToAdd.push(toIso(c)); c = addDays(c, 7); }
+    } else if (mode === 'nweeks') {
+      let c = new Date(weekKey + 'T12:00:00');
+      for (let i = 0; i < nWeeks; i++) { weeksToAdd.push(toIso(c)); c = addDays(c, 7); }
+    }
+    const removed = [], added = [];
+    try {
+      for (const wk of weeksToRemove) {
+        try {
+          await api.deleteAffectation({ week_key: wk, poste_id: posteId, med_id: medId });
+          removed.push(wk);
+        } catch { /* semaine peut-être déjà supprimée */ }
+      }
+      for (const wk of weeksToAdd) {
+        await api.addAffectation({ week_key: wk, poste_id: posteId, med_id: medId });
+        added.push(wk);
+      }
+      pushUndo(`Modif. rotation (${added.length} sem.)`, async () => {
+        for (const wk of added)
+          await api.deleteAffectation({ week_key: wk, poste_id: posteId, med_id: medId }).catch(() => {});
+        for (const wk of removed)
+          await api.addAffectation({ week_key: wk, poste_id: posteId, med_id: medId }).catch(() => {});
+        setMonthReloadKey(k => k + 1);
+      });
+      setMonthReloadKey(k => k + 1);
+      showToast(`Modifié : affecté sur ${added.length} semaine(s)`);
+    } catch(e) {
+      for (const wk of added)
+        await api.deleteAffectation({ week_key: wk, poste_id: posteId, med_id: medId }).catch(() => {});
+      for (const wk of removed)
+        await api.addAffectation({ week_key: wk, poste_id: posteId, med_id: medId }).catch(() => {});
+      showToast(e.message || 'Erreur lors de la modification', 'err');
+    }
+  }
+
+  // ── Retrait multi-semaines depuis MonthView (Mode Rotation) ──
+  async function handleMonthRemove({ medId, posteId, weekKey, mode, nWeeks, monthY, monthM }) {
+    const weekKeys = [];
+    if (mode === 'week') {
+      weekKeys.push(weekKey);
+    } else if (mode === 'month') {
+      let c = getMonday(new Date(monthY, monthM, 1));
+      const end = new Date(monthY, monthM + 1, 0);
+      while (c <= end) { weekKeys.push(toIso(c)); c = addDays(c, 7); }
+    } else if (mode === 'nweeks') {
+      let c = new Date(weekKey + 'T12:00:00');
+      for (let i = 0; i < nWeeks; i++) { weekKeys.push(toIso(c)); c = addDays(c, 7); }
+    }
+    const removed = [];
+    try {
+      for (const wk of weekKeys) {
+        try {
+          await api.deleteAffectation({ week_key: wk, poste_id: posteId, med_id: medId });
+          removed.push(wk);
+        } catch { /* semaine non affectée, on ignore */ }
+      }
+      if (removed.length === 0) { showToast('Aucune affectation à retirer', 'err'); return; }
+      pushUndo(`Retrait rotation (${removed.length} sem.)`, async () => {
+        for (const wk of removed)
+          await api.addAffectation({ week_key: wk, poste_id: posteId, med_id: medId }).catch(() => {});
+        setMonthReloadKey(k => k + 1);
+      });
+      setMonthReloadKey(k => k + 1);
+      showToast(`Retiré sur ${removed.length} semaine(s)`);
+    } catch(e) {
+      showToast(e.message || 'Erreur lors du retrait', 'err');
+    }
+  }
+
+  function handleNavigateWeek(weekKey) {
+    setMonday(new Date(weekKey + 'T12:00:00'));
+    setPlanningView('semaine');
+  }
+
   async function handleCopyWeek() {
     const prevKey = toIso(addDays(monday, -7));
     if (!confirm('Copier les affectations de la semaine précédente ? Les affectations actuelles seront écrasées.')) return;
@@ -413,7 +530,7 @@ export default function App() {
           <>
             {/* Switcher sous-vues */}
             <div className="print-hide" style={{ display:'flex', gap:6, alignItems:'center', marginBottom:16 }}>
-              {PLANNING_VIEWS.map(v => (
+              {PLANNING_VIEWS.filter(v => !v.secretaryOnly || isSecretary).map(v => (
                 <button key={v.id} onClick={() => setPlanningView(v.id)} style={{
                   display:'flex', flexDirection:'column', alignItems:'flex-start', gap:2,
                   padding:'8px 16px', borderRadius:'var(--r)',
@@ -463,9 +580,15 @@ export default function App() {
               </>
             )}
 
-            {/* Sous-vue Calendrier */}
-            {planningView === 'calendrier' && (
-              <MonthView medecins={medecins} absences={absences} isSecretary={isSecretary} />
+            {/* Sous-vues Mois et Rotation */}
+            {(planningView === 'mois' || planningView === 'rotation') && (
+              <MonthView medecins={medecins} absences={absences} isSecretary={isSecretary}
+                rotationMode={planningView === 'rotation'}
+                reloadKey={monthReloadKey}
+                onMonthAssign={handleMonthAssign}
+                onMonthRemove={handleMonthRemove}
+                onMonthModify={handleMonthModify}
+                onNavigateWeek={handleNavigateWeek} />
             )}
           </>
         )}

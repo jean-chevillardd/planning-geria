@@ -164,32 +164,40 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
   // ── Alertes ──────────────────────────────────────────────
   const alerts = useMemo(() => {
     const warns = [];
+    const alertSet = new Set();
     days.forEach(d => {
       const di = toIso(d);
       if (holidays.has(di)) return;
       POSTES_DISPLAY.filter(p => p.min > 0 || p.minPH > 0).forEach(p => {
+        if (p.id === 'hdj' && new Date(di + 'T12:00:00').getDay() === 3) return;
         const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
         const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
         const excl     = exclusions.filter(e => allIds.includes(e.poste_id) && e.jour === di).map(e => e.med_id);
         const ext      = extras.filter(e => allIds.includes(e.poste_id) && e.jour === di);
         if (p.minPH) {
-          const phPresent = [
-            ...assigned.filter(m => m.type === 'ph' && worksDay(m, di, absences) && !excl.includes(m.id)),
-            ...ext.filter(e => e.type === 'ph'),
-          ];
-          if (phPresent.length < p.minPH)
+          const phTotal =
+            assigned
+              .filter(m => m.type === 'ph' && worksDay(m, di, absences) && !excl.includes(m.id))
+              .reduce((sum, m) => sum + (getSchedHalfDay(m, di) ? 0.5 : 1), 0)
+            + ext.filter(e => e.type === 'ph').length;
+          if (phTotal < p.minPH) {
             warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
+            alertSet.add(`${p.id}:${di}`);
+          }
         } else {
-          const present = [
-            ...assigned.filter(m => worksDay(m, di, absences) && !excl.includes(m.id)),
-            ...ext,
-          ];
-          if (present.length < p.min)
+          const presentTotal =
+            assigned
+              .filter(m => worksDay(m, di, absences) && !excl.includes(m.id))
+              .reduce((sum, m) => sum + (getSchedHalfDay(m, di) ? 0.5 : 1), 0)
+            + ext.length;
+          if (presentTotal < p.min) {
             warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
+            alertSet.add(`${p.id}:${di}`);
+          }
         }
       });
     });
-    return warns;
+    return { warns, alertSet };
   }, [planningData, absences, monday, holidays]);
 
   const allGroups = useMemo(() => {
@@ -305,10 +313,10 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       </div>
 
       {/* ── Alerte couverture ── */}
-      <div className={`alert print-hide ${alerts.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom: 10 }}>
-        {alerts.length === 0
+      <div className={`alert print-hide ${alerts.warns.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom: 10 }}>
+        {alerts.warns.length === 0
           ? '✓ Tous les postes obligatoires sont couverts.'
-          : `⚠ ${alerts.length} créneau(x) non couvert(s) : ${alerts.slice(0, 6).join(' · ')}${alerts.length > 6 ? ' …' : ''}`}
+          : `⚠ ${alerts.warns.length} créneau(x) non couvert(s) : ${alerts.warns.slice(0, 6).join(' · ')}${alerts.warns.length > 6 ? ' …' : ''}`}
       </div>
 
       {/* ── Filtres / légende (P16) ── */}
@@ -503,6 +511,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                         assigned={assigned}
                         exclusions={exclusions} extras={extras} renforts={renforts} absences={absences}
                         doctorFilter={doctorFilter} holidays={holidays}
+                        alertSet={alerts.alertSet}
                         isSecretary={isSecretary} onCellClick={onCellClick}
                         dragInfo={dragInfo}
                         onChipDragStart={handleChipDragStart}
@@ -522,7 +531,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
 
       {/* ── Panneaux latéraux (disponibles + congés) ── */}
       {showAvailablePanel && (
-        <div className="print-hide" style={{ position:'sticky', top:60, alignSelf:'flex-start', display:'flex', flexDirection:'column', gap:10, width:188, flexShrink:0 }}>
+        <div className="print-hide" style={{ position:'sticky', top:60, alignSelf:'flex-start', display:'flex', flexDirection:'column', gap:10, width:188, flexShrink:0, order:-1 }}>
 
           {/* Panneau PH disponibles */}
           <div className="available-panel" style={{ position:'static', maxHeight:'calc(55vh - 50px)' }}>
@@ -816,7 +825,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
 
 // ── Ligne de poste ──────────────────────────────────────────
 
-function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts, absences, doctorFilter, holidays, isSecretary, onCellClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop, panelDragMed, onPanelCellDrop }) {
+function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts, absences, doctorFilter, holidays, alertSet, isSecretary, onCellClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop, panelDragMed, onPanelCellDrop }) {
   const daysPresent = {};
   assigned.forEach(m => {
     daysPresent[m.id] = days.filter(d => worksDay(m, toIso(d), absences)).length;
@@ -836,9 +845,22 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts
   return (
     <div className="grow">
       <div className="pname">
-        <div className="pdot" style={{ background: poste.c }} />
-        <span>{poste.lbl}</span>
-        {poste.min > 0 && <span className="pmin">min {poste.min}</span>}
+        <span style={{ color: poste.c }}>{poste.lbl}</span>
+        {(poste.min > 0 || poste.minPH > 0) && (() => {
+          const hasAlert = alertSet && days.some(d => alertSet.has(`${poste.id}:${toIso(d)}`));
+          const seuil = poste.minPH ?? poste.min;
+          return (
+            <span className="pname-quota">
+              <span className={`pmin ${hasAlert ? 'warn' : 'ok'}`}>min {seuil}</span>
+              <span
+                className={`pname-status ${hasAlert ? 'warn' : 'ok'}`}
+                title={hasAlert ? 'Créneau non couvert cette semaine' : 'Couverture OK'}
+              >
+                {hasAlert ? '✕' : '✓'}
+              </span>
+            </span>
+          );
+        })()}
       </div>
       {days.map(d => {
         const di = toIso(d);
