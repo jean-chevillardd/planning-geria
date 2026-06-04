@@ -1,0 +1,5 @@
+.claude/
+.gstack/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
