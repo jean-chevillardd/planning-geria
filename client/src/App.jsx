@@ -70,113 +70,21 @@ const TABS = [
 ];
 
 const PLANNING_VIEWS = [
-  { id:'semaine',  label:'Semaine',  desc:'Cette semaine en grand', secretaryOnly: false },
-  { id:'rotation', label:'Rotation', desc:'Postes × semaines',     secretaryOnly: true  },
-  { id:'mois',     label:'Mois',     desc:'Vue mensuelle',         secretaryOnly: false },
+  { id:'semaine',  label:'Semaine',  desc:'Cette semaine en grand', gestionnaireOnly: false },
+  { id:'rotation', label:'Rotation', desc:'Postes × semaines',     gestionnaireOnly: true  },
+  { id:'mois',     label:'Mois',     desc:'Vue mensuelle',         gestionnaireOnly: false },
 ];
 
-const SESSION_KEY = 'secretary_key';
-
-// ── Modal saisie mot de passe ──────────────────────────────
-function PasswordModal({ onClose, onSuccess }) {
-  const [pwd,   setPwd]   = useState('');
-  const [error, setError] = useState('');
-  const [busy,  setBusy]  = useState(false);
-  const inputRef = useRef(null);
-
-  useEffect(() => { inputRef.current?.focus(); }, []);
-  useEffect(() => {
-    function h(e) { if (e.key === 'Escape') onClose(); }
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    if (!pwd.trim()) return;
-    setBusy(true); setError('');
-    try {
-      const { token } = await api.checkPassword(pwd);
-      onSuccess(token ?? '');
-    } catch {
-      setError('Mot de passe incorrect.');
-      setPwd('');
-      inputRef.current?.focus();
-    } finally { setBusy(false); }
-  }
-
-  return (
-    <div className="mbg open" onClick={e => e.target.classList.contains('mbg') && onClose()}>
-      <div className="mbox" style={{ width:320, maxHeight:'none', padding:'1.5rem' }}>
-        <div className="mhead">
-          <div className="mttl">Accès secrétariat</div>
-          <button className="mclose" onClick={onClose}>×</button>
-        </div>
-        <p style={{ fontSize:11, fontFamily:'inherit', color:'var(--text2)', margin:'6px 0 14px', lineHeight:1.6 }}>
-          Entrez le mot de passe pour activer les modifications.
-        </p>
-        <form onSubmit={handleSubmit}>
-          <div className="form-row">
-            <label>Mot de passe</label>
-            <input ref={inputRef} type="password" value={pwd}
-              onChange={e => { setPwd(e.target.value); setError(''); }}
-              placeholder="••••••••" autoComplete="current-password" />
-          </div>
-          {error && <p style={{ fontSize:11, fontFamily:'inherit', color:'var(--danger)', marginBottom:10 }}>{error}</p>}
-          <div className="modal-actions">
-            <button type="button" className="btn-cancel" onClick={onClose}>Annuler</button>
-            <button type="submit" className="btn-primary" disabled={busy || !pwd.trim()}>
-              {busy ? '…' : 'Déverrouiller'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ── Bouton mode édition (tab bar) ─────────────────────────
-function LockButton({ isSecretary, onLock, onUnlock }) {
-  return (
-    <button
-      onClick={isSecretary ? onLock : onUnlock}
-      title={isSecretary ? 'Mode édition actif — cliquer pour verrouiller' : 'Activer le mode édition'}
-      style={{
-        display:'flex', alignItems:'center', gap:7,
-        padding:'6px 14px', borderRadius:9, marginLeft:'auto', margin:'5px 0 7px auto',
-        border: isSecretary
-          ? '1.5px solid #f43f5e'
-          : '1.5px solid var(--border)',
-        background: isSecretary ? 'rgba(244,63,94,.06)' : 'transparent',
-        cursor:'pointer',
-        color: isSecretary ? '#f43f5e' : 'var(--text2)',
-        fontSize:12, fontFamily:'inherit', fontWeight:700,
-        transition:'all .15s',
-      }}
-    >
-      <span style={{ fontSize:13 }}>✎</span>
-      <span>Mode édition</span>
-      {isSecretary && (
-        <span style={{
-          background:'#f43f5e', color:'#fff',
-          fontSize:9, fontWeight:700,
-          padding:'1px 6px', borderRadius:8, letterSpacing:'0.04em',
-        }}>ACTIF</span>
-      )}
-    </button>
-  );
-}
-
 // ── App principale ─────────────────────────────────────────
-export default function App() {
+export default function App({ role, onLogout }) {
+  const isGestionnaire = role === 'gestionnaire';
+
   const [tab,            setTab]        = useState('planning');
   const [planningView,   setPlanningView] = useState('semaine');
   const [absencesInitNav, setAbsencesInitNav] = useState(null);
   const [monday,         setMonday]     = useState(() => getMonday(new Date()));
   const [modal,          setModal]      = useState(null);
   const [toasts,         setToasts]     = useState([]);
-  const [isSecretary,    setIsSecretary] = useState(false);
-  const [pwdModal,       setPwdModal]   = useState(false);
   const [doctorFilter,   setDoctorFilter] = useState('');
   const [astreintesDay,  setAstreintesDay] = useState(null);
   const [monthReloadKey, setMonthReloadKey] = useState(0);
@@ -189,11 +97,6 @@ export default function App() {
     setTab('astreintes');
   }
   const weekKey = toIso(monday);
-
-  useEffect(() => {
-    const saved = sessionStorage.getItem(SESSION_KEY);
-    if (saved) { api.setSecretaryKey(saved); setIsSecretary(true); }
-  }, []);
 
   const { medecins, absences, loading: baseLoading, error: baseError, reload: reloadBase } = useBaseData();
   const { data: planningData, loading: planLoading, reload: reloadPlan } = usePlanning(weekKey);
@@ -234,19 +137,7 @@ export default function App() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  function handleUnlock(password) {
-    api.setSecretaryKey(password);
-    sessionStorage.setItem(SESSION_KEY, password);
-    setIsSecretary(true); setPwdModal(false);
-    showToast('Mode secrétariat activé');
-  }
 
-  function handleLock() {
-    api.setSecretaryKey(''); sessionStorage.removeItem(SESSION_KEY);
-    setIsSecretary(false); setModal(null);
-    undoStackRef.current = [];
-    showToast('Planning verrouillé');
-  }
 
   async function handleAction(type, payload) {
     try {
@@ -496,7 +387,7 @@ export default function App() {
     <>
       {/* ── Header ── */}
       <div className="hdr" style={{
-        background: isSecretary
+        background: isGestionnaire
           ? 'linear-gradient(135deg,#1d4ed8,#2563eb)'
           : '#1d4ed8',
       }}>
@@ -510,19 +401,39 @@ export default function App() {
         </div>
         <div className="hdr-r">
           <span>{planLoading ? 'Chargement…' : `Semaine ${weekKey}`}</span>
+          <button
+            onClick={onLogout}
+            title="Se déconnecter"
+            style={{
+              background: 'rgba(255,255,255,.12)', border: '1px solid rgba(255,255,255,.22)',
+              color: 'rgba(255,255,255,.85)', borderRadius: 6, padding: '4px 10px',
+              fontSize: 11, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+              letterSpacing: '0.03em', transition: 'background .12s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,.22)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,.12)'}
+          >
+            Déconnexion
+          </button>
         </div>
       </div>
 
       <div className="main">
         {/* ── Tabs ── */}
         <div className="tabs" style={{ alignItems:'center' }}>
-          {TABS.map(t => (
+          {TABS.filter(t => t.id !== 'equipe' || isGestionnaire).map(t => (
             <button key={t.id} className={`tab${tab===t.id?' active':''}`} onClick={() => setTab(t.id)}>
               {TAB_ICONS[t.id](tab === t.id)}
               {t.label}
             </button>
           ))}
-          <LockButton isSecretary={isSecretary} onLock={handleLock} onUnlock={() => setPwdModal(true)} />
+          {isGestionnaire && (
+            <span style={{ marginLeft:'auto', fontSize:11, padding:'5px 10px',
+              background:'rgba(37,99,235,.08)', border:'1px solid var(--border)', borderRadius:8,
+              color:'var(--text2)', fontWeight:600 }}>
+              Gestionnaire
+            </span>
+          )}
         </div>
 
         {/* ── Planning ── */}
@@ -530,7 +441,7 @@ export default function App() {
           <>
             {/* Switcher sous-vues */}
             <div className="print-hide" style={{ display:'flex', gap:6, alignItems:'center', marginBottom:16 }}>
-              {PLANNING_VIEWS.filter(v => !v.secretaryOnly || isSecretary).map(v => (
+              {PLANNING_VIEWS.filter(v => !v.gestionnaireOnly || isGestionnaire).map(v => (
                 <button key={v.id} onClick={() => setPlanningView(v.id)} style={{
                   display:'flex', flexDirection:'column', alignItems:'flex-start', gap:2,
                   padding:'8px 16px', borderRadius:'var(--r)',
@@ -553,7 +464,7 @@ export default function App() {
               <>
                 <div className="print-hide" style={{ marginBottom:4 }}>
                   <WeekNav monday={monday} onChange={setMonday} onCopy={handleCopyWeek}
-                    onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isSecretary}
+                    onGoToday={() => setMonday(getMonday(new Date()))} isGestionnaire={isGestionnaire}
                     medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
                 </div>
                 {planLoading && !planningData && (
@@ -564,9 +475,9 @@ export default function App() {
                 {planningData && (
                   <div style={{ opacity: planLoading ? 0.55 : 1, transition:'opacity .15s', pointerEvents: planLoading ? 'none' : undefined }}>
                     <PlanningGrid monday={monday} planningData={planningData} absences={absences}
-                      medecins={medecins} isSecretary={isSecretary} doctorFilter={doctorFilter}
+                      medecins={medecins} isGestionnaire={isGestionnaire} doctorFilter={doctorFilter}
                       onCellClick={(poste, dayIso) => {
-                        if (!isSecretary) return;
+                        if (!isGestionnaire) return;
                         // HDJ programmé fermé systématiquement le mercredi
                         if (poste.id === 'hdj' && new Date(dayIso).getDay() === 3) return;
                         setModal({ poste, dayIso });
@@ -574,7 +485,7 @@ export default function App() {
                       onOpenAstreintes={handleOpenAstreintes}
                       onMove={handleMove}
                       onAssign={handleAssign}
-                      showAvailablePanel={isSecretary} />
+                      showAvailablePanel={isGestionnaire} />
                   </div>
                 )}
               </>
@@ -582,7 +493,7 @@ export default function App() {
 
             {/* Sous-vues Mois et Rotation */}
             {(planningView === 'mois' || planningView === 'rotation') && (
-              <MonthView medecins={medecins} absences={absences} isSecretary={isSecretary}
+              <MonthView medecins={medecins} absences={absences} isGestionnaire={isGestionnaire}
                 rotationMode={planningView === 'rotation'}
                 reloadKey={monthReloadKey}
                 onMonthAssign={handleMonthAssign}
@@ -592,8 +503,8 @@ export default function App() {
             )}
           </>
         )}
-        {tab === 'equipe'   && <TeamTab medecins={medecins} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
-        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isSecretary={isSecretary} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} initNav={absencesInitNav} />}
+        {tab === 'equipe'   && <TeamTab medecins={medecins} isGestionnaire={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
+        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isGestionnaire={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} initNav={absencesInitNav} />}
         {tab === 'stats'      && <StatsTab medecins={medecins} onGoToAbsences={(medId, monthKey) => {
           setAbsencesInitNav({ medId, monthDate: new Date(monthKey + '-15'), nonce: Date.now() });
           setTab('absences');
@@ -601,7 +512,7 @@ export default function App() {
         {tab === 'astreintes' && (
           <AstreintesTab
             medecins={medecins}
-            isSecretary={isSecretary}
+            isGestionnaire={isGestionnaire}
             onToast={showToast}
             onPushUndo={pushUndo}
             dayIso={astreintesDay}
@@ -620,12 +531,11 @@ export default function App() {
         ))}
       </div>
 
-      {modal && isSecretary && (
+      {modal && isGestionnaire && (
         <AssignModal poste={modal.poste} dayIso={modal.dayIso} monday={monday}
           planningData={planningData} medecins={medecins} absences={absences}
           onClose={() => setModal(null)} onAction={handleAction} />
       )}
-      {pwdModal && <PasswordModal onClose={() => setPwdModal(false)} onSuccess={handleUnlock} />}
     </>
   );
 }
