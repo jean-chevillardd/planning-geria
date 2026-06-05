@@ -54,7 +54,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
 
   // Esc → fermer
   useEffect(() => {
-    function h(e) { if (e.key === 'Escape') onClose(); }
+    function h(e) { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
   }, [onClose]);

@@ -386,14 +386,6 @@ function ViewRotation({ year, month, aMap, medecins, isSecretary, onMonthChange,
     return t;
   }, [aMap, medecins]);
 
-  const sorted = useMemo(() =>
-    [...medecins].sort((a,b) => {
-      const ta = totals[a.id] || {a:0,p:0,c:0};
-      const tb = totals[b.id] || {a:0,p:0,c:0};
-      const diff = (tb.a + tb.p + tb.c) - (ta.a + ta.p + ta.c);
-      return diff !== 0 ? diff : a.nom.localeCompare(b.nom);
-    }),
-  [medecins, totals]);
 
   return (
     <div>
@@ -445,7 +437,7 @@ function ViewRotation({ year, month, aMap, medecins, isSecretary, onMonthChange,
             </tr>
           </thead>
           <tbody>
-            {sorted.map(med => {
+            {medecins.map(med => {
               const t = totals[med.id] || {a:0,p:0,c:0};
               return (
                 <tr key={med.id}>

@@ -1,7 +1,7 @@
 # Planning Gériatrie — Application Web
 
 Application de planning pour le pôle de gériatrie.  
-**Stack** : React 18 + Vite (front) · Node.js + Express (back) · SQLite via better-sqlite3 · Déploiement Railway
+**Stack** : React 18 + Vite (front) · Node.js + Express (back) · SQLite via sql.js (WASM) · Déploiement Railway
 
 ---
 
