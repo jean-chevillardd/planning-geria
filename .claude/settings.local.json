@@ -35,7 +35,16 @@
       "mcp__github__create_or_update_file",
       "Bash(gh auth *)",
       "Bash(git remote *)",
-      "Bash(lsof -ti:3001)"
+      "Bash(lsof -ti:3001)",
+      "Bash(sqlite3 database.sqlite \"SELECT COUNT\\(*\\) FROM absences WHERE type='CA' AND date_debut = date_fin;\")",
+      "Bash(sqlite3 database.sqlite \".schema absences\")",
+      "Bash(sqlite3 database.sqlite \"SELECT COUNT\\(*\\) FROM absences WHERE type_abs='Congé annuel \\(CA\\)' AND date_debut = date_fin;\")",
+      "Bash(sqlite3 database.sqlite \"SELECT id, med_id, date_debut, date_fin FROM absences WHERE type_abs='Congé annuel \\(CA\\)' AND date_debut = date_fin LIMIT 10;\")",
+      "Bash(sqlite3 database.sqlite \"DELETE FROM absences WHERE type_abs='Congé annuel \\(CA\\)' AND date_debut = date_fin;\")",
+      "Bash(sqlite3 database.sqlite \"SELECT COUNT\\(*\\) FROM absences WHERE type_abs='Congé annuel \\(CA\\)';\")",
+      "Bash(railway up *)",
+      "Bash(railway *)",
+      "Skill(land-and-deploy)"
     ]
   }
 }

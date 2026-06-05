@@ -41,10 +41,10 @@ Les utilisateurs sont exclusivement internes : une ou plusieurs secrétaires mé
                 ▼
 ┌─────────────────────────────────┐
 │         Base de données         │
-│  SQLite via sql.js (WASM)       │
+│  SQLite via better-sqlite3      │
 │  Fichier : server/database.sqlite│
-│  Chargée en mémoire au boot     │
-│  Sauvegardée via persist()      │
+│  Accès synchrone natif          │
+│  Transactions : db.transaction()│
 └─────────────────────────────────┘
 ```
 
@@ -120,7 +120,7 @@ Praticien → clic sur le lien → /conge/<token>
 
 ### 4d. Persistance SQLite
 
-La base tourne **en mémoire** pendant l'exécution. Après chaque écriture, `persist()` appelle `db.export()` pour sauvegarder le buffer sur le fichier `database.sqlite`. Ce mécanisme est intentionnel (sql.js est un WASM pur, sans accès disque natif).
+La base est un fichier sur disque (`server/database.sqlite`). **better-sqlite3** y écrit directement et de façon synchrone — pas de `persist()`, pas de buffer mémoire. Les transactions utilisent `db.transaction(fn)()`. Sur Railway (disque éphémère), le bouton **Backup BD** (onglet Équipe) permet de télécharger une copie à la demande via `GET /api/backup/download`.
 
 ---
 
@@ -199,7 +199,7 @@ Pas de TypeScript, pas de Tailwind, pas de composants UI tiers (pas de MUI, Chak
 | Package | Rôle | Remarque |
 |---|---|---|
 | Express | Serveur HTTP | — |
-| sql.js | SQLite WASM | Choix délibéré — pas de compilation native requise sur Railway |
+| better-sqlite3 | SQLite natif synchrone | Migré depuis sql.js (DT1) — écriture directe sur disque |
 | jsonwebtoken | Auth JWT | — |
 | bcryptjs | Hash mot de passe | — |
 | nodemailer | Envoi emails | Config Gmail (hors git) |
@@ -224,42 +224,40 @@ Pas de TypeScript, pas de Tailwind, pas de composants UI tiers (pas de MUI, Chak
 
 ## 9. Dette technique identifiée
 
-### Critique (bug en production)
+### ~~Critique — RÉSOLUE~~
 
-**`POST /api/planning/copy` retourne systématiquement 500.**  
-Cause : `db.export()` (appelé par `persist()`) déclenche un COMMIT implicite SQLite. Si appelé à l'intérieur d'une transaction ouverte, le COMMIT final échoue avec "no transaction is active". Workaround partiel : `persist()` ne fait rien si une transaction est en cours, ce qui signifie que la copie s'exécute mais les données ne sont pas sauvegardées sur disque avant le prochain redémarrage.  
-→ **La route de copie de semaine est donc inutilisable en production.**
+**~~DT1 — `POST /api/planning/copy` retourne 500~~** ✅ RÉSOLU (migration better-sqlite3, 2026-06-05)  
+Cause originale : `db.export()` (sql.js) provoquait un COMMIT implicite en cours de transaction. Migration vers better-sqlite3 supprime ce problème : écriture synchrone native, transactions `db.transaction(fn)()` sans double-COMMIT.
 
 ### Significative (risque fonctionnel)
 
-**Le JWT secret est régénéré à chaque redémarrage du serveur.**  
-Conséquence : tous les utilisateurs connectés sont déconnectés à chaque déploiement ou crash. En production sur Railway, cela arrive à chaque push. Il faudrait lire le secret depuis une variable d'environnement persistante (`JWT_SECRET`).
+**DT2 — JWT secret potentiellement instable.**  
+Partiellement résolu : le serveur lit `JWT_SECRET` depuis l'env var (ligne 67 de `index.js`) avec fallback aléatoire + warning si non définie. **En prod Railway, configurer `JWT_SECRET` comme variable d'environnement persistante** pour éviter les déconnexions forcées à chaque redéploiement.
 
-**Un seul compte secrétariat.**  
-Pas de gestion multi-utilisateurs, pas de rôles fins. Si deux secrétaires travaillent simultanément, elles partagent le même token et aucune traçabilité n'est possible.
+**DT4 — Un seul compte secrétariat.**  
+Pas de gestion multi-utilisateurs, pas de rôles fins. Si deux secrétaires travaillent simultanément, elles partagent le même token. Effort L, faible priorité tant que l'équipe reste petite.
 
-**Pas de sauvegarde automatique de la base en production.**  
-Le fichier `database.sqlite` est sur le disque éphémère Railway. Un redéploiement ou un redimensionnement de l'instance peut effacer les données. Une stratégie de backup (export S3, volume persistant Railway) n'est pas encore en place.
+**~~DT3 — Pas de sauvegarde automatique de la base en production~~** ✅ RÉSOLU (2026-06-05)  
+Bouton "Backup BD" dans l'onglet Équipe → `GET /api/backup/download` → télécharge `planning-backup-YYYY-MM-DD.sqlite`. Backup à la demande disponible pour tout utilisateur secrétariat.
 
 ### Modérée (maintenabilité / scalabilité)
 
-**Logique de disponibilité client-side (AssignModal).**  
-Les règles de disponibilité des praticiens (qui peut aller où, quel jour) sont calculées entièrement côté client. Si on ajoute une règle métier complexe, elle doit être dupliquée côté serveur pour la route de copie automatique.
+**DT5 — Logique de disponibilité client-side (AssignModal).**  
+Les règles de disponibilité des praticiens sont calculées côté client. Si une règle métier complexe est ajoutée, elle doit être dupliquée côté serveur. Acceptable dans l'état actuel.
 
-**Le README mentionne `better-sqlite3` alors que le projet utilise `sql.js`.**  
-Incohérence de documentation résiduelle à corriger.
+**~~DT6 — Incohérence documentation sql.js/better-sqlite3~~** ✅ RÉSOLU  
+README et TECHNICAL_OVERVIEW mis à jour pour refléter better-sqlite3.
 
-**Pas de validation des données en entrée côté serveur (absence de schéma Zod ou équivalent).**  
-Les routes API font confiance aux données du client. Un champ manquant ou mal typé peut provoquer une erreur SQL non interceptée.
+**DT7 — Validation des données en entrée côté serveur.**  
+Partiellement résolu : `ISO_DATE_RE`, `MED_TYPES`, `ABS_TYPES` valident les champs critiques. Pas de schéma global type Zod. Risque faible tant que l'API reste interne.
 
-**Jours fériés calculés algorithmiquement (sans base officielle).**  
-L'algorithme de Pâques est correct pour la France, mais les ponts et jours fériés décalés (comme le 8 mai tombant un dimanche) ne sont pas gérés.
+**DT8 — Jours fériés sans ponts décalés.**  
+L'algorithme de Pâques est correct pour la France, mais les ponts (lundi de récupération quand le 8 mai tombe un dimanche) ne sont pas gérés. Impact faible.
 
 ### Faible (dette cosmétique / future)
 
-- CSS non modularisé : tout dans un seul `styles.css` (>2000 lignes estimées)
-- Pas de TypeScript : la robustesse des props et des réponses API repose sur des conventions non vérifiées
-- `TODOS.md` liste des fonctionnalités non encore implémentées (alertes couverture P2, bannière dispensables P4-bis)
+- **DT9** — CSS non modularisé : tout dans `styles.css` (~2500 lignes). Maintenable mais difficile à scaler.
+- **DT10** — Pas de TypeScript : robustesse des props et réponses API reposent sur des conventions non vérifiées.
 
 ---
 
@@ -273,4 +271,4 @@ L'algorithme de Pâques est correct pour la France, mais les ponts et jours fér
 
 ---
 
-*Dernière mise à jour : juin 2026*
+*Dernière mise à jour : 2026-06-05*
