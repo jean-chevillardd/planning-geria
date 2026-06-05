@@ -203,12 +203,9 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
           return !!(m.sched[idx] || m.sched[idx + 1]);
         });
         if (joursActifs.length === 0) continue;
-        if (joursActifs.length === dayIsos.length) {
-          full.push({ ...m, schedNote: buildSchedNote(m) });
-        } else {
-          // Travaille seulement certains jours selon sched → partial avec jours travaillés
-          partial.push({ ...m, joursPresents: joursActifs.map(iso => DAYS_FR[dayIsos.indexOf(iso)]) });
-        }
+        // Présent sur tous ses jours planifiés (même si planning < 5j) → full
+        // buildSchedNote génère la note "(abs le mer.)" pour les PH à temps partiel
+        full.push({ ...m, schedNote: buildSchedNote(m) });
       }
     } else {
       // Assigné : libre uniquement les jours où exclu de TOUS ses postes
