@@ -84,14 +84,13 @@ function absColor(type) { return ABS_COLORS[type] ?? '#6A6A66'; }
 
 // Même définition que PlanningGrid (sans "Tout afficher")
 const FILTERS = [
-  { id: 'cs',      label: 'Court séjour',  color: '#2563eb', grps: ['Court séjour'] },
-  { id: 'ssr',     label: 'SSR',           color: '#1D9E75', grps: ['SSR'] },
-  { id: 'extra',   label: 'Extra-hosp.',   color: '#0891b2', grps: ['Extra-hospitalier'] },
-  { id: 'ucc',     label: 'UCC/EMCC',      color: '#e11d48', grps: ['UCC / EMCC'] },
-  { id: 'hdj',     label: 'HDJ',           color: '#ea580c', grps: ['Hôpital de jour'] },
-  { id: 'ehpad',   label: 'EHPAD',         color: '#d97706', grps: ['EHPAD'] },
-  { id: 'tnc',     label: 'Tps non clin.', color: '#9333ea', grps: ['Temps non clinique'] },
-  { id: 'consult', label: 'Consultations', color: '#7c3aed', grps: ['Consultations'] },
+  { id: 'cs',    label: 'Court séjour',    color: '#2563eb', grps: ['Court séjour'] },
+  { id: 'ssr',   label: 'SSR',             color: '#1D9E75', grps: ['SSR'] },
+  { id: 'extra', label: 'Extra-hosp.',     color: '#0891b2', grps: ['Extra-hospitalier'] },
+  { id: 'ucc',   label: 'UCC/EMCC',        color: '#e11d48', grps: ['UCC / EMCC'] },
+  { id: 'hdj',   label: 'HDJ',             color: '#ea580c', grps: ['Hôpital de jour'] },
+  { id: 'ehpad', label: 'EHPAD',           color: '#d97706', grps: ['EHPAD'] },
+  { id: 'disp',  label: 'Dispensables',    color: '#6b7280', grps: ['Activités dispensables'] },
 ];
 
 // Rang de chaque groupe de services (suit l'ordre des filtres)
@@ -527,24 +526,15 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                 </tr>
               </thead>
               <tbody>
-                {[...rotationGroups.indispensable,
-                  ...(rotationGroups.dispensable.length > 0 ? [['__dispensable__', null]] : []),
-                  ...rotationGroups.dispensable,
-                ].map(([grp, postes]) => {
-                  if (grp === '__dispensable__') {
-                    return (
-                      <tr key="__dispensable__">
-                        <td className="rotation-grp-hdr" colSpan={weeks.length + 1}
-                          style={{ borderTop:'2px solid var(--border2)', fontStyle:'italic', opacity:.75 }}>
-                          Dispensables
-                        </td>
-                      </tr>
-                    );
-                  }
+                {[...rotationGroups.indispensable, ...rotationGroups.dispensable].map(([grp, postes], gi) => {
+                  const isFirstDisp = gi === rotationGroups.indispensable.length && rotationGroups.dispensable.length > 0;
                   return (
                     <Fragment key={grp}>
                       <tr>
-                        <td className="rotation-grp-hdr" colSpan={weeks.length + 1}>{grp}</td>
+                        <td className="rotation-grp-hdr" colSpan={weeks.length + 1}
+                          style={isFirstDisp ? { borderTop:'2px solid var(--border2)' } : undefined}>
+                          {grp}
+                        </td>
                       </tr>
                       {postes.map(poste => (
                         <tr key={poste.id}>
