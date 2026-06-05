@@ -708,11 +708,78 @@ function ArchivedSection({ isSecretary, onReactivate }) {
   );
 }
 
+// ── Panneau settings code équipe ─────────────────────────────
+function SettingsPanel({ onToast, onClose }) {
+  const [code,    setCode]    = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving,  setSaving]  = useState(false);
+
+  useEffect(() => {
+    api.getTeamCode()
+      .then(d => setCode(d.team_code || ''))
+      .catch(() => onToast('Impossible de charger le code équipe', 'err'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleSave() {
+    if (!code.trim()) { onToast('Le code ne peut pas être vide', 'err'); return; }
+    setSaving(true);
+    try {
+      await api.updateTeamCode(code.trim());
+      onToast('Code équipe mis à jour');
+      onClose();
+    } catch(e) {
+      onToast(e.message || 'Erreur lors de la mise à jour', 'err');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mbg open" onClick={e => e.target.classList.contains('mbg') && onClose()}>
+      <div className="mbox" style={{ width: 380 }}>
+        <div className="mhead">
+          <div className="mttl">Code d'accès équipe</div>
+          <button className="mclose" onClick={onClose}>×</button>
+        </div>
+        <div style={{ padding: '16px 20px 20px' }}>
+          <p style={{ fontSize: 12, color: 'var(--text2)', fontFamily: 'inherit', margin: '0 0 14px', lineHeight: 1.6 }}>
+            Ce code est partagé par tous les soignants pour accéder au planning en lecture.
+          </p>
+          {loading ? (
+            <p style={{ fontSize: 12, color: 'var(--text3)', fontFamily: 'inherit' }}>Chargement…</p>
+          ) : (
+            <div className="form-row" style={{ marginBottom: 18 }}>
+              <label>Code équipe</label>
+              <input
+                type="text"
+                value={code}
+                onChange={e => setCode(e.target.value)}
+                placeholder="Ex. GERIAT2024"
+                autoFocus
+                onKeyDown={e => e.key === 'Enter' && handleSave()}
+              />
+            </div>
+          )}
+          <div className="modal-actions" style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
+            <button className="btn-cancel" onClick={onClose}>Annuler</button>
+            <button className="btn-primary" onClick={handleSave} disabled={saving || loading}>
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Composant principal ──────────────────────────────────────
-export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPushUndo = () => {} }) {
+export default function TeamTab({ medecins, isGestionnaire, onReload, onToast, onPushUndo = () => {} }) {
+  const isSecretary = isGestionnaire;
   const [selected,      setSelected]      = useState(null); // member obj | { isNew:true, defaultCat } | null
   const [search,        setSearch]        = useState('');
   const [campaignOpen,  setCampaignOpen]  = useState(false);
+  const [settingsOpen,  setSettingsOpen]  = useState(false);
 
   const members = useMemo(() => medecins.map(normalizeMedecin), [medecins]);
 
@@ -818,6 +885,17 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
               </svg>
               Backup BD
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setSettingsOpen(true)}
+              title="Modifier le code d'accès équipe"
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 13px', fontSize:12 }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+              </svg>
+              Paramètres
             </button>
             <button className="btn-primary" onClick={() => setSelected({ isNew: true, defaultCat: 'ph' })}>
               + Ajouter un personnel
@@ -938,6 +1016,14 @@ export default function TeamTab({ medecins, isSecretary, onReload, onToast, onPu
           medecins={members}
           onClose={() => setCampaignOpen(false)}
           onToast={onToast}
+        />
+      )}
+
+      {/* Modale settings code équipe */}
+      {settingsOpen && (
+        <SettingsPanel
+          onToast={onToast}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
     </div>
