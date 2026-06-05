@@ -29,14 +29,14 @@ const TYPE_LABEL = { interne: 'Interne', externe: 'Externe', padhue: 'PADHUE', i
 
 // P16 — « Tout afficher » supprimé ; sous-groupes identiques à la vue mensuelle
 const FILTERS = [
-  { id: 'cs',      label: 'Court séjour',     color: '#2563eb', grps: ['Court séjour'] },
-  { id: 'ssr',     label: 'SSR',              color: '#1D9E75', grps: ['SSR'] },
-  { id: 'hdj',     label: 'HDJ',              color: '#ea580c', grps: ['Hôpital de jour'] },
-  { id: 'ucc',     label: 'UCC/EMCC',         color: '#e11d48', grps: ['UCC / EMCC'] },
-  { id: 'extra',   label: 'Extra-hosp.',      color: '#0891b2', grps: ['Extra-hospitalier'] },
-  { id: 'tnc',     label: 'Tps non clin.',    color: '#9333ea', grps: ['Temps non clinique'] },
-  { id: 'ehpad',   label: 'EHPAD',            color: '#d97706', grps: ['EHPAD'] },
-  { id: 'consult', label: 'Consultations',    color: '#7c3aed', grps: ['Consultations'] },
+  { id: 'cs',      label: 'Court séjour',  color: '#2563eb', grps: ['Court séjour'] },
+  { id: 'ssr',     label: 'SSR',           color: '#1D9E75', grps: ['SSR'] },
+  { id: 'extra',   label: 'Extra-hosp.',   color: '#0891b2', grps: ['Extra-hospitalier'] },
+  { id: 'ucc',     label: 'UCC/EMCC',      color: '#e11d48', grps: ['UCC / EMCC'] },
+  { id: 'hdj',     label: 'HDJ',           color: '#ea580c', grps: ['Hôpital de jour'] },
+  { id: 'ehpad',   label: 'EHPAD',         color: '#d97706', grps: ['EHPAD'] },
+  { id: 'tnc',     label: 'Tps non clin.', color: '#9333ea', grps: ['Temps non clinique'] },
+  { id: 'consult', label: 'Consultations', color: '#7c3aed', grps: ['Consultations'] },
 ];
 
 // ── Composant principal ────────────────────────────────────

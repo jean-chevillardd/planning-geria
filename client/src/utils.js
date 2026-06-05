@@ -3,23 +3,26 @@
 
 // dispensable:true = service ouvert uniquement si >12 PH (ou >11 le mercredi)
 // → ces postes n'entrent PAS dans le compteur PH/jour
+// Ordre : CSG 1 → CSG 2 → SSR → EOPS → UCC → HDJ → HDJ NP → EHPAD → dispensables
 export const POSTES = [
+  // ── Indispensables ──────────────────────────────────────────
   { id:'csg1a',  lbl:'CSG 1 — Sénior',           short:'CSG 1',    c:'#2272f0', min:1, minPH:2, grp:'Court séjour',        intern:false },
   { id:'csg1i1', lbl:'CSG 1 — Interne',            short:'CSG 1',    c:'#60a5fa', min:1,          grp:'Court séjour',        intern:true  },
   { id:'csg2a',  lbl:'CSG 2 — Sénior',             short:'CSG 2',    c:'#4f46e5', min:1, minPH:2, grp:'Court séjour',        intern:false },
   { id:'csg2i1', lbl:'CSG 2 — Interne',             short:'CSG 2',    c:'#818cf8', min:1,          grp:'Court séjour',        intern:true  },
-  { id:'hdj',    lbl:'HDJ programmé',               short:'HDJ',      c:'#ea580c', min:1, grp:'Hôpital de jour',     intern:false },
-  { id:'hdjnp',  lbl:'HDJ non programmé',           short:'HDJ NP',   c:'#b91c1c', min:1, grp:'Hôpital de jour',     intern:false },
-  { id:'hdjog',  lbl:'HDJ oncoGéria',               short:'HDJ OG',   c:'#f97316', min:0, grp:'Hôpital de jour',     intern:false, dispensable:true },
-  { id:'eops',   lbl:"EOPS / Ligne d'avis",         short:'EOPS',     c:'#0891b2', min:1, grp:'Extra-hospitalier',   intern:false },
-  { id:'emg',    lbl:'EMG (équipe mobile)',          short:'EMG',      c:'#6366f1', min:1, grp:'Extra-hospitalier',   intern:false, dispensable:true },
-  { id:'tnc',    lbl:'Temps non clinique',           short:'TNC',      c:'#9333ea', min:0, grp:'Temps non clinique',  intern:false, dispensable:true },
   { id:'ssr3',   lbl:'SSR 3ème',                    short:'SSR 3',    c:'#0d9488', min:1, grp:'SSR',                 intern:false },
   { id:'ssr4',   lbl:'SSR 4ème',                    short:'SSR 4',    c:'#1D9E75', min:1, grp:'SSR',                 intern:false },
   { id:'ssr5',   lbl:'SSR 5ème',                    short:'SSR 5',    c:'#047857', min:1, grp:'SSR',                 intern:false },
+  { id:'eops',   lbl:"EOPS / Ligne d'avis",         short:'EOPS',     c:'#0891b2', min:1, grp:'Extra-hospitalier',   intern:false },
   { id:'ucc',    lbl:'UCC',                         short:'UCC',      c:'#e11d48', min:1, grp:'UCC / EMCC',          intern:false },
-  { id:'emcc',   lbl:'EMCC',                        short:'EMCC',     c:'#db2777', min:0, grp:'UCC / EMCC',          intern:false, dispensable:true },
+  { id:'hdj',    lbl:'HDJ programmé',               short:'HDJ',      c:'#ea580c', min:1, grp:'Hôpital de jour',     intern:false },
+  { id:'hdjnp',  lbl:'HDJ non programmé',           short:'HDJ NP',   c:'#b91c1c', min:1, grp:'Hôpital de jour',     intern:false },
   { id:'ehpad',  lbl:'EHPAD / SLD',                 short:'EHPAD',    c:'#d97706', min:1, grp:'EHPAD',               intern:false },
+  // ── Dispensables ────────────────────────────────────────────
+  { id:'emg',    lbl:'EMG (équipe mobile)',          short:'EMG',      c:'#6366f1', min:1, grp:'Extra-hospitalier',   intern:false, dispensable:true },
+  { id:'emcc',   lbl:'EMCC',                        short:'EMCC',     c:'#db2777', min:0, grp:'UCC / EMCC',          intern:false, dispensable:true },
+  { id:'tnc',    lbl:'Temps non clinique',           short:'TNC',      c:'#9333ea', min:0, grp:'Temps non clinique',  intern:false, dispensable:true },
+  { id:'hdjog',  lbl:'HDJ oncoGéria',               short:'HDJ OG',   c:'#f97316', min:0, grp:'Hôpital de jour',     intern:false, dispensable:true },
   { id:'ehpadl', lbl:'EHPAD Luçon',                 short:'EHPAD L',  c:'#92400e', min:0, grp:'EHPAD',               intern:false, dispensable:true },
   { id:'cstmem', lbl:'CST Mémoire',                 short:'Mémoire',  c:'#7c3aed', min:0, grp:'Consultations',       intern:false, dispensable:true },
 ];
