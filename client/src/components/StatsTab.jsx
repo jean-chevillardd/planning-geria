@@ -1,5 +1,5 @@
 // components/StatsTab.jsx — Synthèse: cards + heatmap with slide-in side panel
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { POSTES, TYPE_LBL } from '../utils';
 import * as api from '../api';
 
@@ -35,21 +35,24 @@ function congeShort(t) {
 }
 
 const MONTHS_SHORT = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const MONTHS_FR    = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
 /* ── Helpers ──────────────────────────────────────────── */
-const YEAR      = new Date().getFullYear();
-const YEAR_START = `${YEAR}-01-01`;
-const YEAR_END   = `${YEAR}-12-31`;
+const YEAR = new Date().getFullYear();
 
-// Clamps an ISO date string to the current-year window.
-function clampYear(iso, isEnd) {
-  if (isEnd) return iso > YEAR_END   ? YEAR_END   : iso;
-  return           iso < YEAR_START  ? YEAR_START : iso;
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-function countWorkingDays(d1, d2) {
-  const s = clampYear(d1, false);
-  const e = clampYear(d2, true);
+// Clamps an ISO date string to the given period window.
+function clampPeriod(iso, isEnd, from, to) {
+  if (isEnd) return iso > to   ? to   : iso;
+  return           iso < from  ? from : iso;
+}
+
+function countWorkingDays(d1, d2, from, to) {
+  const s = clampPeriod(d1, false, from, to);
+  const e = clampPeriod(d2, true,  from, to);
   if (s > e) return 0;
   let n = 0;
   const end = new Date(e + 'T12:00:00');
@@ -76,11 +79,11 @@ function topSegs(p, n = 4) {
   return segs(p).sort((a, b) => b.n - a.n).slice(0, n);
 }
 
-function congesByType(absences) {
+function congesByType(absences, from, to) {
   const res = {};
   absences.forEach(a => {
     if (!res[a.type_abs]) res[a.type_abs] = 0;
-    res[a.type_abs] += countWorkingDays(a.date_debut, a.date_fin);
+    res[a.type_abs] += countWorkingDays(a.date_debut, a.date_fin, from, to);
   });
   return res;
 }
@@ -89,21 +92,66 @@ function hexA(hex, alpha) {
   return hex + Math.round(alpha * 255).toString(16).padStart(2, '0');
 }
 
-function monthlyCongeMap(absences) {
+function monthlyCongeMap(absences, from, to) {
   const res = {};
   absences.forEach(a => {
-    const s = clampYear(a.date_debut, false);
-    const e = clampYear(a.date_fin,   true);
+    const s = clampPeriod(a.date_debut, false, from, to);
+    const e = clampPeriod(a.date_fin,   true,  from, to);
     if (s > e) return;
     if (!res[a.type_abs]) res[a.type_abs] = Array(12).fill(0);
     const end = new Date(e + 'T12:00:00');
     for (let d = new Date(s + 'T12:00:00'); d <= end; d.setDate(d.getDate() + 1)) {
       const dow = d.getDay();
-      // d is already clamped to current year, so getMonth() is correct
       if (dow > 0 && dow < 6) res[a.type_abs][d.getMonth()]++;
     }
   });
   return res;
+}
+
+/* ── MonthPickerPopover (local) ───────────────────────── */
+function MonthPickerPopover({ value: current, onChange: onSelect, onClose }) {
+  const [yr, setYr] = useState(current.getFullYear());
+  const ref = useRef(null);
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) onClose(); }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [onClose]);
+  useEffect(() => {
+    function h(e) { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+  const curM = current.getMonth(), curY = current.getFullYear();
+  return (
+    <div ref={ref} style={{
+      position:'absolute', top:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)',
+      zIndex:700, background:'var(--surface)', border:'1px solid var(--border2)',
+      borderRadius:'var(--rl)', boxShadow:'0 8px 28px rgba(0,0,0,.18)',
+      padding:'12px', width:200,
+    }}>
+      <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:10 }}>
+        <button className="wn-btn" onClick={() => setYr(y => y - 1)}>‹</button>
+        <span style={{ flex:1, textAlign:'center', fontSize:13, fontFamily:'inherit', fontWeight:700 }}>{yr}</span>
+        <button className="wn-btn" onClick={() => setYr(y => y + 1)}>›</button>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:4 }}>
+        {MONTHS_FR.map((m, i) => {
+          const isSel = i === curM && yr === curY;
+          return (
+            <button key={i} onClick={() => { onSelect(new Date(yr, i, 1)); onClose(); }} style={{
+              padding:'5px 2px', fontSize:11, fontFamily:'inherit',
+              fontWeight: isSel ? 700 : 400, borderRadius:'var(--r)',
+              border: isSel ? '1.5px solid var(--accent)' : '1px solid transparent',
+              background: isSel ? 'var(--accent-light)' : 'transparent',
+              color: isSel ? 'var(--accent)' : 'var(--text)',
+              cursor:'pointer', textAlign:'center',
+            }}>{m.slice(0,3)}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 /* ── Icons ────────────────────────────────────────────── */
@@ -175,12 +223,12 @@ function SvcBar({ p, h = 8 }) {
 }
 
 /* ── MediumCard ───────────────────────────────────────── */
-function MediumCard({ p, selected, onSelect }) {
+function MediumCard({ p, selected, onSelect, from, to }) {
   const [hov, setHov] = useState(false);
   const tw  = sumW(p);
   const top = topSegs(p, 4);
   const cat = CATS.find(c => c.id === p.type);
-  const conges       = congesByType(p.absences);
+  const conges       = congesByType(p.absences, from, to);
   const totalAbsDays = Object.values(conges).reduce((a, b) => a + b, 0);
 
   return (
@@ -254,7 +302,7 @@ function MediumCard({ p, selected, onSelect }) {
 }
 
 /* ── CardsView ────────────────────────────────────────── */
-function CardsView({ practitioners, selectedId, onSelect, search, setSearch }) {
+function CardsView({ practitioners, selectedId, onSelect, search, setSearch, from, to }) {
   const filtered = practitioners.filter(p =>
     p.nom.toLowerCase().includes(search.toLowerCase())
   );
@@ -310,7 +358,7 @@ function CardsView({ practitioners, selectedId, onSelect, search, setSearch }) {
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:14 }}>
               {prats.map(p => (
-                <MediumCard key={p.id} p={p} selected={p.id === selectedId} onSelect={onSelect}/>
+                <MediumCard key={p.id} p={p} selected={p.id === selectedId} onSelect={onSelect} from={from} to={to}/>
               ))}
             </div>
           </div>
@@ -445,13 +493,13 @@ function MatrixView({ practitioners, selectedId, onSelect }) {
 }
 
 /* ── DetailContent ────────────────────────────────────── */
-function DetailContent({ p }) {
+function DetailContent({ p, from, to }) {
   const s    = segs(p).sort((a, b) => b.n - a.n);
   const maxW = s[0]?.n || 1;
-  const conges         = congesByType(p.absences);
+  const conges         = congesByType(p.absences, from, to);
   const totalAbsDays   = Object.values(conges).reduce((a, b) => a + b, 0);
   const activeCongeTypes = Object.entries(conges).filter(([, d]) => d > 0);
-  const mc = monthlyCongeMap(p.absences);
+  const mc = monthlyCongeMap(p.absences, from, to);
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:22 }}>
@@ -529,7 +577,7 @@ function DetailContent({ p }) {
 }
 
 /* ── SidePanel ────────────────────────────────────────── */
-function SidePanel({ p, onClose, practitioners }) {
+function SidePanel({ p, onClose, practitioners, from, to }) {
   const cat = CATS.find(c => c.id === p.type);
   const idx = practitioners.findIndex(x => x.id === p.id);
 
@@ -568,7 +616,7 @@ function SidePanel({ p, onClose, practitioners }) {
       </div>
 
       <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
-        <DetailContent p={p}/>
+        <DetailContent p={p} from={from} to={to}/>
       </div>
 
       <div style={{ padding:'12px 24px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'space-between', flexShrink:0 }}>
@@ -604,10 +652,19 @@ export default function StatsTab({ medecins }) {
   const [allStats,   setAllStats]   = useState(null);
   const [loading,    setLoading]    = useState(true);
 
-  const year = new Date().getFullYear();
+  const [periodFrom, setPeriodFrom] = useState(() => new Date(YEAR, 0, 1));
+  const [periodTo,   setPeriodTo]   = useState(() => new Date(YEAR, 11, 31));
+  const [fromOpen,   setFromOpen]   = useState(false);
+  const [toOpen,     setToOpen]     = useState(false);
+  const fromBtnRef = useRef(null);
+  const toBtnRef   = useRef(null);
+
+  const fromStr = isoDate(new Date(periodFrom.getFullYear(), periodFrom.getMonth(), 1));
+  const toStr   = isoDate(new Date(periodTo.getFullYear(), periodTo.getMonth() + 1, 0));
 
   useEffect(() => {
-    api.getAllStats()
+    setLoading(true);
+    api.getAllStats(fromStr, toStr)
       .then(data => {
         const map = {};
         data.forEach(({ med_id, affectations, absences }) => {
@@ -619,7 +676,7 @@ export default function StatsTab({ medecins }) {
       })
       .catch(err => console.error('Stats error:', err))
       .finally(() => setLoading(false));
-  }, []);
+  }, [fromStr, toStr]);
 
   const practitioners = useMemo(() => {
     const catOrder = Object.fromEntries(CATS.map((c, i) => [c.id, i]));
@@ -647,6 +704,12 @@ export default function StatsTab({ medecins }) {
     setSearch('');
   }
 
+  const periodLabel = (() => {
+    const fm = MONTHS_FR[periodFrom.getMonth()].slice(0,3) + '. ' + periodFrom.getFullYear();
+    const tm = MONTHS_FR[periodTo.getMonth()].slice(0,3) + '. ' + periodTo.getFullYear();
+    return fromStr === toStr || fm === tm ? fm : `${fm} – ${tm}`;
+  })();
+
   return (
     <div>
       <div style={{
@@ -656,10 +719,61 @@ export default function StatsTab({ medecins }) {
         <div>
           <div className="sec-t">Synthèse par praticien</div>
           <div style={{ fontSize:11, fontFamily:'inherit', color:'var(--text2)', marginTop:3 }}>
-            Rotation {year} · semaines passées &amp; planifiées
+            {periodLabel} · semaines passées &amp; planifiées
           </div>
         </div>
-        <ViewToggle view={view} setView={handleViewSwitch}/>
+
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          {/* Sélecteur de période */}
+          <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, fontFamily:'inherit', color:'var(--text2)' }}>
+            <span>Du</span>
+            <div style={{ position:'relative' }}>
+              <button ref={fromBtnRef} onClick={() => { setFromOpen(v => !v); setToOpen(false); }} style={{
+                fontSize:12, fontFamily:'inherit', padding:'4px 10px', borderRadius:6,
+                border:'1px solid var(--border)', background:'var(--surface)', cursor:'pointer',
+                color:'var(--text)', fontWeight:500,
+              }}>
+                {MONTHS_FR[periodFrom.getMonth()].slice(0,3)} {periodFrom.getFullYear()}
+              </button>
+              {fromOpen && (
+                <MonthPickerPopover
+                  value={periodFrom}
+                  onChange={d => {
+                    const clamped = d > periodTo ? periodTo : d;
+                    setPeriodFrom(clamped);
+                    setFromOpen(false);
+                  }}
+                  onClose={() => setFromOpen(false)}
+                  anchorRef={fromBtnRef}
+                />
+              )}
+            </div>
+            <span>au</span>
+            <div style={{ position:'relative' }}>
+              <button ref={toBtnRef} onClick={() => { setToOpen(v => !v); setFromOpen(false); }} style={{
+                fontSize:12, fontFamily:'inherit', padding:'4px 10px', borderRadius:6,
+                border:'1px solid var(--border)', background:'var(--surface)', cursor:'pointer',
+                color:'var(--text)', fontWeight:500,
+              }}>
+                {MONTHS_FR[periodTo.getMonth()].slice(0,3)} {periodTo.getFullYear()}
+              </button>
+              {toOpen && (
+                <MonthPickerPopover
+                  value={periodTo}
+                  onChange={d => {
+                    const clamped = d < periodFrom ? periodFrom : d;
+                    setPeriodTo(clamped);
+                    setToOpen(false);
+                  }}
+                  onClose={() => setToOpen(false)}
+                  anchorRef={toBtnRef}
+                />
+              )}
+            </div>
+          </div>
+
+          <ViewToggle view={view} setView={handleViewSwitch}/>
+        </div>
       </div>
 
       {loading ? (
@@ -684,6 +798,8 @@ export default function StatsTab({ medecins }) {
                   onSelect={handleSelect}
                   search={search}
                   setSearch={setSearch}
+                  from={fromStr}
+                  to={toStr}
                 />
               : <MatrixView
                   practitioners={practitioners}
@@ -704,6 +820,8 @@ export default function StatsTab({ medecins }) {
                 p={selectedP}
                 onClose={handleSelect}
                 practitioners={practitioners}
+                from={fromStr}
+                to={toStr}
               />
             )}
           </div>

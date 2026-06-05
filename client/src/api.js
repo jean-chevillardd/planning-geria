@@ -56,8 +56,14 @@ export const copyWeek = (from_week, to_week) =>
   req('POST', '/planning/copy', { from_week, to_week });
 
 // ── Statistiques médecin ────────────────────────────────
-export const getStatsMedecin = (medId) => req('GET', `/stats/medecin/${medId}`);
-export const getAllStats      = ()      => req('GET', '/stats/all');
+export const getStatsMedecin = (medId, from, to) => {
+  const qs = from ? `?from=${from}&to=${to}` : '';
+  return req('GET', `/stats/medecin/${medId}${qs}`);
+};
+export const getAllStats = (from, to) => {
+  const qs = from ? `?from=${from}&to=${to}` : '';
+  return req('GET', `/stats/all${qs}`);
+};
 
 // ── Renforts ────────────────────────────────────────────
 export const addRenfort    = (data) => req('POST',   '/renforts', data);
@@ -67,6 +73,26 @@ export const deleteRenfort = (data) => req('DELETE', '/renforts', data);
 export const getAstreintes   = (month) => req('GET', `/astreintes?month=${month}`);
 export const addAstreinte    = (data)  => req('POST', '/astreintes', data);
 export const deleteAstreinte = (id)    => req('DELETE', `/astreintes/${id}`);
+
+// ── Backup base de données ──────────────────────────────
+export function downloadBackup() {
+  const headers = {};
+  if (_secretaryKey) headers['x-secretary-key'] = _secretaryKey;
+  return fetch('/api/backup/download', { headers })
+    .then(r => {
+      if (!r.ok) throw new Error('Erreur téléchargement');
+      return r.blob();
+    })
+    .then(blob => {
+      const date = new Date().toISOString().split('T')[0];
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = `planning-backup-${date}.sqlite`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+}
 
 // ── Congés self-service ─────────────────────────────────
 export const validateCongeToken = (token)        => req('GET', `/conge/token/${token}`);

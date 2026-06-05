@@ -649,8 +649,8 @@ function createApp(dbLib) {
   app.get('/api/stats/medecin/:medId', (req, res) => {
     const { medId } = req.params;
     const year    = new Date().getFullYear();
-    const fromKey = `${year}-01-01`;
-    const toKey   = `${year}-12-31`;
+    const fromKey = req.query.from || `${year}-01-01`;
+    const toKey   = req.query.to   || `${year}-12-31`;
 
     const affectations = dbLib.queryAll(`
       SELECT poste_id, COUNT(DISTINCT week_key) AS semaines
@@ -672,8 +672,8 @@ function createApp(dbLib) {
 
   app.get('/api/stats/all', (req, res) => {
     const year    = new Date().getFullYear();
-    const fromKey = `${year}-01-01`;
-    const toKey   = `${year}-12-31`;
+    const fromKey = req.query.from || `${year}-01-01`;
+    const toKey   = req.query.to   || `${year}-12-31`;
 
     const affRows = dbLib.queryAll(`
       SELECT med_id, poste_id, COUNT(DISTINCT week_key) AS semaines
@@ -711,6 +711,24 @@ function createApp(dbLib) {
     }));
 
     res.json(result);
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // BACKUP BASE DE DONNÉES (téléchargement SQLite)
+  // ═══════════════════════════════════════════════════════
+  app.get('/api/backup/download', (req, res) => {
+    if (SECRETARY_HASH) {
+      const token = req.headers['x-secretary-key'];
+      if (!token) return res.status(401).json({ error: 'Authentification requise' });
+      try { jwt.verify(token, JWT_SECRET); }
+      catch { return res.status(401).json({ error: 'Token invalide ou expiré' }); }
+    }
+    const dbPath = path.join(__dirname, 'database.sqlite');
+    if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'Base de données introuvable' });
+    const date = new Date().toISOString().split('T')[0];
+    res.setHeader('Content-Disposition', `attachment; filename="planning-backup-${date}.sqlite"`);
+    res.setHeader('Content-Type', 'application/octet-stream');
+    fs.createReadStream(dbPath).pipe(res);
   });
 
   // ═══════════════════════════════════════════════════════

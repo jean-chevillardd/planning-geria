@@ -313,10 +313,32 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       </div>
 
       {/* ── Alerte couverture ── */}
-      <div className={`alert print-hide ${alerts.warns.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom: 10 }}>
-        {alerts.warns.length === 0
-          ? '✓ Tous les postes obligatoires sont couverts.'
-          : `⚠ ${alerts.warns.length} créneau(x) non couvert(s) : ${alerts.warns.slice(0, 6).join(' · ')}${alerts.warns.length > 6 ? ' …' : ''}`}
+      <div className={`alert print-hide ${alerts.warns.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom: 10, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+        {alerts.warns.length === 0 ? (
+          <span>✓ Tous les postes obligatoires sont couverts.</span>
+        ) : (
+          <>
+            <span style={{ fontWeight:700, whiteSpace:'nowrap', flexShrink:0 }}>
+              ⚠ {alerts.warns.length} créneau{alerts.warns.length > 1 ? 'x' : ''} non couvert{alerts.warns.length > 1 ? 's' : ''}
+            </span>
+            <span style={{ width:1, height:14, background:'currentColor', opacity:0.3, flexShrink:0 }}/>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
+              {alerts.warns.slice(0, 8).map((w, i) => (
+                <span key={i} style={{
+                  background:'rgba(0,0,0,.08)', borderRadius:4,
+                  padding:'2px 7px', fontSize:11, fontWeight:600, whiteSpace:'nowrap',
+                }}>
+                  {w}
+                </span>
+              ))}
+              {alerts.warns.length > 8 && (
+                <span style={{ fontSize:11, opacity:0.7, alignSelf:'center' }}>
+                  +{alerts.warns.length - 8} autres
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ── Filtres / légende (P16) ── */}
@@ -560,7 +582,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
               <>
                 {disponibles.full.length > 0 && (
                   <>
-                    <div className="available-group-label">Présents 5j</div>
+                    <div className="available-group-label">Présents cette semaine</div>
                     <ul className="available-list">
                       {disponibles.full.map(m => (
                         <li key={m.id} className="available-item"

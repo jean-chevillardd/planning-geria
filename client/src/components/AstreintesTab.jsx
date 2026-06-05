@@ -663,7 +663,9 @@ export default function AstreintesTab({ medecins, isSecretary, onToast, onPushUn
   const aMap = useMemo(() => buildMap(astreintes), [astreintes]);
 
   const astreinteMedecins = useMemo(() =>
-    medecins.filter(m => m.type === 'ph' || (m.service && m.service !== 'geriatrie')),
+    medecins
+      .filter(m => m.type === 'ph' || (m.service && m.service !== 'geriatrie'))
+      .sort((a, b) => a.id - b.id),
     [medecins]
   );
 

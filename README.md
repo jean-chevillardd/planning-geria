@@ -139,8 +139,9 @@ Configuration email : `server/email.config.json` (hors git — voir `email.confi
 | GET | `/api/astreintes` | Astreintes d'un mois (`?month=YYYY-MM`) |
 | POST | `/api/astreintes` | Saisir une astreinte |
 | DELETE | `/api/astreintes/:id` | Supprimer une astreinte |
-| GET | `/api/stats/medecin/:id` | Stats d'un praticien |
-| GET | `/api/stats/all` | Stats de toute l'équipe |
+| GET | `/api/stats/medecin/:id` | Stats d'un praticien (`?from=YYYY-MM-DD&to=YYYY-MM-DD`) |
+| GET | `/api/stats/all` | Stats de toute l'équipe (`?from=YYYY-MM-DD&to=YYYY-MM-DD`) |
+| GET | `/api/backup/download` | Téléchargement SQLite (JWT requis si auth configurée) |
 | GET | `/api/conge/preview` | Aperçu campagne congés |
 | POST | `/api/conge/campaign` | Lancer une campagne d'emails |
 
@@ -188,7 +189,14 @@ Les tests serveur utilisent `db_testable.js` avec une base SQLite en mémoire is
 La base de données est dans `server/database.sqlite`.  
 **Sauvegarder ce fichier suffit** à préserver toutes les données.
 
-Exemple de sauvegarde automatique (cron Linux) :
+### Depuis l'interface (Railway / production)
+
+En mode secrétariat, onglet **Équipe** → bouton **Backup BD** → télécharge `planning-backup-YYYY-MM-DD.sqlite`.
+
+Cela appelle `GET /api/backup/download` (JWT requis si authentification configurée).
+
+### Automatique (cron Linux — serveur dédié)
+
 ```bash
 # Chaque soir à 23h
 0 23 * * * cp /opt/planning-geriatrie/server/database.sqlite /backup/planning_$(date +\%Y\%m\%d).sqlite

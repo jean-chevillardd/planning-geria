@@ -105,16 +105,9 @@
 
 ---
 
-## P8 — Vue rotation astreintes : supprimer le tri automatique
+## ~~P8 — Vue rotation astreintes : supprimer le tri automatique~~ ✅ DONE 2026-06-05
 
-**What:** Dans `AstreintesTab` vue Rotation, désactiver le tri automatique des lignes. L'ordre d'affichage doit respecter l'ordre de saisie/insertion, ou être manuellement ajustable.
-**Why:** Le tri auto perturbe la lecture des rotations planifiées ; les médecins s'attendent à retrouver les lignes dans l'ordre où ils les ont définies.
-**Pros:** Effort XS, correction de comportement indésirable signalé.
-**Cons:** Vérifier que le retrait du tri ne casse pas le rendu (doublons éventuels à gérer).
-**Context:** Demande explicite de l'utilisateur (notes 2026-06-02).
-**Effort:** XS (CC: ~10min)
-**Priority:** P8
-**Depends on:** Rien.
+**Implémenté :** `astreinteMedecins` dans `AstreintesTab.jsx` trié par `id` (ordre d'insertion en base) au lieu de l'ordre alphabétique global hérité du serveur (`ORDER BY type, nom`).
 
 ---
 
@@ -305,16 +298,9 @@ Header de chaque colonne semaine **cliquable** → navigue vers cette semaine en
 
 ---
 
-## P15 — Refonte bandeau « créneaux non couverts »
+## ~~P15 — Refonte bandeau « créneaux non couverts »~~ ✅ DONE 2026-06-05
 
-**What:** Revoir l'affichage du bandeau d'alerte listant les créneaux non couverts (ex. « ⚠ 46 créneau(x) non couvert(s) : HDJ programmé (Lun) · … »). Rendu actuel : texte dense sur fond jaune, peu hiérarchisé et difficile à scanner rapidement.
-**Why:** Le bandeau est une information critique (signal d'alarme) mais sa présentation actuelle noie le message dans une liste horizontale sans structure visuelle.
-**Pros:** Effort S, impact direct sur la lisibilité des alertes.
-**Cons:** À spécifier : groupe par service ? par jour ? tooltip au survol ? badge numérique seul ?
-**Context:** Signalé par l'utilisateur (2026-06-02, capture Image #3).
-**Effort:** S (CC: ~20–30min)
-**Priority:** P15
-**Depends on:** Rien.
+**Implémenté :** `PlanningGrid.jsx` — le bandeau passe d'un texte plat à un layout flex : badge numérique en gras + séparateur visuel + pills par créneau (max 8 affichées + compteur "+N autres"). Plus scannable, même surface verticale.
 
 ---
 
@@ -344,40 +330,15 @@ Header de chaque colonne semaine **cliquable** → navigue vers cette semaine en
 
 ---
 
-## P22 — Panel PH Dispo : renommer "Présents 5J" et inclure les partiels
+## ~~P22 — Panel PH Dispo : renommer "Présents 5J"~~ ✅ DONE 2026-06-05
 
-**What:** Dans le panneau "PH Disponibles" (vue semaine), les PH présents moins de 5 jours (partiels) doivent également apparaître dans la section actuellement libellée "Présents 5J". Renommer ce libellé pour ne pas laisser croire qu'il ne concerne que les présents à temps plein.
-
-**Proposition de libellé :** "Présents cette semaine" (avec le détail jours pour les partiels dans la sous-section existante), ou deux sections "Présents 5J" / "Présents partiellement" mais avec les partiels inclus dans le total si besoin.
-
-**Why:** Le libellé "5J" est trompeur — un PH absent le lundi mais présent mar–ven est quand même disponible pour le planning. L'interface actuelle risque de les faire passer pour absents.
-**Pros:** Effort XS, correction de lisibilité immédiate.
-**Cons:** Vérifier que la logique `getDisponiblesPH` dans `utils.js` regroupe déjà les partiels en section séparée — seul le libellé et la section cible sont à ajuster.
-**Context:** Signalé par l'utilisateur (2026-06-03).
-**Effort:** XS (CC: ~10min)
-**Priority:** P22
-**Depends on:** Rien.
+**Implémenté :** `PlanningGrid.jsx` — libellé `Présents 5j` → `Présents cette semaine`. La section "Présents partiellement" reste inchangée (les partiels y sont déjà listés avec détail jours).
 
 ---
 
-## P23 — Bug : Esc sur AssignModal provoque un scroll vers le bas
+## ~~P23 — Bug : Esc sur AssignModal provoque un scroll vers le bas~~ ✅ DONE 2026-06-05
 
-**What:** Quand on clique pour affecter (ouverture de l'`AssignModal`), puis qu'on appuie sur `Échap` pour fermer la popup, la page se retrouve scrollée vers le bas de façon inattendue.
-
-**Cause probable :** L'event `keydown` Esc est capturé par la modal mais le focus retourne sur un élément en bas de page (bouton, input caché), ou un scroll natif du navigateur est déclenché par le déplacement du focus.
-
-**What to check:**
-- `onKeyDown` dans `AssignModal` ou son overlay : vérifier que `e.preventDefault()` est appelé sur Esc
-- Focus management à la fermeture : `ref.current?.focus()` doit viser l'élément déclencheur (trigger button), pas le body
-- Overlay `role="dialog"` avec `aria-modal="true"` pour empêcher le scroll du body pendant l'ouverture
-
-**Why:** UX dégradée — l'utilisateur doit rescroller après chaque annulation.
-**Pros:** Effort XS, correction d'un bug de friction signalé.
-**Cons:** Peut nécessiter de gérer le focus trap manuellement si la modal n'en a pas.
-**Context:** Signalé par l'utilisateur (2026-06-03).
-**Effort:** XS (CC: ~10–15min)
-**Priority:** P23
-**Depends on:** Rien.
+**Implémenté :** `AssignModal.jsx` — au montage, sauvegarde `window.scrollY`, bloque le scroll du body (`overflow:hidden; position:fixed; top:-Npx`), et restaure la position exacte au démontage. Esc fonctionne sans saut de page.
 
 ---
 
@@ -429,20 +390,60 @@ Header de chaque colonne semaine **cliquable** → navigue vers cette semaine en
 
 ---
 
+## P26 — StatsTab : filtre de période personnalisée (sélecteur mois début → mois fin)
+
+**What:** Ajouter dans l'onglet Stats un sélecteur de période (mois de début → mois de fin) permettant de filtrer le décompte des affectations et des absences sur un intervalle choisi (ex. : janvier → septembre 2026). La vue matricielle et la vue cards doivent toutes deux respecter ce filtre.
+
+**Why:** Révélé par discovery terrain (email "Planning IMPORTANT" du 2 juin 2026) : la team planning doit faire un point mi-annuel (jan–sep) pour chaque praticien, listant dans quels services il est passé + ses jours d'absence (Formation, CA, etc.). StatsTab contient déjà toutes ces données mais ne permet de filtrer que par mois individuel, pas sur une plage. Le formulaire Google Forms utilisé manuellement serait remplacé par cette fonctionnalité.
+
+**Données sources :** table `affectations` (semaines/jours par poste), table `absences` (types CA, Formation, RTT, etc.) — déjà accessibles via les hooks `useBaseData` / `usePlanning`.
+
+**UX :** Deux MonthPickerPopover (mois de début, mois de fin) visibles en haut de StatsTab. Les calculs actuels (heatmap, total jours, répartition par service) sont recalculés sur la plage sélectionnée. Valeur par défaut : mois courant (comportement actuel préservé).
+
+**Effort:** S–M (CC: ~40 min — extension des calculs stats + 2 sélecteurs de mois)
+**Priority:** P26
+**Depends on:** MonthPickerPopover déjà implémenté dans MonthView et AbsencesTab (réutilisable).
+
+---
+
+## P28 — "Semaines d'instabilité" : définition métier + tracking dans StatsTab
+
+**What:** Définir avec la team planning ce qu'est une "semaine d'instabilité" (hypothèse : semaine où un PH est affecté à un service différent de son ou ses services habituels, tels que définis dans sa grille de présence TeamTab). Une fois la définition arrêtée, calculer automatiquement ce compteur depuis les affectations et l'afficher dans StatsTab (vue Cards + vue Matrix) ainsi que dans le rapport de période P26.
+
+**Why:** La team planning utilise ce critère pour équilibrer les plannings et apprécier la charge de chaque praticien. Actuellement renseigné manuellement dans un formulaire Google. La définition doit être clarifiée lors de la réunion de service du 9 juin 2026.
+
+**Risque :** Définition métier non encore formalisée. Ne pas implémenter avant validation. La notion de "service habituel" peut être ambiguë pour les PH multi-services.
+**Effort:** S–M (CC: ~30–45 min — selon la définition retenue)
+**Priority:** P28
+**Depends on:** P26 (filtre période dans StatsTab). Clarification métier obligatoire avant implémentation.
+
+---
+
+## P30 — Recueil des souhaits praticiens (self-service via magic link)
+
+**What:** Module permettant à chaque praticien d'exprimer, via un magic link envoyé par la secrétaire, ses souhaits d'activités pour la période suivante (services souhaités + durées). Les réponses sont agrégées et visibles côté secrétaire dans l'app pour aider à construire les prochaines rotations.
+
+**Why:** Remplace le second formulaire Google Forms envoyé manuellement à 16 praticiens à chaque point mi-annuel. Permet à la team planning de visualiser les préférences en temps réel et d'équilibrer les trames en tenant compte des souhaits individuels.
+
+**Complexité :** Plus grande que P26 — nécessite un formulaire dynamique (services variables selon le praticien), un backend de collecte des réponses, et une vue agrégée côté secrétaire. Différé : à planifier en V2 après adoption du reste de l'app.
+**Effort:** L (CC: ~2h)
+**Priority:** P30
+**Depends on:** Infrastructure magic link existante (CampaignModal, `/api/magic-link`). Idéalement après P26 et P28.
+
+---
+
 ## Tableau récapitulatif — P ouvertes (trié par effort)
 
 | Effort | # | Titre | Dépendances | Priorité |
 |--------|---|-------|-------------|----------|
-| **XS** | P8 | Vue Rotation : supprimer le tri automatique | — | P8 |
-| **XS** | P22 | Panel PH Dispo : renommer "Présents 5J", inclure les partiels | — | P22 |
-| **XS** | P23 | Bug : Esc sur AssignModal → scroll inattendu vers le bas | — | 🐛 P23 |
-| **S** | P15 | Refonte bandeau « créneaux non couverts » | — | P15 |
-| **S** | P24 | Vue Rotation : fusionner absences consécutives multi-semaines | P8 | P24 |
+| **S** | P24 | Vue Rotation : fusionner absences consécutives multi-semaines | — | P24 |
 | **S–M** | P17 | Sélecteurs de dates : homogénéiser (Astreintes + autres onglets) | — | P17 |
 | **S–M** | P25 | Refacto ordre d'affichage services (indispensables → dispensables) | — | P25 |
+| **S–M** | P28 | "Semaines d'instabilité" : définition métier + tracking StatsTab | clarif. 9 juin | P28 |
 | **M** | P3 | Export PDF planning semaine (dédié, distinct de @media print) | Feedback utilisateur | P3 |
 | **L** | P9 | MonthView : Mode Rotation + D&D + click-to-assign multi-semaines | — | P9 |
 | **L** | P11 | Refonte onglet Absences (UX, flux de saisie, synthèse) | Session spec UX | P11 |
+| **L** | P30 | Recueil souhaits praticiens via magic link (remplace Google Form 2) | clarif. P28 | P30 |
 
 > Effort CC indicatif : XS ≤ 15 min · S ≤ 30 min · S–M ≤ 45 min · M ≤ 1h · L > 1h30
 

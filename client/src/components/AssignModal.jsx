@@ -52,7 +52,22 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
     return map;
   }, [extras, allPosteIds]);
 
-  // Esc → fermer
+  // Esc → fermer + verrouillage scroll body pendant ouverture
+  useEffect(() => {
+    const saved = window.scrollY;
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top      = `-${saved}px`;
+    document.body.style.width    = '100%';
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.top      = '';
+      document.body.style.width    = '';
+      window.scrollTo(0, saved);
+    };
+  }, []);
+
   useEffect(() => {
     function h(e) { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }
     document.addEventListener('keydown', h);
