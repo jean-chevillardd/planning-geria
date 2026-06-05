@@ -198,13 +198,21 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
     ? POSTES_DISPLAY.filter(p => activeFilter.grps.includes(p.grp) && (!subFilter || p.short === subFilter))
     : POSTES_DISPLAY;
   const rotationGroups = (() => {
-    const map = {};
-    const order = [];
+    const indispMap = {}, indispOrder = [];
+    const dispMap  = {}, dispOrder  = [];
     rotationPostes.forEach(p => {
-      if (!map[p.grp]) { map[p.grp] = []; order.push(p.grp); }
-      map[p.grp].push(p);
+      if (p.dispensable) {
+        if (!dispMap[p.grp])   { dispMap[p.grp]  = []; dispOrder.push(p.grp);   }
+        dispMap[p.grp].push(p);
+      } else {
+        if (!indispMap[p.grp]) { indispMap[p.grp] = []; indispOrder.push(p.grp); }
+        indispMap[p.grp].push(p);
+      }
     });
-    return order.map(g => [g, map[g]]);
+    return {
+      indispensable: indispOrder.map(g => [g, indispMap[g]]),
+      dispensable:   dispOrder.map(g =>  [g, dispMap[g]]),
+    };
   })();
 
   // Ordre stable par poste : typeRank → semaines présent (desc) → nom
@@ -519,60 +527,75 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                 </tr>
               </thead>
               <tbody>
-                {rotationGroups.map(([grp, postes]) => (
-                  <Fragment key={grp}>
-                    <tr>
-                      <td className="rotation-grp-hdr" colSpan={weeks.length + 1}>{grp}</td>
-                    </tr>
-                    {postes.map(poste => (
-                      <tr key={poste.id}>
-                        <td className="rotation-poste-lbl">
-                          <span style={{ fontWeight:600, color: poste.c, fontSize:11 }}>{poste.lbl}</span>
+                {[...rotationGroups.indispensable,
+                  ...(rotationGroups.dispensable.length > 0 ? [['__dispensable__', null]] : []),
+                  ...rotationGroups.dispensable,
+                ].map(([grp, postes]) => {
+                  if (grp === '__dispensable__') {
+                    return (
+                      <tr key="__dispensable__">
+                        <td className="rotation-grp-hdr" colSpan={weeks.length + 1}
+                          style={{ borderTop:'2px solid var(--border2)', fontStyle:'italic', opacity:.75 }}>
+                          Dispensables
                         </td>
-                        {weeks.map(w => {
-                          const wk   = toIso(w);
-                          const data = weekData[wk];
-                          const allIds = [poste.id, ...(poste.combineWith ? [poste.combineWith] : [])];
-                          const seen = new Set();
-                          const assigned = allIds
-                            .flatMap(pid => data?.affectations?.[pid]?.medecins || [])
-                            .filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
-                          const stableOrder = rotationStableOrder[poste.id] ?? {};
-                          const sortedAssigned = [...assigned].sort((a, b) =>
-                            (stableOrder[a.id] ?? 9999) - (stableOrder[b.id] ?? 9999)
-                          );
-                          return (
-                            <td key={wk} className="rotation-cell"
-                              onClick={isSecretary ? () => {
-                                setDurMode('week'); setAssignMed(null); setAssignSearch('');
-                                setPendingAssign({ poste, weekKey: wk });
-                              } : undefined}
-                              onDragOver={isSecretary && panelDragMed ? e => e.preventDefault() : undefined}
-                              onDrop={isSecretary && panelDragMed ? () => {
-                                setDurMode('week');
-                                setPendingDrop({ med: panelDragMed, poste, weekKey: wk });
-                                setPanelDragMed(null);
-                              } : undefined}
-                            >
-                              {sortedAssigned.map(m => (
-                                <div key={m.id} className="rotation-chip"
-                                  style={{ background: poste.c + '18', borderColor: poste.c + '55', color: poste.c }}>
-                                  <span style={{ fontWeight: m.type === 'ph' ? 700 : 400, fontStyle: m.type === 'ph' ? 'normal' : 'italic' }}>
-                                    {m.nom}
-                                    {m.type !== 'ph' && TYPE_LBL[m.type] && (
-                                      <em style={{ fontStyle:'italic', opacity:.7, fontSize:9 }}> — {TYPE_LBL[m.type]}</em>
-                                    )}
-                                  </span>
-                                </div>
-                              ))}
-                              {isSecretary && <span className="add-lnk print-hide">+ affecter</span>}
-                            </td>
-                          );
-                        })}
                       </tr>
-                    ))}
-                  </Fragment>
-                ))}
+                    );
+                  }
+                  return (
+                    <Fragment key={grp}>
+                      <tr>
+                        <td className="rotation-grp-hdr" colSpan={weeks.length + 1}>{grp}</td>
+                      </tr>
+                      {postes.map(poste => (
+                        <tr key={poste.id}>
+                          <td className="rotation-poste-lbl">
+                            <span style={{ fontWeight:600, color: poste.c, fontSize:11 }}>{poste.lbl}</span>
+                          </td>
+                          {weeks.map(w => {
+                            const wk   = toIso(w);
+                            const data = weekData[wk];
+                            const allIds = [poste.id, ...(poste.combineWith ? [poste.combineWith] : [])];
+                            const seen = new Set();
+                            const assigned = allIds
+                              .flatMap(pid => data?.affectations?.[pid]?.medecins || [])
+                              .filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
+                            const stableOrder = rotationStableOrder[poste.id] ?? {};
+                            const sortedAssigned = [...assigned].sort((a, b) =>
+                              (stableOrder[a.id] ?? 9999) - (stableOrder[b.id] ?? 9999)
+                            );
+                            return (
+                              <td key={wk} className="rotation-cell"
+                                onClick={isSecretary ? () => {
+                                  setDurMode('week'); setAssignMed(null); setAssignSearch('');
+                                  setPendingAssign({ poste, weekKey: wk });
+                                } : undefined}
+                                onDragOver={isSecretary && panelDragMed ? e => e.preventDefault() : undefined}
+                                onDrop={isSecretary && panelDragMed ? () => {
+                                  setDurMode('week');
+                                  setPendingDrop({ med: panelDragMed, poste, weekKey: wk });
+                                  setPanelDragMed(null);
+                                } : undefined}
+                              >
+                                {sortedAssigned.map(m => (
+                                  <div key={m.id} className="rotation-chip"
+                                    style={{ background: poste.c + '18', borderColor: poste.c + '55', color: poste.c }}>
+                                    <span style={{ fontWeight: m.type === 'ph' ? 700 : 400, fontStyle: m.type === 'ph' ? 'normal' : 'italic' }}>
+                                      {m.nom}
+                                      {m.type !== 'ph' && TYPE_LBL[m.type] && (
+                                        <em style={{ fontStyle:'italic', opacity:.7, fontSize:9 }}> — {TYPE_LBL[m.type]}</em>
+                                      )}
+                                    </span>
+                                  </div>
+                                ))}
+                                {isSecretary && <span className="add-lnk print-hide">+ affecter</span>}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </Fragment>
+                  );
+                })}
               </tbody>
             </table>
             </div>
