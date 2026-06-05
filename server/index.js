@@ -17,8 +17,7 @@ const EMAIL_CFG_PATH = path.join(__dirname, 'email.config.json');
 let emailConfig = null;
 try { emailConfig = JSON.parse(fs.readFileSync(EMAIL_CFG_PATH, 'utf8')); } catch(_) {}
 
-const CFG_PATH = path.join(__dirname, 'secretary.config.json');
-const PORT     = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001;
 
 // ═══════════════════════════════════════════════════════
 // VALIDATION (constantes partagées)
@@ -41,21 +40,6 @@ function addDaysStr(isoDate, n) {
   return d.toISOString().split('T')[0];
 }
 
-// ── Chargement config secrétariat (retourne le hash) ──
-// Modifier le mot de passe via : node -e "require('bcryptjs').hash('MOTDEPASSE',12).then(h=>require('fs').writeFileSync('secretary.config.json',JSON.stringify({passwordHash:h},null,2)))"
-async function loadSecretaryConfig() {
-  try {
-    const cfg = JSON.parse(fs.readFileSync(CFG_PATH, 'utf8'));
-    if (cfg.passwordHash) return cfg.passwordHash;
-    if (cfg.password) {
-      const hash = await bcrypt.hash(cfg.password, 12);
-      fs.writeFileSync(CFG_PATH, JSON.stringify({ passwordHash: hash }, null, 2));
-      console.log('✓ Mot de passe migré vers bcrypt (secretary.config.json mis à jour)');
-      return hash;
-    }
-  } catch { /* pas de fichier config → accès libre */ }
-  return '';
-}
 
 // ═══════════════════════════════════════════════════════
 // FACTORY — crée et configure l'app Express
@@ -67,20 +51,19 @@ function createApp(dbLib) {
   const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
   if (!process.env.JWT_SECRET) console.warn('⚠ JWT_SECRET non défini — sessions invalidées à chaque redémarrage');
   let DB_READY = false;
-  let SECRETARY_HASH = '';
 
-  app._setDbReady       = ()  => { DB_READY = true; };
-  app._setSecretaryHash = (h) => { SECRETARY_HASH = h; };
+  app._setDbReady = () => { DB_READY = true; };
 
   const checkMedExists = (med_id) =>
     !!dbLib.queryOne('SELECT 1 FROM medecins WHERE id=? AND actif=1', [med_id]);
 
-  function logAudit(action, tableName, recordId, payloadBefore, payloadAfter) {
+  function logAudit(userId, action, tableName, recordId, payloadBefore, payloadAfter) {
     try {
       dbLib.run(
-        `INSERT INTO audit_log (action, table_name, record_id, payload_before, payload_after)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO audit_log (user_id, action, table_name, record_id, payload_before, payload_after)
+         VALUES (?, ?, ?, ?, ?, ?)`,
         [
+          userId != null ? String(userId) : null,
           action,
           tableName,
           recordId != null ? String(recordId) : null,
@@ -107,13 +90,27 @@ function createApp(dbLib) {
     legacyHeaders: false,
   });
 
-  // ── Authentification (avant le guard DB_READY) ──────
-  app.post('/api/auth', authLimiter, async (req, res) => {
-    if (!SECRETARY_HASH) return res.json({ ok: true, token: '' });
-    const match = await bcrypt.compare(req.body.password || '', SECRETARY_HASH);
-    if (!match) return res.status(401).json({ error: 'Mot de passe incorrect' });
-    const token = jwt.sign({ role: 'secretary' }, JWT_SECRET, { expiresIn: '8h' });
+  // ── Auth médecin : code équipe partagé ──────────────
+  app.post('/api/auth/team', authLimiter, (req, res) => {
+    const { code } = req.body;
+    if (!code) return res.status(400).json({ error: 'Code manquant' });
+    const row = dbLib.queryOne("SELECT value FROM settings WHERE key='team_code'");
+    if (!row) return res.status(500).json({ error: 'Code équipe non configuré' });
+    if (code !== row.value) return res.status(401).json({ error: 'Code équipe incorrect' });
+    const token = jwt.sign({ role: 'medecin' }, JWT_SECRET, { expiresIn: '30d' });
     res.json({ ok: true, token });
+  });
+
+  // ── Auth gestionnaire : email + mot de passe ────────
+  app.post('/api/auth/gestionnaire', authLimiter, async (req, res) => {
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email et mot de passe requis' });
+    const user = dbLib.queryOne('SELECT * FROM users WHERE email=?', [email.toLowerCase().trim()]);
+    if (!user) return res.status(401).json({ error: 'Identifiants incorrects' });
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (!match) return res.status(401).json({ error: 'Identifiants incorrects' });
+    const token = jwt.sign({ role: 'gestionnaire', userId: user.id, nom: user.nom }, JWT_SECRET, { expiresIn: '8h' });
+    res.json({ ok: true, token, nom: user.nom });
   });
 
   // ── Guard : DB initialisée ──────────────────────────
@@ -172,18 +169,33 @@ function createApp(dbLib) {
     res.json({ ok: true, count });
   });
 
-  // ── Guard : token JWT requis pour toute mutation ────
-  app.use((req, res, next) => {
-    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
-    if (!SECRETARY_HASH) return next();
-    const token = req.headers['x-secretary-key'];
-    if (!token) return res.status(403).json({ error: 'Accès réservé aux secrétaires' });
+  // ── Middlewares auth ────────────────────────────────
+  function requireAuth(req, res, next) {
+    const header = req.headers['authorization'] || '';
+    const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) return res.status(401).json({ error: 'Authentification requise' });
     try {
-      jwt.verify(token, JWT_SECRET);
+      req.authUser = jwt.verify(token, JWT_SECRET);
       next();
     } catch {
-      res.status(403).json({ error: 'Session expirée, veuillez vous reconnecter' });
+      res.status(401).json({ error: 'Session expirée, veuillez vous reconnecter' });
     }
+  }
+
+  function requireGestionnaire(req, res, next) {
+    requireAuth(req, res, () => {
+      if (req.authUser.role !== 'gestionnaire')
+        return res.status(403).json({ error: 'Accès réservé aux gestionnaires' });
+      next();
+    });
+  }
+
+  app._makeToken = (role = 'gestionnaire') => jwt.sign({ role }, JWT_SECRET, { expiresIn: '1h' });
+
+  // Guard global : toutes les mutations exigent le rôle gestionnaire
+  app.use((req, res, next) => {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+    requireGestionnaire(req, res, next);
   });
 
   // ═══════════════════════════════════════════════════════
@@ -716,19 +728,31 @@ function createApp(dbLib) {
   // ═══════════════════════════════════════════════════════
   // BACKUP BASE DE DONNÉES (téléchargement SQLite)
   // ═══════════════════════════════════════════════════════
-  app.get('/api/backup/download', (req, res) => {
-    if (SECRETARY_HASH) {
-      const token = req.headers['x-secretary-key'];
-      if (!token) return res.status(401).json({ error: 'Authentification requise' });
-      try { jwt.verify(token, JWT_SECRET); }
-      catch { return res.status(401).json({ error: 'Token invalide ou expiré' }); }
-    }
+  app.get('/api/backup/download', requireGestionnaire, (req, res) => {
     const dbPath = path.join(__dirname, 'database.sqlite');
     if (!fs.existsSync(dbPath)) return res.status(404).json({ error: 'Base de données introuvable' });
     const date = new Date().toISOString().split('T')[0];
     res.setHeader('Content-Disposition', `attachment; filename="planning-backup-${date}.sqlite"`);
     res.setHeader('Content-Type', 'application/octet-stream');
     fs.createReadStream(dbPath).pipe(res);
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // SETTINGS (code équipe, gestionnaires)
+  // ═══════════════════════════════════════════════════════
+  app.get('/api/settings/team-code', requireGestionnaire, (req, res) => {
+    const row = dbLib.queryOne("SELECT value FROM settings WHERE key='team_code'");
+    res.json({ team_code: row ? row.value : '' });
+  });
+
+  app.put('/api/settings/team-code', requireGestionnaire, (req, res) => {
+    const { code } = req.body;
+    if (!code || typeof code !== 'string' || code.trim().length < 4)
+      return res.status(400).json({ error: 'Code trop court (4 caractères minimum)' });
+    const newCode = code.trim();
+    dbLib.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('team_code', ?)", [newCode]);
+    logAudit(req.authUser.userId, 'update', 'settings', 'team_code', null, { team_code: newCode });
+    res.json({ ok: true });
   });
 
   // ═══════════════════════════════════════════════════════
@@ -754,20 +778,11 @@ if (require.main === module) {
   const dbLib = require('./db');
   const app   = createApp(dbLib);
 
-  let secretaryHash = '';
-  loadSecretaryConfig().then(hash => {
-    secretaryHash = hash;
-    app._setSecretaryHash(hash);
-    return dbLib.init();
-  }).then(() => {
+  dbLib.init().then(() => {
     app._setDbReady();
-    const pwdStatus = secretaryHash
-      ? '(mot de passe secrétariat configuré)'
-      : '(ATTENTION : aucun mot de passe, accès libre)';
     app.listen(PORT, () => {
       console.log(`\n✓ Serveur planning gériatrie → http://localhost:${PORT}`);
-      console.log(`  API → http://localhost:${PORT}/api`);
-      console.log(`  Secrétariat ${pwdStatus}\n`);
+      console.log(`  API → http://localhost:${PORT}/api\n`);
     });
   }).catch(err => {
     console.error('Erreur init :', err);
