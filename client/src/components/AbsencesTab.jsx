@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import * as api from '../api';
 import { getFrenchHolidays } from '../utils';
+import MonthPickerPopover from './MonthPicker';
 
 // ── Constantes ──────────────────────────────────────────────
 // Ordre et libellés des catégories de personnel
@@ -610,70 +611,6 @@ function BarPopover({ abs, x, y, isSecretary, onClose, onDelete }) {
   );
 }
 
-// ── Popover sélection rapide de mois ────────────────────────
-function MonthPickerPopover({ calMonth, onSelect, onClose }) {
-  const [year, setYear] = useState(calMonth.getFullYear());
-  const ref = useRef(null);
-
-  useEffect(() => {
-    function h(e) { if (ref.current && !ref.current.contains(e.target)) onClose(); }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [onClose]);
-
-  useEffect(() => {
-    function h(e) { if (e.key === 'Escape') onClose(); }
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
-
-  const curM = calMonth.getMonth();
-  const curY = calMonth.getFullYear();
-
-  return (
-    <div ref={ref} style={{
-      position:'absolute', top:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)',
-      zIndex:600, background:'var(--surface)', border:'1px solid var(--border2)',
-      borderRadius:'var(--rl)', boxShadow:'0 8px 28px rgba(0,0,0,.18)',
-      padding:'12px', width:220,
-    }}>
-      {/* Navigation année */}
-      <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:10 }}>
-        <button className="wn-btn" onClick={() => setYear(y => y - 1)}>‹</button>
-        <span style={{ flex:1, textAlign:'center', fontSize:13, fontFamily:'inherit', fontWeight:700 }}>
-          {year}
-        </span>
-        <button className="wn-btn" onClick={() => setYear(y => y + 1)}>›</button>
-      </div>
-      {/* Grille 3×4 mois */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:4 }}>
-        {MONTHS_FR.map((m, i) => {
-          const isSel = i === curM && year === curY;
-          return (
-            <button
-              key={i}
-              onClick={() => { onSelect(new Date(year, i, 1)); onClose(); }}
-              style={{
-                padding:'5px 2px', fontSize:11, fontFamily:'inherit',
-                fontWeight: isSel ? 700 : 400, borderRadius:'var(--r)',
-                border: isSel ? '1.5px solid var(--accent)' : '1px solid transparent',
-                background: isSel ? 'var(--accent-light)' : 'transparent',
-                color: isSel ? 'var(--accent)' : 'var(--text)',
-                cursor:'pointer', textAlign:'center',
-                transition:'background .08s',
-              }}
-              onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = 'var(--surface2)'; }}
-              onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}
-            >
-              {m.slice(0,3)}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 // ── Calendrier mensuel ──────────────────────────────────────
 function AbsenceCalendar({ absences, isSecretary, onDelete, initialMonth }) {
   const [calMonth,  setCalMonth]  = useState(() => {
@@ -735,8 +672,8 @@ function AbsenceCalendar({ absences, isSecretary, onDelete, initialMonth }) {
           </span>
           {pickerOpen && (
             <MonthPickerPopover
-              calMonth={calMonth}
-              onSelect={m => { setCalMonth(m); setPickerOpen(false); }}
+              value={calMonth}
+              onChange={m => { setCalMonth(m); setPickerOpen(false); }}
               onClose={() => setPickerOpen(false)}
             />
           )}

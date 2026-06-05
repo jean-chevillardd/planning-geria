@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { POSTES, TYPE_LBL } from '../utils';
 import * as api from '../api';
+import MonthPickerPopover from './MonthPicker';
 
 /* ── Categories ───────────────────────────────────────── */
 const CATS = [
@@ -106,52 +107,6 @@ function monthlyCongeMap(absences, from, to) {
     }
   });
   return res;
-}
-
-/* ── MonthPickerPopover (local) ───────────────────────── */
-function MonthPickerPopover({ value: current, onChange: onSelect, onClose }) {
-  const [yr, setYr] = useState(current.getFullYear());
-  const ref = useRef(null);
-  useEffect(() => {
-    function h(e) { if (ref.current && !ref.current.contains(e.target)) onClose(); }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [onClose]);
-  useEffect(() => {
-    function h(e) { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
-  const curM = current.getMonth(), curY = current.getFullYear();
-  return (
-    <div ref={ref} style={{
-      position:'absolute', top:'calc(100% + 6px)', left:'50%', transform:'translateX(-50%)',
-      zIndex:700, background:'var(--surface)', border:'1px solid var(--border2)',
-      borderRadius:'var(--rl)', boxShadow:'0 8px 28px rgba(0,0,0,.18)',
-      padding:'12px', width:200,
-    }}>
-      <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:10 }}>
-        <button className="wn-btn" onClick={() => setYr(y => y - 1)}>‹</button>
-        <span style={{ flex:1, textAlign:'center', fontSize:13, fontFamily:'inherit', fontWeight:700 }}>{yr}</span>
-        <button className="wn-btn" onClick={() => setYr(y => y + 1)}>›</button>
-      </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:4 }}>
-        {MONTHS_FR.map((m, i) => {
-          const isSel = i === curM && yr === curY;
-          return (
-            <button key={i} onClick={() => { onSelect(new Date(yr, i, 1)); onClose(); }} style={{
-              padding:'5px 2px', fontSize:11, fontFamily:'inherit',
-              fontWeight: isSel ? 700 : 400, borderRadius:'var(--r)',
-              border: isSel ? '1.5px solid var(--accent)' : '1px solid transparent',
-              background: isSel ? 'var(--accent-light)' : 'transparent',
-              color: isSel ? 'var(--accent)' : 'var(--text)',
-              cursor:'pointer', textAlign:'center',
-            }}>{m.slice(0,3)}</button>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 /* ── Icons ────────────────────────────────────────────── */

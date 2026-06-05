@@ -252,7 +252,30 @@ function easterSunday(year) {
   return new Date(year, month - 1, day);
 }
 
-const _holCache = {};
+const _holCache   = {};
+const _bridgeCache = {};
+
+export function getFrenchBridgeDays(year) {
+  if (_bridgeCache[year]) return _bridgeCache[year];
+  const holidays = getFrenchHolidays(year);
+  const bridges  = new Map();
+  for (const [isoDate] of holidays) {
+    const d   = new Date(isoDate + 'T12:00:00');
+    const dow = d.getDay();
+    if (dow === 2) { // mardi → pont le lundi
+      const mon = new Date(d); mon.setDate(d.getDate() - 1);
+      const monIso = toIso(mon);
+      if (!holidays.has(monIso)) bridges.set(monIso, 'Pont');
+    } else if (dow === 4) { // jeudi → pont le vendredi
+      const fri = new Date(d); fri.setDate(d.getDate() + 1);
+      const friIso = toIso(fri);
+      if (!holidays.has(friIso)) bridges.set(friIso, 'Pont');
+    }
+  }
+  _bridgeCache[year] = bridges;
+  return bridges;
+}
+
 export function getFrenchHolidays(year) {
   if (_holCache[year]) return _holCache[year];
   const add = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };

@@ -8,6 +8,15 @@ const rateLimit = require('express-rate-limit');
 const bcrypt    = require('bcryptjs');
 const jwt       = require('jsonwebtoken');
 const crypto    = require('crypto');
+const {
+  validate,
+  medecinsCreateSchema, medecinsUpdateSchema,
+  absencesCreateSchema,
+  affectationSchema, affectationMoveSchema,
+  exclusionExtraSchema, renfortSchema,
+  astreintesCreateSchema, planningCopySchema, teamCodeUpdateSchema,
+  isoDate: zodIsoDate, month: zodMonth,
+} = require('./validation');
 
 // ── Nodemailer (optionnel) ─────────────────────────────
 let nodemailer;
@@ -214,13 +223,11 @@ function createApp(dbLib) {
   const SCHED_RE = /^[01]{10}$/;
 
   app.post('/api/medecins', (req, res) => {
-    const { nom, type, sched, service, tel, email } = req.body;
-    if (!nom || !type) return res.status(400).json({ error: 'nom et type requis' });
-    if (!MED_TYPES.has(type)) return res.status(400).json({ error: 'type invalide' });
+    const v = validate(medecinsCreateSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { nom, type, sched, service, tel, email } = v.data;
     const id = 'm_' + Date.now();
     const schedStr = (sched || Array(10).fill(1)).join('');
-    if (!SCHED_RE.test(schedStr))
-      return res.status(400).json({ error: 'sched invalide (10 caractères 0/1 attendus)' });
     const svc   = service || 'geriatrie';
     const phone = tel || '';
     const mail  = email || null;
@@ -230,18 +237,16 @@ function createApp(dbLib) {
   });
 
   app.put('/api/medecins/:id', (req, res) => {
-    const { nom, type, sched, service, tel, email } = req.body;
+    const v = validate(medecinsUpdateSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { nom, type, sched, service, tel, email } = v.data;
     const { id } = req.params;
-    if (type !== undefined && !MED_TYPES.has(type))
-      return res.status(400).json({ error: 'type invalide' });
     const sets = [];
     const vals = [];
     if (nom     !== undefined) { sets.push('nom=?');     vals.push(nom); }
     if (type    !== undefined) { sets.push('type=?');    vals.push(type); }
     if (sched   !== undefined) {
       const s = Array.isArray(sched) ? sched.join('') : sched;
-      if (!SCHED_RE.test(s))
-        return res.status(400).json({ error: 'sched invalide (10 caractères 0/1 attendus)' });
       sets.push('sched=?'); vals.push(s);
     }
     if (service !== undefined) { sets.push('service=?'); vals.push(service); }
@@ -293,17 +298,11 @@ function createApp(dbLib) {
   });
 
   app.post('/api/absences', (req, res) => {
-    const { med_id, date_debut, date_fin, type_abs, demi_journee } = req.body;
-    if (!med_id || !date_debut || !date_fin || !type_abs)
-      return res.status(400).json({ error: 'Champs manquants' });
+    const v = validate(absencesCreateSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { med_id, date_debut, date_fin, type_abs, demi_journee } = v.data;
     if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
-    if (!isIsoDate(date_debut) || !isIsoDate(date_fin))
-      return res.status(400).json({ error: 'Format de date invalide (YYYY-MM-DD attendu)' });
-    if (!ABS_TYPES.has(type_abs))
-      return res.status(400).json({ error: 'type_abs invalide' });
     if (date_fin < date_debut) return res.status(400).json({ error: 'date_fin < date_debut' });
-    if (demi_journee != null && !['matin', 'apm'].includes(demi_journee))
-      return res.status(400).json({ error: 'demi_journee invalide (matin, apm ou null)' });
     const dj = demi_journee || null;
     const result = dbLib.run(
       'INSERT INTO absences (med_id,date_debut,date_fin,type_abs,demi_journee) VALUES (?,?,?,?,?)',
@@ -372,9 +371,9 @@ function createApp(dbLib) {
   // AFFECTATIONS
   // ═══════════════════════════════════════════════════════
   app.post('/api/affectations', (req, res) => {
-    const { week_key, poste_id, med_id } = req.body;
-    if (!week_key || !poste_id || !med_id) return res.status(400).json({ error: 'Champs manquants' });
-    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+    const v = validate(affectationSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { week_key, poste_id, med_id } = v.data;
     if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     const existing = dbLib.queryOne(
       'SELECT poste_id FROM affectations WHERE week_key=? AND med_id=?',
@@ -394,17 +393,16 @@ function createApp(dbLib) {
 
   app.delete('/api/affectations', (req, res) => {
     const { week_key, poste_id, med_id } = req.body;
-    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+    if (!zodIsoDate.safeParse(week_key).success) return res.status(400).json({ error: 'week_key invalide' });
     dbLib.run('DELETE FROM affectations WHERE week_key=? AND poste_id=? AND med_id=?', [week_key, poste_id, med_id]);
     dbLib.run('DELETE FROM exclusions   WHERE week_key=? AND poste_id=? AND med_id=?', [week_key, poste_id, med_id]);
     res.json({ ok: true });
   });
 
   app.post('/api/affectations/move', (req, res) => {
-    const { week_key, source_poste_id, target_poste_id, med_id } = req.body;
-    if (!week_key || !source_poste_id || !target_poste_id || !med_id)
-      return res.status(400).json({ error: 'Champs manquants' });
-    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
+    const v = validate(affectationMoveSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { week_key, source_poste_id, target_poste_id, med_id } = v.data;
     if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     dbLib.transaction(() => {
       dbLib.run('DELETE FROM affectations WHERE week_key=? AND poste_id=? AND med_id=?',
@@ -419,9 +417,9 @@ function createApp(dbLib) {
   // EXCLUSIONS
   // ═══════════════════════════════════════════════════════
   app.post('/api/exclusions', (req, res) => {
-    const { week_key, poste_id, med_id, jour } = req.body;
-    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
-    if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+    const v = validate(exclusionExtraSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { week_key, poste_id, med_id, jour } = v.data;
     if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     dbLib.run('INSERT OR IGNORE INTO exclusions (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
       [week_key, poste_id, med_id, jour]);
@@ -429,9 +427,9 @@ function createApp(dbLib) {
   });
 
   app.delete('/api/exclusions', (req, res) => {
-    const { week_key, poste_id, med_id, jour } = req.body;
-    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
-    if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+    const v = validate(exclusionExtraSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { week_key, poste_id, med_id, jour } = v.data;
     dbLib.run('DELETE FROM exclusions WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
       [week_key, poste_id, med_id, jour]);
     res.json({ ok: true });
@@ -441,9 +439,9 @@ function createApp(dbLib) {
   // EXTRAS
   // ═══════════════════════════════════════════════════════
   app.post('/api/extras', (req, res) => {
-    const { week_key, poste_id, med_id, jour } = req.body;
-    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
-    if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+    const v = validate(exclusionExtraSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { week_key, poste_id, med_id, jour } = v.data;
     if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     dbLib.run('INSERT OR IGNORE INTO extras (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
       [week_key, poste_id, med_id, jour]);
@@ -451,9 +449,9 @@ function createApp(dbLib) {
   });
 
   app.delete('/api/extras', (req, res) => {
-    const { week_key, poste_id, med_id, jour } = req.body;
-    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
-    if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+    const v = validate(exclusionExtraSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { week_key, poste_id, med_id, jour } = v.data;
     dbLib.run('DELETE FROM extras WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
       [week_key, poste_id, med_id, jour]);
     res.json({ ok: true });
@@ -463,11 +461,9 @@ function createApp(dbLib) {
   // RENFORTS
   // ═══════════════════════════════════════════════════════
   app.post('/api/renforts', (req, res) => {
-    const { week_key, poste_id, med_id, jour } = req.body;
-    if (!week_key || !poste_id || !med_id || !jour)
-      return res.status(400).json({ error: 'Champs manquants' });
-    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
-    if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+    const v = validate(renfortSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { week_key, poste_id, med_id, jour } = v.data;
     if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
     dbLib.run('INSERT OR IGNORE INTO renforts (week_key,poste_id,med_id,jour) VALUES (?,?,?,?)',
       [week_key, poste_id, med_id, jour]);
@@ -475,9 +471,9 @@ function createApp(dbLib) {
   });
 
   app.delete('/api/renforts', (req, res) => {
-    const { week_key, poste_id, med_id, jour } = req.body;
-    if (!isIsoDate(week_key)) return res.status(400).json({ error: 'week_key invalide' });
-    if (!isIsoDate(jour))     return res.status(400).json({ error: 'jour invalide' });
+    const v = validate(renfortSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { week_key, poste_id, med_id, jour } = v.data;
     dbLib.run('DELETE FROM renforts WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
       [week_key, poste_id, med_id, jour]);
     res.json({ ok: true });
@@ -586,10 +582,9 @@ function createApp(dbLib) {
   // COPIE SEMAINE
   // ═══════════════════════════════════════════════════════
   app.post('/api/planning/copy', (req, res) => {
-    const { from_week, to_week } = req.body;
-    if (!from_week || !to_week) return res.status(400).json({ error: 'from_week et to_week requis' });
-    if (!isIsoDate(from_week) || !isIsoDate(to_week))
-      return res.status(400).json({ error: 'Format de semaine invalide (YYYY-MM-DD attendu)' });
+    const v = validate(planningCopySchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { from_week, to_week } = v.data;
     dbLib.transaction(() => {
       dbLib.run('DELETE FROM affectations WHERE week_key=?', [to_week]);
       dbLib.run('DELETE FROM exclusions   WHERE week_key=?', [to_week]);
@@ -624,14 +619,10 @@ function createApp(dbLib) {
   });
 
   app.post('/api/astreintes', (req, res) => {
-    const { date_iso, type_ast, med_id } = req.body;
-    if (!date_iso || !type_ast || !med_id)
-      return res.status(400).json({ error: 'date_iso, type_ast, med_id requis' });
+    const v = validate(astreintesCreateSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { date_iso, type_ast, med_id } = v.data;
     if (!checkMedExists(med_id)) return res.status(400).json({ error: 'med_id inconnu' });
-    if (!isIsoDate(date_iso))
-      return res.status(400).json({ error: 'date_iso invalide (YYYY-MM-DD attendu)' });
-    if (!AST_TYPES.has(type_ast))
-      return res.status(400).json({ error: 'type_ast invalide' });
     try {
       const before = dbLib.queryOne('SELECT * FROM astreintes WHERE date_iso=? AND type_ast=?', [date_iso, type_ast]);
       dbLib.run('DELETE FROM astreintes WHERE date_iso=? AND type_ast=?', [date_iso, type_ast]);
@@ -746,10 +737,9 @@ function createApp(dbLib) {
   });
 
   app.put('/api/settings/team-code', requireGestionnaire, (req, res) => {
-    const { code } = req.body;
-    if (!code || typeof code !== 'string' || code.trim().length < 4)
-      return res.status(400).json({ error: 'Code trop court (4 caractères minimum)' });
-    const newCode = code.trim();
+    const v = validate(teamCodeUpdateSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const newCode = v.data.code;
     dbLib.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('team_code', ?)", [newCode]);
     logAudit(req.authUser.userId, 'update', 'settings', 'team_code', null, { team_code: newCode });
     res.json({ ok: true });

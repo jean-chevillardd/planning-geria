@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { toIso, addDays, getFrenchHolidays } from '../utils';
 import * as api from '../api';
+import MonthPickerPopover from './MonthPicker';
 
 const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const MONTHS_FR_LOWER = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
@@ -368,6 +369,7 @@ function ViewSemaine({ weekStart, onWeekChange, aMap, holidays, isSecretary, sel
 
 // ── ViewRotation ─────────────────────────────────────────
 function ViewRotation({ year, month, aMap, medecins, isSecretary, onMonthChange, onDirectAssign, onDirectRemove, holidays }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const todayIso    = toIso(new Date());
   const days = Array.from({length: daysInMonth}, (_,i) => {
@@ -392,7 +394,24 @@ function ViewRotation({ year, month, aMap, medecins, isSecretary, onMonthChange,
       <div className="wn print-hide" style={{marginBottom:12}}>
         <button className="wn-btn" onClick={() => onMonthChange(new Date(year, month-1, 1))}>‹</button>
         <button className="wn-btn" onClick={() => onMonthChange(new Date(year, month+1, 1))}>›</button>
-        <span className="wn-lbl">{MONTHS_FR[month]} {year}</span>
+        <div style={{position:'relative'}}>
+          <span className="wn-lbl" onClick={() => setPickerOpen(v => !v)}
+            style={{cursor:'pointer', userSelect:'none', display:'inline-flex', alignItems:'center', gap:5}}>
+            {MONTHS_FR[month]} {year}
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{opacity:.45, flexShrink:0}}>
+              <path d="M2 3.5 5 6.5 8 3.5"/>
+            </svg>
+          </span>
+          {pickerOpen && (
+            <MonthPickerPopover
+              value={new Date(year, month, 1)}
+              onChange={d => { onMonthChange(d); setPickerOpen(false); }}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
+        </div>
         <button className="wn-chip" onClick={() => {
           const n = new Date(); onMonthChange(new Date(n.getFullYear(), n.getMonth(), 1));
         }}>Mois actuel</button>
@@ -539,6 +558,7 @@ function CalCell({ date, aMap, holidays, isSecretary, sel, onSel, onEdit }) {
 
 // ── ViewCalendrier ───────────────────────────────────────
 function ViewCalendrier({ year, month, aMap, medecins, holidays, isSecretary, sel, onSel, onEdit, onMonthChange }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
   const weeks    = buildMonthWeeks(year, month);
   const todayIso = toIso(new Date());
   const tonight  = aMap[todayIso];
@@ -559,7 +579,24 @@ function ViewCalendrier({ year, month, aMap, medecins, holidays, isSecretary, se
       <div className="wn print-hide" style={{marginBottom:14}}>
         <button className="wn-btn" onClick={() => onMonthChange(new Date(year, month-1, 1))}>‹</button>
         <button className="wn-btn" onClick={() => onMonthChange(new Date(year, month+1, 1))}>›</button>
-        <span className="wn-lbl">{MONTHS_FR[month]} {year}</span>
+        <div style={{position:'relative'}}>
+          <span className="wn-lbl" onClick={() => setPickerOpen(v => !v)}
+            style={{cursor:'pointer', userSelect:'none', display:'inline-flex', alignItems:'center', gap:5}}>
+            {MONTHS_FR[month]} {year}
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{opacity:.45, flexShrink:0}}>
+              <path d="M2 3.5 5 6.5 8 3.5"/>
+            </svg>
+          </span>
+          {pickerOpen && (
+            <MonthPickerPopover
+              value={new Date(year, month, 1)}
+              onChange={d => { onMonthChange(d); setPickerOpen(false); }}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
+        </div>
         <button className="wn-chip" onClick={() => {
           const n = new Date(); onMonthChange(new Date(n.getFullYear(), n.getMonth(), 1));
         }}>Mois actuel</button>

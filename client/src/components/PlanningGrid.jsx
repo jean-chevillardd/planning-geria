@@ -1,10 +1,72 @@
 // components/PlanningGrid.jsx
 import { useMemo, useState, useRef } from 'react';
-import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getSchedHalfDay, getFrenchHolidays, getDisponiblesPH } from '../utils';
+import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getSchedHalfDay, getFrenchHolidays, getFrenchBridgeDays, getDisponiblesPH } from '../utils';
 
 function fmtWeek(monday, days) {
   const opts = { day: 'numeric', month: 'long', year: 'numeric' };
   return `${days[0].toLocaleDateString('fr-FR', { day:'numeric', month:'long' })} au ${days[4].toLocaleDateString('fr-FR', opts)}`;
+}
+
+function exportWeekPDF({ monday, days, byPoste, holidays, bridgeDays }) {
+  const toI = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const weekLabel = fmtWeek(monday, days);
+
+  const colHeaders = days.map(d => {
+    const iso  = toI(d);
+    const hol  = holidays.get(iso);
+    const brdg = !hol ? bridgeDays.get(iso) : null;
+    const label = d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' });
+    const sub   = hol ? `<div style="font-size:9px;color:#b45309;font-weight:600">${hol}</div>`
+                : brdg ? `<div style="font-size:9px;color:#6b7280;font-weight:600">Pont</div>`
+                : '';
+    const bg = hol ? '#fef9ee' : brdg ? '#fafaf7' : '#f4f3ef';
+    return `<th style="background:${bg};padding:8px 6px;text-align:center;font-size:11px;font-weight:600;border:1px solid #ddd;min-width:90px">${label}${sub}</th>`;
+  }).join('');
+
+  const rows = POSTES.filter(p => p.id !== 'csg1i1' && p.id !== 'csg2i1').map(p => {
+    const posteData = byPoste[p.id];
+    const meds = posteData?.medecins ?? [];
+    const cells = days.map(d => {
+      const iso = toI(d);
+      const hol = holidays.get(iso);
+      const bg  = hol ? '#fef9ee' : 'transparent';
+      const names = meds.map(m => {
+        const { schedIdx } = (() => {
+          const dow = new Date(iso + 'T12:00:00').getDay();
+          const idx = (dow - 1) * 2;
+          return { schedIdx: idx };
+        })();
+        const works = m.sched && (m.sched[schedIdx] || m.sched[schedIdx + 1]);
+        return works ? `<div style="font-size:10px;padding:2px 0">${m.nom}</div>` : '';
+      }).join('');
+      return `<td style="background:${bg};padding:5px 6px;border:1px solid #ddd;vertical-align:top">${names || ''}</td>`;
+    }).join('');
+    return `<tr><td style="padding:5px 10px;font-size:11px;font-weight:600;border:1px solid #ddd;white-space:nowrap;background:#f4f3ef;color:${p.c}">${p.short}</td>${cells}</tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<title>Planning — ${weekLabel}</title>
+<style>
+  body{font-family:system-ui,Arial,sans-serif;margin:0;padding:20px;background:#fff;color:#1a1a1a}
+  h1{font-size:15px;margin:0 0 4px;font-weight:700}
+  p{font-size:11px;color:#666;margin:0 0 16px}
+  table{border-collapse:collapse;width:100%;font-size:11px}
+  @media print{body{padding:10px}button{display:none}}
+</style></head><body>
+<h1>Planning — Pôle Gériatrie</h1>
+<p>${weekLabel}</p>
+<button onclick="window.print()" style="margin-bottom:12px;padding:6px 16px;cursor:pointer;font-size:12px;border:1px solid #ccc;border-radius:6px;background:#2563eb;color:#fff;font-weight:600">
+  Imprimer / Enregistrer PDF
+</button>
+<table><thead><tr>
+  <th style="background:#f4f3ef;padding:8px 10px;text-align:left;font-size:11px;font-weight:600;border:1px solid #ddd">Poste</th>
+  ${colHeaders}
+</tr></thead><tbody>${rows}</tbody></table>
+</body></html>`;
+
+  const win = window.open('', '_blank', 'width=1000,height=700');
+  win.document.write(html);
+  win.document.close();
 }
 
 // ── Fusion CSG 1 (Sénior + Interne) et CSG 2 pour l'affichage ──
@@ -59,6 +121,16 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     days.forEach(d => {
       const iso  = toIso(d);
       const name = getFrenchHolidays(d.getFullYear()).get(iso);
+      if (name) map.set(iso, name);
+    });
+    return map;
+  }, [monday]);
+
+  const bridgeDays = useMemo(() => {
+    const map = new Map();
+    days.forEach(d => {
+      const iso  = toIso(d);
+      const name = getFrenchBridgeDays(d.getFullYear()).get(iso);
       if (name) map.set(iso, name);
     });
     return map;
@@ -419,25 +491,43 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             </div>
           </>
         )}
-        <button
-          onClick={() => { document.body.dataset.date = new Date().toLocaleDateString('fr-FR'); window.print(); }}
-          style={{
-            marginLeft:'auto', fontSize:10, padding:'4px 11px', borderRadius:20,
-            fontFamily:'inherit', fontWeight:700,
-            letterSpacing:'.04em', cursor:'pointer',
-            border:'1.5px solid var(--border2)', background:'transparent', color:'var(--text2)',
-            display:'inline-flex', alignItems:'center', gap:5, alignSelf:'center',
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"
-            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3.5 4V1.5h7V4"/>
-            <rect x="1" y="4" width="12" height="6" rx="1.5"/>
-            <path d="M3.5 10v2.5h7V10"/>
-            <path d="M3.5 7.5h1M10 7.5h.5"/>
-          </svg>
-          Imprimer
-        </button>
+        <div style={{ marginLeft:'auto', display:'flex', gap:6, alignSelf:'center' }}>
+          <button
+            onClick={() => exportWeekPDF({ monday, days, byPoste, holidays, bridgeDays })}
+            style={{
+              fontSize:10, padding:'4px 11px', borderRadius:20,
+              fontFamily:'inherit', fontWeight:700, letterSpacing:'.04em', cursor:'pointer',
+              border:'1.5px solid var(--accent-mid)', background:'var(--accent-light)', color:'var(--accent)',
+              display:'inline-flex', alignItems:'center', gap:5,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 1.5v8M4 7l3 3 3-3"/>
+              <path d="M2 11.5h10"/>
+            </svg>
+            Exporter PDF
+          </button>
+          <button
+            onClick={() => { document.body.dataset.date = new Date().toLocaleDateString('fr-FR'); window.print(); }}
+            style={{
+              fontSize:10, padding:'4px 11px', borderRadius:20,
+              fontFamily:'inherit', fontWeight:700,
+              letterSpacing:'.04em', cursor:'pointer',
+              border:'1.5px solid var(--border2)', background:'transparent', color:'var(--text2)',
+              display:'inline-flex', alignItems:'center', gap:5,
+            }}
+          >
+            <svg width="13" height="13" viewBox="0 0 14 14" fill="none"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3.5 4V1.5h7V4"/>
+              <rect x="1" y="4" width="12" height="6" rx="1.5"/>
+              <path d="M3.5 10v2.5h7V10"/>
+              <path d="M3.5 7.5h1M10 7.5h.5"/>
+            </svg>
+            Imprimer
+          </button>
+        </div>
       </div>
 
       {/* ── Grille + panneau disponibilités ── */}
@@ -451,10 +541,16 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
               const di          = toIso(d);
               const isToday     = di === todayIso;
               const holidayName = holidays.get(di);
+              const bridgeName  = !holidayName ? bridgeDays.get(di) : null;
               return (
                 <div key={i} className={`ghc${isToday ? ' today' : ''}`}
-                  style={{ ...((!isToday && holidayName) ? { background:'var(--holiday-stripe)', color:'#d97706' } : {}), display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
+                  style={{ ...((!isToday && holidayName) ? { background:'var(--holiday-stripe)', color:'#d97706' } : (!isToday && bridgeName) ? { background:'#fafaf7', color:'#6b7280' } : {}), display:'flex', flexDirection:'column', alignItems:'center', gap:3 }}>
                   <span>{d.toLocaleDateString('fr-FR', { weekday:'short', day:'numeric', month:'short' })}</span>
+                  {bridgeName && (
+                    <div style={{ fontSize:8, fontWeight:600, marginTop:2, lineHeight:1.2, color: isToday ? 'inherit' : '#6b7280', letterSpacing:'.03em' }}>
+                      Pont
+                    </div>
+                  )}
                   {holidayName && (
                     <>
                       <div style={{ fontSize:8, fontWeight:600, marginTop:2, lineHeight:1.2, color: isToday ? 'inherit' : '#b45309' }}>
