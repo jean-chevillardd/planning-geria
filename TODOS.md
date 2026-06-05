@@ -4,9 +4,18 @@
 
 ---
 
-## 🔥 Sprint en cours
+## 🔥 Sprint en cours — Auth deux rôles (2026-06-05)
 
-_(vide — DT2 clôturé)_
+| # | Tâche | Statut |
+|---|---|---|
+| AUTH-1 | DB migrations (`users` + `settings`) | ✅ |
+| AUTH-2 | Routes `/api/auth/team` + `/api/auth/gestionnaire` | ✅ |
+| AUTH-3 | Middlewares `requireAuth` / `requireGestionnaire` | ✅ |
+| AUTH-4 | `LoginPage.jsx` (design fidèle Claude Design) | ✅ |
+| AUTH-5 | Refacto `App.jsx` — `isGestionnaire`, suppression `LockButton` | ✅ |
+| AUTH-6 | Visibilité conditionnelle onglets et boutons écriture | ✅ |
+| AUTH-7 | Panneau settings code équipe dans TeamTab | ⏳ à faire |
+| AUTH-8 | Tests serveur mis à jour (nouveau header, nouveaux rôles) | ⏳ à faire |
 
 ---
 
@@ -26,7 +35,7 @@ _(vide — DT2 clôturé)_
 | # | Titre | Bloquant | WSJF |
 |---|---|---|---|
 | P28 | "Semaines d'instabilité" : définition métier + tracking StatsTab | Réunion 9 juin | 5.3 |
-| P9 | MonthView : Mode Rotation + D&D + click-to-assign | [Spec](BACKLOG/P9-monthview-rotation.md) à valider | 1.9 |
+| ~~P9~~ | ~~MonthView : Mode Rotation + D&D + click-to-assign~~ | ✅ Livré 2026-06-03 | — |
 | P30 | Recueil souhaits praticiens (magic link V2) | [Spec](BACKLOG/P30-recueil-souhaits-praticiens.md) + après P28 | 1.8 |
 | P11 | Refonte onglet Absences | [Session spec UX](BACKLOG/P11-refonte-absences.md) | 1.3 |
 
@@ -36,7 +45,7 @@ _(vide — DT2 clôturé)_
 
 | # | Titre | Effort | WSJF | Note |
 |---|---|---|---|---|
-| DT4 | Multi-comptes secrétariat | L | 0.9 | Faible priorité si équipe reste petite |
+| ~~DT4~~ | ~~Multi-comptes secrétariat~~ | — | — | ✅ Résolu — sprint auth 2026-06-05 |
 | DT9 | CSS modularisé | L | 0.7 | Cosmétique |
 
 ---

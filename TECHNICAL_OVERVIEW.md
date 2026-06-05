@@ -14,7 +14,7 @@ Application web interne permettant au secrétariat d'un pôle de gériatrie de g
 - **Les statistiques** de présence et de couverture par service
 - **L'annuaire de l'équipe** (praticiens hospitaliers, internes, PADHUE, IPA, extérieurs)
 
-Les utilisateurs sont exclusivement internes : une ou plusieurs secrétaires médicales, et les praticiens qui reçoivent un lien pour déclarer leurs congés.
+Les utilisateurs sont exclusivement internes : des gestionnaires du planning (cadres de santé / secrétaires médicales) et les praticiens qui reçoivent un lien pour déclarer leurs congés.
 
 ---
 
@@ -63,16 +63,19 @@ client/src/
   api.js              — toutes les requêtes HTTP (point d'entrée unique)
   utils.js            — fonctions pures : dates, postes, schedules, disponibilités
   App.jsx             — état global, navigation entre onglets, système undo
-  main.jsx            — routage minimal (app normale vs page self-service congés)
+  main.jsx            — routage SPA + gestion auth (LoginPage ou App selon JWT)
   hooks/useData.js    — 2 hooks : données stables + données de la semaine
-  components/         — un fichier par onglet ou sous-composant
+  components/
+    LoginPage.jsx     — écran de connexion (code équipe / gestionnaire)
+    ...               — un fichier par onglet ou sous-composant
 
 server/
   index.js            — toutes les routes REST + middlewares
-  db.js               — accès SQLite (chargement, requêtes, persist)
+  db.js               — accès SQLite (init, migrations, seed)
   db_schema.js        — définition des tables (source de vérité DDL)
   seed.js             — import initial depuis CSV
   db_testable.js      — version isolée pour les tests automatisés
+  setup-admin.js      — script CLI création/MAJ compte gestionnaire
 ```
 
 ---
@@ -126,15 +129,20 @@ La base est un fichier sur disque (`server/database.sqlite`). **better-sqlite3**
 
 ## 5. Authentification et accès
 
-| Contexte | Mécanisme |
-|---|---|
-| Secrétariat | Mot de passe → JWT (secret régénéré à chaque redémarrage) |
-| Praticien self-service | Magic link par email (token UUID avec TTL) |
-| Routes API protégées | Header `Authorization: Bearer <token>` |
-| Routes publiques | `/api/auth`, `/api/conge/*` (avant le guard JWT) |
+Deux rôles distincts, gérés via JWT signé avec `JWT_SECRET` (variable Railway obligatoire en prod).
 
-Le mot de passe est haché (bcryptjs) dans `server/secretary.config.json` (hors git).  
-Il n'y a **pas de gestion de comptes multiples** : un seul profil secrétariat pour l'instant.
+| Contexte | Mécanisme | JWT |
+|---|---|---|
+| Médecin | Code équipe partagé → `POST /api/auth/team` | `{ role: 'medecin' }` · 30 jours |
+| Gestionnaire | Email + mot de passe → `POST /api/auth/gestionnaire` | `{ role: 'gestionnaire', userId }` · 8h |
+| Praticien self-service | Magic link par email (token UUID avec TTL 72h) | Pas de JWT |
+| Routes lecture | Header `Authorization: Bearer <token>` (rôle médecin ou gestionnaire) | — |
+| Routes écriture | Header `Authorization: Bearer <token>` (rôle gestionnaire uniquement) | — |
+| Routes publiques | `/api/auth/*`, `/api/conge/*` | Pas de guard |
+
+**Comptes gestionnaires** stockés dans la table `users` (email + bcrypt hash). Créés via `node server/setup-admin.js`.  
+**Code équipe** stocké en clair dans `settings` (`key = 'team_code'`), modifiable depuis l'UI gestionnaire.  
+Le token est conservé en `sessionStorage` côté client ; il est effacé à la déconnexion.
 
 ---
 
@@ -150,6 +158,9 @@ Il n'y a **pas de gestion de comptes multiples** : un seul profil secrétariat p
 | `renforts` | Double présence (praticien déjà ailleurs, vient en plus) |
 | `astreintes` | Astreintes nuit/WE (date_iso, type_ast, med_id) |
 | `conge_tokens` | Magic links self-service (med_id, token, expires_at) |
+| `users` | Comptes gestionnaires (email, password_hash, nom) |
+| `settings` | Paires clé/valeur app — contient `team_code` |
+| `audit_log` | Journal des mutations (user_id, action, table, payload) |
 
 Le champ `sched` dans `medecins` est un tableau de 10 bits (lundi matin → vendredi après-midi) indiquant les demi-journées de présence habituelle du praticien.
 
@@ -203,7 +214,7 @@ Pas de TypeScript, pas de Tailwind, pas de composants UI tiers (pas de MUI, Chak
 | jsonwebtoken | Auth JWT | — |
 | bcryptjs | Hash mot de passe | — |
 | nodemailer | Envoi emails | Config Gmail (hors git) |
-| express-rate-limit | Anti brute-force | Sur `/api/auth` |
+| express-rate-limit | Anti brute-force | Sur `/api/auth/team` et `/api/auth/gestionnaire` |
 | nodemon | Dev hot-reload | Dev uniquement |
 
 ### Tests
@@ -234,8 +245,8 @@ Cause originale : `db.export()` (sql.js) provoquait un COMMIT implicite en cours
 **DT2 — JWT secret potentiellement instable.**  
 Partiellement résolu : le serveur lit `JWT_SECRET` depuis l'env var (ligne 67 de `index.js`) avec fallback aléatoire + warning si non définie. **En prod Railway, configurer `JWT_SECRET` comme variable d'environnement persistante** pour éviter les déconnexions forcées à chaque redéploiement.
 
-**DT4 — Un seul compte secrétariat.**  
-Pas de gestion multi-utilisateurs, pas de rôles fins. Si deux secrétaires travaillent simultanément, elles partagent le même token. Effort L, faible priorité tant que l'équipe reste petite.
+**~~DT4 — Un seul compte secrétariat~~** ✅ RÉSOLU (sprint auth, 2026-06-05)  
+Remplacé par un système à deux rôles : code équipe partagé (médecins, lecture seule) + comptes individuels gestionnaires (email + bcrypt). Table `users` en base, `setup-admin.js` pour la gestion des comptes.
 
 **~~DT3 — Pas de sauvegarde automatique de la base en production~~** ✅ RÉSOLU (2026-06-05)  
 Bouton "Backup BD" dans l'onglet Équipe → `GET /api/backup/download` → télécharge `planning-backup-YYYY-MM-DD.sqlite`. Backup à la demande disponible pour tout utilisateur secrétariat.
@@ -271,4 +282,4 @@ L'algorithme de Pâques est correct pour la France, mais les ponts (lundi de ré
 
 ---
 
-*Dernière mise à jour : 2026-06-05*
+*Dernière mise à jour : 2026-06-05 (sprint auth — deux rôles, LoginPage, DT4 résolu)*

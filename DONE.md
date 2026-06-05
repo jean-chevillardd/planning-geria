@@ -2,6 +2,8 @@
 
 | Date | # | Titre |
 |---|---|---|
+| 2026-06-05 | AUTH | Sprint auth — deux rôles (médecin lecture / gestionnaire écriture), LoginPage, suppression LockButton |
+| 2026-06-05 | DT4 | Multi-comptes gestionnaires — table `users`, `setup-admin.js`, JWT `{ role, userId }` |
 | 2026-06-05 | DT2 | JWT_SECRET persistant sur Railway (variable d'environnement configurée) |
 | 2026-06-05 | P24 | Vue Rotation : absences fusionnées multi-semaines (colspan par type) |
 | 2026-06-05 | P25 | Ordre services : indispensables → dispensables (vue Semaine + Rotation) |
@@ -13,6 +15,7 @@
 | 2026-06-05 | P22 | Panel PH Dispo : "Présents 5j" → "Présents cette semaine" |
 | 2026-06-05 | P23 | Bug Esc sur AssignModal : scroll vers le bas corrigé |
 | 2026-06-05 | P26 | StatsTab : filtre période personnalisée (MonthPickerPopover) |
+| 2026-06-03 | P9 | MonthView : mode Rotation + D&D + click-to-assign (durée semaine / mois / N semaines) |
 | 2026-06-03 | P2 | Alerte couverture minimale : indicateur ⚠/✓ inline + bannière |
 | 2026-06-03 | P4-bis | Règles métier activités & effectifs (documentées, guard HDJ mercredi) |
 | 2026-06-03 | P6 | Numéro ISO de semaine dans WeekNav |

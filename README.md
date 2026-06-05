@@ -1,7 +1,7 @@
 # Planning Gériatrie — Application Web
 
 Application de planning pour le pôle de gériatrie.  
-**Stack** : React 18 + Vite (front) · Node.js + Express (back) · SQLite via sql.js (WASM) · Déploiement Railway
+**Stack** : React 18 + Vite (front) · Node.js + Express (back) · SQLite via better-sqlite3 · Déploiement Railway
 
 ---
 
@@ -15,6 +15,7 @@ planning-geriatrie/
 │   ├── db_schema.js       ← Schéma SQLite partagé (source unique)
 │   ├── db_testable.js     ← Version isolée pour les tests
 │   ├── seed.js            ← Peuplement initial depuis CSV
+│   ├── setup-admin.js     ← Script création/mise à jour compte gestionnaire
 │   ├── database.sqlite    ← Créé automatiquement au premier lancement
 │   └── package.json
 ├── client/
@@ -22,14 +23,15 @@ planning-geriatrie/
 │   │   ├── api.js                      ← Toutes les requêtes HTTP centralisées
 │   │   ├── utils.js                    ← Dates, postes, schedule helpers, getDisponiblesPH
 │   │   ├── App.jsx                     ← Composant racine, état global, undo
-│   │   ├── main.jsx                    ← Routing SPA (App ou CongePublicPage)
+│   │   ├── main.jsx                    ← Routing SPA + gestion auth (LoginPage / App)
 │   │   ├── styles.css                  ← CSS global (variables, composants)
 │   │   ├── hooks/useData.js            ← useBaseData + usePlanning
 │   │   └── components/
+│   │       ├── LoginPage.jsx           ← Écran de connexion (deux modes : code équipe / gestionnaire)
 │   │       ├── PlanningGrid.jsx        ← Grille hebdomadaire
 │   │       ├── WeekNav.jsx             ← Navigation semaine
 │   │       ├── AssignModal.jsx         ← Modale d'affectation
-│   │       ├── TeamTab.jsx             ← Onglet équipe + praticiens extérieurs
+│   │       ├── TeamTab.jsx             ← Onglet équipe + praticiens extérieurs (gestionnaire only)
 │   │       ├── AbsencesTab.jsx         ← Onglet absences
 │   │       ├── StatsTab.jsx            ← Onglet statistiques
 │   │       ├── AstreintesTab.jsx       ← Onglet astreintes (calendrier mensuel)
@@ -68,40 +70,44 @@ npm run dev
 # → App  : http://localhost:5173
 ```
 
-Ou séparément :
-
-```bash
-npm run dev:server   # Express avec nodemon
-npm run dev:client   # Vite HMR
-```
-
 Ouvrir **http://localhost:5173** dans le navigateur.
 
 ---
 
 ## Authentification
 
-L'accès à l'application nécessite une connexion secrétariat :
+L'application utilise deux niveaux d'accès, gérés via JWT.
 
-- `POST /api/auth` : vérification mot de passe → retourne un JWT
-- Le token JWT est stocké en mémoire côté client et inclus dans chaque requête protégée
-- Mot de passe haché (bcryptjs) dans `server/secretary.config.json` (hors git)
-- Rate limiting sur `/api/auth` (protection brute-force)
+### Médecins — accès lecture seule
 
-Les routes `/api/conge/*` sont publiques pour le self-service praticiens.
+- Connexion par **code équipe partagé** (affiché au premier démarrage dans les logs serveur)
+- JWT `{ role: 'medecin' }`, valide 30 jours
+- Accès : consultation du planning, des absences, des statistiques et des astreintes
 
----
+### Gestionnaires — accès complet
 
-## Self-service congés (magic link)
+- Connexion par **email + mot de passe individuel**
+- JWT `{ role: 'gestionnaire', userId }`, valide 8h
+- Accès : tout + onglet Équipe, vue Rotation, modification du planning, gestion des absences
 
-Le secrétariat peut envoyer aux praticiens un lien personnalisé pour déclarer leurs congés :
+### Création d'un compte gestionnaire
 
-1. `POST /api/conge/campaign` → génère des tokens et envoie les emails (Nodemailer/Gmail)
-2. Le praticien clique sur son lien → `CongePublicPage` (aucune auth requise)
-3. `GET /api/conge/token/:token` → valide le token et retourne les infos du praticien
-4. `POST /api/conge/submit` → enregistre les absences déclarées
+```bash
+cd server
+node setup-admin.js prenom.nom@chd-vendee.fr MonMotDePasse "Prénom Nom"
+```
 
-Configuration email : `server/email.config.json` (hors git — voir `email.config.json.example`).
+Peut être relancé pour modifier le mot de passe d'un compte existant.
+
+### Code équipe
+
+- Généré automatiquement au premier démarrage (affiché dans les logs)
+- Modifiable par les gestionnaires depuis l'onglet **Équipe → Paramètres**
+- Stocké en clair dans la table `settings` (`key = 'team_code'`)
+
+### Magic link self-service congés
+
+Les routes `/api/conge/*` sont publiques. Le lien envoyé par email contient un token unique expirant — il donne accès directement au formulaire de saisie sans passer par l'écran de connexion.
 
 ---
 
@@ -111,22 +117,31 @@ Configuration email : `server/email.config.json` (hors git — voir `email.confi
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| POST | `/api/auth` | Connexion secrétariat → JWT |
+| POST | `/api/auth/team` | Code équipe → JWT médecin (30j) |
+| POST | `/api/auth/gestionnaire` | Email + mot de passe → JWT gestionnaire (8h) |
 | GET | `/api/conge/token/:token` | Validation magic link |
 | POST | `/api/conge/submit` | Soumission absences self-service |
 
-### Routes protégées (JWT requis)
+### Routes lecture (JWT médecin ou gestionnaire)
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/api/medecins` | Liste tous les praticiens |
+| GET | `/api/medecins` | Liste tous les praticiens actifs |
+| GET | `/api/absences` | Liste toutes les absences |
+| GET | `/api/planning/:weekKey` | Planning complet d'une semaine |
+| GET | `/api/astreintes` | Astreintes d'un mois (`?month=YYYY-MM`) |
+| GET | `/api/stats/medecin/:id` | Stats d'un praticien (`?from=YYYY-MM-DD&to=YYYY-MM-DD`) |
+| GET | `/api/stats/all` | Stats de toute l'équipe |
+
+### Routes écriture (JWT gestionnaire uniquement)
+
+| Méthode | Route | Description |
+|---------|-------|-------------|
 | POST | `/api/medecins` | Ajouter un praticien |
 | PUT | `/api/medecins/:id` | Modifier (nom, type, service, tel, sched) |
 | DELETE | `/api/medecins/:id` | Supprimer |
-| GET | `/api/absences` | Liste toutes les absences |
 | POST | `/api/absences` | Ajouter une absence |
 | DELETE | `/api/absences/:id` | Supprimer |
-| GET | `/api/planning/:weekKey` | Planning complet d'une semaine |
 | POST | `/api/affectations` | Affecter un praticien à un poste |
 | DELETE | `/api/affectations` | Retirer d'un poste |
 | POST | `/api/exclusions` | Exclure un praticien d'un jour précis |
@@ -136,12 +151,11 @@ Configuration email : `server/email.config.json` (hors git — voir `email.confi
 | POST | `/api/renforts` | Ajouter un renfort |
 | DELETE | `/api/renforts` | Retirer un renfort |
 | POST | `/api/planning/copy` | Copier une semaine vers une autre |
-| GET | `/api/astreintes` | Astreintes d'un mois (`?month=YYYY-MM`) |
 | POST | `/api/astreintes` | Saisir une astreinte |
 | DELETE | `/api/astreintes/:id` | Supprimer une astreinte |
-| GET | `/api/stats/medecin/:id` | Stats d'un praticien (`?from=YYYY-MM-DD&to=YYYY-MM-DD`) |
-| GET | `/api/stats/all` | Stats de toute l'équipe (`?from=YYYY-MM-DD&to=YYYY-MM-DD`) |
-| GET | `/api/backup/download` | Téléchargement SQLite (JWT requis si auth configurée) |
+| GET | `/api/settings/team-code` | Lire le code équipe actuel |
+| PUT | `/api/settings/team-code` | Modifier le code équipe |
+| GET | `/api/backup/download` | Téléchargement SQLite |
 | GET | `/api/conge/preview` | Aperçu campagne congés |
 | POST | `/api/conge/campaign` | Lancer une campagne d'emails |
 
@@ -157,7 +171,7 @@ Le projet est configuré pour Railway via `railway.toml` :
 
 Variables d'environnement Railway :
 - `PORT` : assigné automatiquement par Railway
-- `JWT_SECRET` : secret JWT (à définir dans Railway)
+- `JWT_SECRET` : secret JWT (obligatoire en production — à définir dans Railway)
 - Voir `server/email.config.json.example` pour les variables email
 
 ### Lancement production local
@@ -189,11 +203,10 @@ Les tests serveur utilisent `db_testable.js` avec une base SQLite en mémoire is
 La base de données est dans `server/database.sqlite`.  
 **Sauvegarder ce fichier suffit** à préserver toutes les données.
 
-### Depuis l'interface (Railway / production)
+### Depuis l'interface (gestionnaire)
 
-En mode secrétariat, onglet **Équipe** → bouton **Backup BD** → télécharge `planning-backup-YYYY-MM-DD.sqlite`.
-
-Cela appelle `GET /api/backup/download` (JWT requis si authentification configurée).
+Onglet **Équipe** → bouton **Backup BD** → télécharge `planning-backup-YYYY-MM-DD.sqlite`.  
+Appelle `GET /api/backup/download` (JWT gestionnaire requis).
 
 ### Automatique (cron Linux — serveur dédié)
 
