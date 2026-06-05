@@ -30,6 +30,14 @@ async function init() {
     console.log('✓ Base initialisée avec', count, 'praticiens');
   }
 
+  // Seed code équipe par défaut (si absent)
+  const existingCode = db.prepare("SELECT value FROM settings WHERE key='team_code'").get();
+  if (!existingCode) {
+    const defaultCode = require('crypto').randomBytes(3).toString('hex').toUpperCase();
+    db.prepare("INSERT INTO settings (key, value) VALUES ('team_code', ?)").run(defaultCode);
+    console.log(`✓ Code équipe initial généré : ${defaultCode} (modifiable dans l'interface gestionnaire)`);
+  }
+
   return db;
 }
 
