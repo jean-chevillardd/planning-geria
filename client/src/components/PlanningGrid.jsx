@@ -1,5 +1,5 @@
 // components/PlanningGrid.jsx
-import { useMemo, useState, useRef } from 'react';
+import { useMemo, useState, useRef, useEffect } from 'react';
 import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getSchedHalfDay, getFrenchHolidays, getFrenchBridgeDays, getDisponiblesPH } from '../utils';
 
 function fmtWeek(monday, days) {
@@ -362,6 +362,17 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     setPendingPanelAssign(null);
   }
 
+  // Esc → fermer les dialogs ouverts
+  useEffect(() => {
+    function h(e) {
+      if (e.key !== 'Escape') return;
+      if (pendingPanelAssign) { setPendingPanelAssign(null); return; }
+      if (pendingMove)        { setPendingMove(null); return; }
+    }
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [pendingMove, pendingPanelAssign]);
+
   // Labels dialog déplacement
   const moveDayLabel = pendingMove
     ? new Date(pendingMove.dayIso + 'T12:00:00')
@@ -383,8 +394,8 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         Planning — Semaine du {fmtWeek(monday, days)}
       </div>
 
-      {/* ── Alerte couverture ── */}
-      <div className={`alert print-hide ${alerts.warns.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom: 10, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+      {/* ── Alerte couverture (gestionnaire uniquement) ── */}
+      {isSecretary && <div className={`alert print-hide ${alerts.warns.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom: 10, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
         {alerts.warns.length === 0 ? (
           <span>✓ Tous les postes obligatoires sont couverts.</span>
         ) : (
@@ -410,7 +421,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             </div>
           </>
         )}
-      </div>
+      </div>}
 
       {/* ── Filtres / légende (P16) ── */}
       <div className="print-hide" style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:12, alignItems:'flex-start' }}>
@@ -508,25 +519,6 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             </svg>
             Exporter PDF
           </button>
-          <button
-            onClick={() => { document.body.dataset.date = new Date().toLocaleDateString('fr-FR'); window.print(); }}
-            style={{
-              fontSize:10, padding:'4px 11px', borderRadius:20,
-              fontFamily:'inherit', fontWeight:700,
-              letterSpacing:'.04em', cursor:'pointer',
-              border:'1.5px solid var(--border2)', background:'transparent', color:'var(--text2)',
-              display:'inline-flex', alignItems:'center', gap:5,
-            }}
-          >
-            <svg width="13" height="13" viewBox="0 0 14 14" fill="none"
-              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3.5 4V1.5h7V4"/>
-              <rect x="1" y="4" width="12" height="6" rx="1.5"/>
-              <path d="M3.5 10v2.5h7V10"/>
-              <path d="M3.5 7.5h1M10 7.5h.5"/>
-            </svg>
-            Imprimer
-          </button>
         </div>
       </div>
 
@@ -576,7 +568,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                       )}
                     </>
                   )}
-                  {phPerDay[di] != null && (() => {
+                  {isSecretary && phPerDay[di] != null && (() => {
                     const count = phPerDay[di];
                     const quota = new Date(di + 'T12:00:00').getDay() === 3 ? 11 : 12;
                     const ratio = count / quota;
@@ -963,7 +955,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts
     <div className="grow">
       <div className="pname">
         <span style={{ color: poste.c }}>{poste.lbl}</span>
-        {(poste.min > 0 || poste.minPH > 0) && (() => {
+        {isSecretary && (poste.min > 0 || poste.minPH > 0) && (() => {
           const hasAlert = alertSet && days.some(d => alertSet.has(`${poste.id}:${toIso(d)}`));
           const seuil = poste.minPH ?? poste.min;
           return (

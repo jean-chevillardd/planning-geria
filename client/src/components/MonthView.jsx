@@ -1,6 +1,6 @@
 // components/MonthView.jsx
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
-import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, getSchedHalfDay, getFrenchHolidays, getISOWeek } from '../utils';
+import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, worksWeekAny, getSchedHalfDay, getFrenchHolidays, getISOWeek } from '../utils';
 import * as api from '../api';
 import DoctorSearch from './DoctorSearch';
 
@@ -128,12 +128,12 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
   const [doctorFilter, setDoctorFilter] = useState('');
   const [pickerOpen,   setPickerOpen]   = useState(false);
   // ── Mode Rotation (état local pour D&D dialogs) ──
-  const [panelDragMed,  setPanelDragMed]  = useState(null);
-  const [pendingDrop,   setPendingDrop]   = useState(null);   // { med, poste, weekKey }
+  const [pendingDrop,   setPendingDrop]   = useState(null);   // { med, poste, weekKey } — conservé pour l'éventuel D&D futur
   const [pendingAssign, setPendingAssign] = useState(null);   // { poste, weekKey }
   const [durMode,       setDurMode]       = useState('week');
   const [durN,          setDurN]          = useState(2);
   const [assignSearch,  setAssignSearch]  = useState('');
+  const [assignActiveIdx, setAssignActiveIdx] = useState(-1);
   const [assignMed,     setAssignMed]     = useState(null);
   const [removingMed,   setRemovingMed]   = useState(null);
   const [removeDurMode, setRemoveDurMode] = useState('week');
@@ -244,67 +244,6 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
     return result;
   }, [weekData, filter, subFilter]);
 
-  // P13 — Panel PH disponibles pour le mois
-  const monthPhDisponibles = useMemo(() => {
-    if (!isSecretary) return { full: [], partial: [] };
-    const monthStart = `${y}-${String(mo + 1).padStart(2,'0')}-01`;
-    const lastDay    = new Date(y, mo + 1, 0).getDate();
-    const monthEnd   = `${y}-${String(mo + 1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
-    const full = [], partial = [];
-    for (const m of medecins) {
-      if (!m.actif || m.type !== 'ph' || m.service !== 'geriatrie') continue;
-      const monthAbsences = absences.filter(a =>
-        a.med_id === m.id && a.date_debut <= monthEnd && a.date_fin >= monthStart
-      );
-      if (monthAbsences.length === 0) { full.push(m); continue; }
-      // Compter les jours ouvrés couverts : ≥ 5 → "Présent partiellement"
-      let absenceDays = 0;
-      for (let d = 1; d <= lastDay; d++) {
-        const dStr = `${y}-${String(mo + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        const dow = new Date(dStr + 'T12:00:00').getDay();
-        if (dow === 0 || dow === 6) continue;
-        const idx = (dow - 1) * 2;
-        if (!(m.sched[idx] || m.sched[idx + 1])) continue;
-        if (monthAbsences.some(a => a.date_debut <= dStr && a.date_fin >= dStr)) absenceDays++;
-      }
-      if (absenceDays >= 5) {
-        partial.push({ ...m, _monthAbsences: monthAbsences });
-      } else {
-        full.push(m);
-      }
-    }
-    full.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
-    partial.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
-    return { full, partial };
-  }, [isSecretary, medecins, absences, y, mo]);
-
-  // ── PH en congés ce mois ──────────────────────────────────
-  const enCongesMois = useMemo(() => {
-    if (!isSecretary) return [];
-    const monthStart = `${y}-${String(mo + 1).padStart(2,'0')}-01`;
-    const lastDay    = new Date(y, mo + 1, 0).getDate();
-    const monthEnd   = `${y}-${String(mo + 1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
-    const result = [];
-    for (const m of medecins) {
-      if (!m.actif || m.type !== 'ph' || m.service !== 'geriatrie') continue;
-      const moisAbs = absences.filter(a =>
-        a.med_id === m.id && a.date_debut <= monthEnd && a.date_fin >= monthStart
-      );
-      if (moisAbs.length === 0) continue;
-      const absItems = moisAbs.map(a => {
-        const debut = a.date_debut < monthStart ? monthStart : a.date_debut;
-        const fin   = a.date_fin   > monthEnd   ? monthEnd   : a.date_fin;
-        const d1 = parseInt(debut.split('-')[2], 10);
-        const d2 = parseInt(fin.split('-')[2], 10);
-        const typeShort = TYPE_ABS_SHORT[a.type_abs] ?? a.type_abs;
-        const label = d1 === d2 ? `le ${d1}` : `du ${d1} au ${d2}`;
-        return { typeShort, label };
-      });
-      result.push({ ...m, absItems });
-    }
-    result.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
-    return result;
-  }, [isSecretary, medecins, absences, y, mo]);
 
   // ── Candidats pour la dialog click-to-assign (vide sans recherche) ─────────────
   const assignCandidates = useMemo(() => {
@@ -333,6 +272,52 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
 
   // ── Helper : label durée ─────────────────────────────────
   const monthLbl = new Date(y, mo, 1).toLocaleDateString('fr-FR', { month:'long' });
+
+  // ── Export PDF mensuel ────────────────────────────────────
+  function exportMonthPDF({ y, mo, weeks, weekData, visiblePostes }) {
+    const toI = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const monthLabel = new Date(y, mo, 1).toLocaleDateString('fr-FR', { month:'long', year:'numeric' });
+    const postes = visiblePostes.filter(p => p.id !== 'csg1i1' && p.id !== 'csg2i1');
+
+    const wkHeaders = weeks.map(w =>
+      `<th style="padding:6px 4px;background:#f4f3ef;border:1px solid #ddd;text-align:center;font-size:10px;min-width:80px">
+        <div style="font-weight:700">S${getISOWeek(w)}</div>
+        <div style="font-size:9px;color:#666">${w.toLocaleDateString('fr-FR', { day:'numeric', month:'short' })}</div>
+      </th>`
+    ).join('');
+
+    const rows = postes.map(p => {
+      const cells = weeks.map(w => {
+        const wk = toI(w);
+        const data = weekData[wk];
+        const meds = data?.affectations?.[p.id]?.medecins || [];
+        const names = meds.map(m =>
+          `<div style="font-size:9px;padding:1px 0;font-weight:${m.type==='ph'?700:400};font-style:${m.type==='ph'?'normal':'italic'}">${m.nom}</div>`
+        ).join('');
+        return `<td style="padding:4px 5px;border:1px solid #ddd;vertical-align:top">${names}</td>`;
+      }).join('');
+      return `<tr><td style="padding:4px 8px;font-size:10px;font-weight:600;border:1px solid #ddd;color:${p.c};white-space:nowrap;background:#fafaf9">${p.lbl}</td>${cells}</tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">
+<title>Planning — ${monthLabel}</title>
+<style>body{font-family:system-ui,Arial,sans-serif;margin:0;padding:20px;background:#fff;color:#1a1a1a}h1{font-size:15px;margin:0 0 4px;font-weight:700}p{font-size:11px;color:#666;margin:0 0 16px}table{border-collapse:collapse;width:100%}@media print{button{display:none}}</style>
+</head><body>
+<h1>Planning — Pôle Gériatrie</h1>
+<p>${monthLabel}</p>
+<button onclick="window.print()" style="margin-bottom:12px;padding:6px 16px;cursor:pointer;font-size:12px;border:1px solid #ccc;border-radius:6px;background:#2563eb;color:#fff;font-weight:600">
+  Imprimer / Enregistrer PDF
+</button>
+<table><thead><tr>
+  <th style="background:#f4f3ef;padding:6px 8px;text-align:left;font-size:10px;font-weight:600;border:1px solid #ddd">Poste</th>
+  ${wkHeaders}
+</tr></thead><tbody>${rows}</tbody></table>
+</body></html>`;
+
+    const win = window.open('', '_blank', 'width=1100,height=700');
+    win.document.write(html);
+    win.document.close();
+  }
 
   return (
     <div>
@@ -475,25 +460,24 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
             </div>
           );
         })}
-        <button
-          onClick={() => { document.body.dataset.date = new Date().toLocaleDateString('fr-FR'); window.print(); }}
-          style={{
-            marginLeft:'auto', fontSize:10, padding:'4px 11px',
-            borderRadius:20, fontFamily:'inherit',
-            fontWeight:700, letterSpacing:'.04em', cursor:'pointer',
-            border:'1.5px solid var(--border2)', background:'transparent',
-            color:'var(--text2)', display:'inline-flex', alignItems:'center', gap:5,
-          }}
-        >
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none"
-            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3.5 4V1.5h7V4"/>
-            <rect x="1" y="4" width="12" height="6" rx="1.5"/>
-            <path d="M3.5 10v2.5h7V10"/>
-            <path d="M3.5 7.5h1M10 7.5h.5"/>
-          </svg>
-          Imprimer
-        </button>
+        {!rotationMode && (
+          <button
+            onClick={() => exportMonthPDF({ y, mo, weeks, weekData, visiblePostes })}
+            style={{
+              marginLeft:'auto', fontSize:10, padding:'4px 11px', borderRadius:20,
+              fontFamily:'inherit', fontWeight:700, letterSpacing:'.04em', cursor:'pointer',
+              border:'1.5px solid var(--accent-mid)', background:'var(--accent-light)', color:'var(--accent)',
+              display:'inline-flex', alignItems:'center', gap:5,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none"
+              stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 1.5v8M4 7l3 3 3-3"/>
+              <path d="M2 11.5h10"/>
+            </svg>
+            Exporter PDF
+          </button>
+        )}
       </div>
 
       {/* ── Grille + panneaux latéraux ── */}
@@ -505,7 +489,7 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
           {rotationMode ? (
             /* ── Vue Rotation : postes × semaines ── */
             <div className="grid-wrap" style={{ overflow:'auto' }}>
-            <table className={`rotation-grid${panelDragMed ? ' has-drag' : ''}`}>
+            <table className="rotation-grid">
               <thead>
                 <tr>
                   <th className="rotation-poste-lbl">Poste</th>
@@ -548,24 +532,14 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                             const seen = new Set();
                             const assigned = allIds
                               .flatMap(pid => data?.affectations?.[pid]?.medecins || [])
+                              .filter(m => worksWeekAny(m, w, absences))
                               .filter(m => { if (seen.has(m.id)) return false; seen.add(m.id); return true; });
                             const stableOrder = rotationStableOrder[poste.id] ?? {};
                             const sortedAssigned = [...assigned].sort((a, b) =>
                               (stableOrder[a.id] ?? 9999) - (stableOrder[b.id] ?? 9999)
                             );
                             return (
-                              <td key={wk} className="rotation-cell"
-                                onClick={isSecretary ? () => {
-                                  setDurMode('week'); setAssignMed(null); setAssignSearch('');
-                                  setPendingAssign({ poste, weekKey: wk });
-                                } : undefined}
-                                onDragOver={isSecretary && panelDragMed ? e => e.preventDefault() : undefined}
-                                onDrop={isSecretary && panelDragMed ? () => {
-                                  setDurMode('week');
-                                  setPendingDrop({ med: panelDragMed, poste, weekKey: wk });
-                                  setPanelDragMed(null);
-                                } : undefined}
-                              >
+                              <td key={wk} className="rotation-cell">
                                 {sortedAssigned.map(m => (
                                   <div key={m.id} className="rotation-chip"
                                     style={{ background: poste.c + '18', borderColor: poste.c + '55', color: poste.c }}>
@@ -577,7 +551,6 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                                     </span>
                                   </div>
                                 ))}
-                                {isSecretary && <span className="add-lnk print-hide">+ affecter</span>}
                               </td>
                             );
                           })}
@@ -752,122 +725,6 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
           )}
         </div>{/* fin zone grille */}
 
-        {/* ── Panneaux latéraux (Mode Rotation uniquement, à gauche) ── */}
-        {isSecretary && rotationMode && (
-          <div className="print-hide" style={{ position:'sticky', top:60, alignSelf:'flex-start', display:'flex', flexDirection:'column', gap:10, width:188, flexShrink:0, order:-1 }}>
-
-            {/* PH disponibles ce mois (P13) */}
-            <div className="available-panel" style={{ marginTop:0, maxHeight:'55vh', overflowY:'auto' }}>
-              <div className="available-panel-header">
-                PH — {new Date(y, mo, 1).toLocaleDateString('fr-FR', { month:'long' })}
-                <span className="available-count"
-                  aria-label={`${monthPhDisponibles.full.length + monthPhDisponibles.partial.length} PH ce mois`}>
-                  {monthPhDisponibles.full.length + monthPhDisponibles.partial.length}
-                </span>
-              </div>
-              {!rotationMode && (
-                <p className="panel-info-note">Vue semaine pour glisser-déposer</p>
-              )}
-              {rotationMode && (
-                <div className="panel-drag-hint" aria-label="Glisser vers un poste pour affecter">
-                  <svg width="9" height="13" viewBox="0 0 9 13" fill="currentColor" aria-hidden="true" style={{ flexShrink:0 }}>
-                    <circle cx="2" cy="2"  r="1.3"/><circle cx="7" cy="2"  r="1.3"/>
-                    <circle cx="2" cy="6.5" r="1.3"/><circle cx="7" cy="6.5" r="1.3"/>
-                    <circle cx="2" cy="11" r="1.3"/><circle cx="7" cy="11" r="1.3"/>
-                  </svg>
-                  Glisser vers un poste pour affecter
-                </div>
-              )}
-              {monthPhDisponibles.full.length > 0 && (
-                <>
-                  <div className="available-group-label">Présents tout le mois</div>
-                  <ul className="available-list">
-                    {monthPhDisponibles.full.map(m => (
-                      <li key={m.id} className="available-item"
-                        draggable={rotationMode}
-                        onDragStart={rotationMode ? () => setPanelDragMed(m) : undefined}
-                        onDragEnd={rotationMode   ? () => setPanelDragMed(null) : undefined}
-                        style={{ cursor: rotationMode ? 'grab' : 'default' }}
-                      >
-                        {rotationMode && (
-                          <span className="drag-handle" aria-hidden="true">
-                            <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
-                              <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
-                              <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
-                              <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
-                            </svg>
-                          </span>
-                        )}
-                        <span className="available-dot" style={{ background: '#16a34a' }} />
-                        <span>{m.prenom} {m.nom}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {monthPhDisponibles.partial.length > 0 && (
-                <>
-                  <div className="available-group-label" style={{ marginTop: monthPhDisponibles.full.length ? 10 : 0 }}>
-                    Présents partiellement
-                  </div>
-                  <ul className="available-list">
-                    {monthPhDisponibles.partial.map(m => (
-                      <li key={m.id} className="available-item"
-                        draggable={rotationMode}
-                        onDragStart={rotationMode ? () => setPanelDragMed(m) : undefined}
-                        onDragEnd={rotationMode   ? () => setPanelDragMed(null) : undefined}
-                        style={{ cursor: rotationMode ? 'grab' : 'default' }}
-                      >
-                        {rotationMode && (
-                          <span className="drag-handle" aria-hidden="true">
-                            <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
-                              <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
-                              <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
-                              <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
-                            </svg>
-                          </span>
-                        )}
-                        <span className="available-dot" style={{ background: '#f59e0b' }} />
-                        <span>{m.prenom} {m.nom}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              )}
-              {monthPhDisponibles.full.length === 0 && monthPhDisponibles.partial.length === 0 && (
-                <p className="available-empty">Aucun PH actif</p>
-              )}
-            </div>
-
-            {/* En congés ce mois */}
-            {enCongesMois.length > 0 && (
-              <div className="available-panel" style={{ maxHeight:'40vh', overflowY:'auto' }}>
-                <div className="available-panel-header">
-                  En congés ce mois
-                  <span className="available-count" style={{ background:'var(--text3)' }}>
-                    {enCongesMois.length}
-                  </span>
-                </div>
-                <ul className="available-list">
-                  {enCongesMois.map(m => (
-                    <li key={m.id} className="available-item" style={{ cursor:'default' }}>
-                      <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
-                      <span>
-                        {m.prenom} {m.nom}
-                        {m.absItems.map((a, i) => (
-                          <span key={i} className="available-days">
-                            {a.typeShort} {a.label}
-                          </span>
-                        ))}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-          </div>
-        )}
       </div>{/* fin flex-layout */}
 
       {/* ── Dialog D&D : durée uniquement (PH connu) ── */}
@@ -1113,7 +970,16 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                   type="text"
                   placeholder="Nom, ou type : ph · interne · padhue · ipa…"
                   value={assignSearch}
-                  onChange={e => { setAssignSearch(e.target.value); setAssignMed(null); setRemovingMed(null); setModifyingMed(null); }}
+                  onChange={e => { setAssignSearch(e.target.value); setAssignMed(null); setAssignActiveIdx(-1); setRemovingMed(null); setModifyingMed(null); }}
+                  onKeyDown={e => {
+                    if (e.key === 'ArrowDown') { e.preventDefault(); setAssignActiveIdx(i => Math.min(i + 1, assignCandidates.length - 1)); }
+                    else if (e.key === 'ArrowUp') { e.preventDefault(); setAssignActiveIdx(i => Math.max(i - 1, -1)); }
+                    else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      const idx = assignActiveIdx >= 0 ? assignActiveIdx : 0;
+                      if (assignCandidates[idx]) { setAssignMed(assignCandidates[idx]); setAssignActiveIdx(-1); setRemovingMed(null); }
+                    } else if (e.key === 'Escape') { closeDialog(); }
+                  }}
                   style={{
                     width:'100%', padding:'7px 10px',
                     border:'1px solid var(--border2)', borderRadius:'var(--r)',
@@ -1132,16 +998,19 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                       <li style={{ padding:'8px 12px', fontSize:11, color:'var(--text3)', fontStyle:'italic' }}>
                         Aucun praticien trouvé
                       </li>
-                    ) : assignCandidates.map(m => {
+                    ) : assignCandidates.map((m, idx) => {
                       const sel = assignMed?.id === m.id;
+                      const highlighted = assignActiveIdx === idx;
                       return (
                         <li key={m.id}
-                          onClick={() => { setAssignMed(sel ? null : m); setRemovingMed(null); }}
+                          onClick={() => { setAssignMed(sel ? null : m); setAssignActiveIdx(-1); setRemovingMed(null); }}
+                          onMouseEnter={() => setAssignActiveIdx(idx)}
+                          onMouseLeave={() => setAssignActiveIdx(-1)}
                           style={{
                             padding:'6px 12px', cursor:'pointer', fontSize:12,
                             display:'flex', alignItems:'center', gap:8,
-                            background: sel ? 'var(--accent-light)' : 'transparent',
-                            borderLeft: sel ? '3px solid var(--accent)' : '3px solid transparent',
+                            background: sel ? 'var(--accent-light)' : highlighted ? 'var(--surface2)' : 'transparent',
+                            borderLeft: sel || highlighted ? '3px solid var(--accent)' : '3px solid transparent',
                             fontWeight: m.type === 'ph' ? 700 : 400,
                             fontStyle:  m.type === 'ph' ? 'normal' : 'italic',
                             transition:'background .08s',

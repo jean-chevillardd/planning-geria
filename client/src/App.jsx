@@ -1,6 +1,6 @@
 // App.jsx — PATCHED: emoji removed from tabs, header refreshed, palette updated
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { getMonday, toIso, addDays } from './utils';
+import { getMonday, toIso, addDays, worksWeekAny } from './utils';
 import { useBaseData, usePlanning } from './hooks/useData';
 import * as api from './api';
 
@@ -258,17 +258,23 @@ export default function App({ role, onLogout }) {
 
   // ── Affectation multi-semaines depuis MonthView (Mode Rotation) ──
   async function handleMonthAssign({ medId, posteId, weekKey, mode, nWeeks, monthY, monthM }) {
-    const weekKeys = [];
+    const allKeys = [];
     if (mode === 'week') {
-      weekKeys.push(weekKey);
+      allKeys.push(weekKey);
     } else if (mode === 'month') {
       let c = getMonday(new Date(monthY, monthM, 1));
       const end = new Date(monthY, monthM + 1, 0);
-      while (c <= end) { weekKeys.push(toIso(c)); c = addDays(c, 7); }
+      while (c <= end) { allKeys.push(toIso(c)); c = addDays(c, 7); }
     } else if (mode === 'nweeks') {
       let c = new Date(weekKey + 'T12:00:00');
-      for (let i = 0; i < nWeeks; i++) { weekKeys.push(toIso(c)); c = addDays(c, 7); }
+      for (let i = 0; i < nWeeks; i++) { allKeys.push(toIso(c)); c = addDays(c, 7); }
     }
+    // Skip weeks where the doctor is entirely absent (no working day at all)
+    const med = medecins.find(m => m.id === medId);
+    const weekKeys = med
+      ? allKeys.filter(wk => worksWeekAny(med, new Date(wk + 'T12:00:00'), absences))
+      : allKeys;
+    if (weekKeys.length === 0) { showToast('Aucune semaine disponible (absent sur toute la période)', 'err'); return; }
     const inserted = [];
     try {
       for (const wk of weekKeys) {
@@ -427,13 +433,6 @@ export default function App({ role, onLogout }) {
               {t.label}
             </button>
           ))}
-          {isGestionnaire && (
-            <span style={{ marginLeft:'auto', fontSize:11, padding:'5px 10px',
-              background:'rgba(37,99,235,.08)', border:'1px solid var(--border)', borderRadius:8,
-              color:'var(--text2)', fontWeight:600 }}>
-              Gestionnaire
-            </span>
-          )}
         </div>
 
         {/* ── Planning ── */}
@@ -475,7 +474,7 @@ export default function App({ role, onLogout }) {
                 {planningData && (
                   <div style={{ opacity: planLoading ? 0.55 : 1, transition:'opacity .15s', pointerEvents: planLoading ? 'none' : undefined }}>
                     <PlanningGrid monday={monday} planningData={planningData} absences={absences}
-                      medecins={medecins} isGestionnaire={isGestionnaire} doctorFilter={doctorFilter}
+                      medecins={medecins} isSecretary={isGestionnaire} doctorFilter={doctorFilter}
                       onCellClick={(poste, dayIso) => {
                         if (!isGestionnaire) return;
                         // HDJ programmé fermé systématiquement le mercredi
@@ -493,7 +492,7 @@ export default function App({ role, onLogout }) {
 
             {/* Sous-vues Mois et Rotation */}
             {(planningView === 'mois' || planningView === 'rotation') && (
-              <MonthView medecins={medecins} absences={absences} isGestionnaire={isGestionnaire}
+              <MonthView medecins={medecins} absences={absences} isSecretary={isGestionnaire}
                 rotationMode={planningView === 'rotation'}
                 reloadKey={monthReloadKey}
                 onMonthAssign={handleMonthAssign}
@@ -503,8 +502,8 @@ export default function App({ role, onLogout }) {
             )}
           </>
         )}
-        {tab === 'equipe'   && <TeamTab medecins={medecins} isGestionnaire={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
-        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isGestionnaire={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} initNav={absencesInitNav} />}
+        {tab === 'equipe'   && <TeamTab medecins={medecins} isSecretary={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
+        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isSecretary={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} initNav={absencesInitNav} />}
         {tab === 'stats'      && <StatsTab medecins={medecins} onGoToAbsences={(medId, monthKey) => {
           setAbsencesInitNav({ medId, monthDate: new Date(monthKey + '-15'), nonce: Date.now() });
           setTab('absences');
@@ -512,7 +511,7 @@ export default function App({ role, onLogout }) {
         {tab === 'astreintes' && (
           <AstreintesTab
             medecins={medecins}
-            isGestionnaire={isGestionnaire}
+            isSecretary={isGestionnaire}
             onToast={showToast}
             onPushUndo={pushUndo}
             dayIso={astreintesDay}

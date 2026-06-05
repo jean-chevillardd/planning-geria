@@ -3,7 +3,8 @@ import { useMemo, useState, useEffect } from 'react';
 import { TYPE_LBL, worksDay, worksWeekAny, isAbsent, toIso, weekDays, getDisponiblesPH } from '../utils';
 
 export default function AssignModal({ poste, dayIso, monday, planningData, medecins, absences, onClose, onAction }) {
-  const [search, setSearch] = useState('');
+  const [search,    setSearch]    = useState('');
+  const [activeIdx, setActiveIdx] = useState(-1);
 
   const weekKey    = toIso(monday);
   const byPoste    = planningData?.affectations || {};
@@ -270,8 +271,20 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
             className="team-search"
             placeholder="Rechercher un praticien…"
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => { setSearch(e.target.value); setActiveIdx(-1); }}
             autoFocus
+            onKeyDown={e => {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, searchResults.length - 1)); }
+              else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, -1)); }
+              else if (e.key === 'Enter' && searchResults.length > 0) {
+                e.preventDefault();
+                const m = searchResults[activeIdx >= 0 ? activeIdx : 0];
+                const wa = weekAvail(m);
+                const da = dayAvail(m);
+                if (wa.ok) onAction('add_affectation', { week_key: weekKey, poste_id: targetPosteId(m), med_id: m.id, ...(wa.autoExcludeDays?.length ? { auto_exclude_days: wa.autoExcludeDays } : {}) });
+                else if (da.ok) onAction('add_extra', { week_key: weekKey, poste_id: targetPosteId(m), med_id: m.id, jour: dayIso });
+              }
+            }}
           />
           {search && (
             <button onClick={() => setSearch('')} style={{
@@ -290,10 +303,10 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                 Aucun résultat.
               </p>
             ) : (
-              searchResults.map(m => <CandidateRow key={m.id} m={m} subtitle={TYPE_LBL[m.type]}
+              searchResults.map((m, idx) => <CandidateRow key={m.id} m={m} subtitle={TYPE_LBL[m.type]}
                 dayAvail={dayAvail} weekAvail={weekAvail} renfortAvail={renfortAvail}
                 takenToday={takenToday} weekKey={weekKey} dayIso={dayIso}
-                targetPosteId={targetPosteId} onAction={onAction} />)
+                targetPosteId={targetPosteId} onAction={onAction} highlighted={idx === activeIdx} />)
             )}
           </>
         )}
@@ -339,13 +352,13 @@ function fmtExcludeDays(dayIsos) {
 }
 
 // ── Ligne candidat (search + liste disponibles) ──────────────
-function CandidateRow({ m, subtitle, dayAvail, weekAvail, renfortAvail, takenToday, weekKey, dayIso, targetPosteId, onAction }) {
+function CandidateRow({ m, subtitle, dayAvail, weekAvail, renfortAvail, takenToday, weekKey, dayIso, targetPosteId, onAction, highlighted = false }) {
   const wa = weekAvail(m);
   const da = dayAvail(m);
   const ra = renfortAvail(m);
   const hasAutoExclude = wa.ok && wa.autoExcludeDays?.length > 0;
   return (
-    <div className="mitem" style={{ cursor:'default', flexWrap:'nowrap' }}>
+    <div className="mitem" style={{ cursor:'default', flexWrap:'nowrap', background: highlighted ? 'var(--surface2)' : undefined, outline: highlighted ? '1px solid var(--border2)' : undefined }}>
       <span style={{ fontSize:12, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', minWidth:0, flex:'1 1 0' }}>
         {m.nom}
         {subtitle && <span className="mtag" style={{ marginLeft:4 }}>{subtitle}</span>}
