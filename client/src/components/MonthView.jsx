@@ -299,52 +299,6 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
     return result;
   }, [isSecretary, medecins, absences, y, mo]);
 
-  // P24 — Absences fusionnées dans la vue Rotation
-  const rotationAbsenceRows = useMemo(() => {
-    if (!rotationMode) return [];
-
-    // Recalcule les semaines du mois à partir de y/mo (évite la dépendance sur `weeks`)
-    const wks = [];
-    let cur = getMonday(new Date(y, mo, 1));
-    const endOfMonth = new Date(y, mo + 1, 0);
-    while (cur <= endOfMonth) { wks.push(new Date(cur)); cur = addDays(cur, 7); }
-
-    const sortedAbs = [...absences].sort((a, b) => a.date_debut.localeCompare(b.date_debut));
-
-    // Pour chaque (médecin, semaine) : type d'absence dominant (premier par date_debut)
-    const doctorWeekMap = {}; // medId -> [type|null, ...]
-    wks.forEach((w, wi) => {
-      const mon = toIso(w);
-      const fri = toIso(addDays(w, 4));
-      sortedAbs.forEach(a => {
-        if (a.date_fin < mon || a.date_debut > fri) return;
-        if (!doctorWeekMap[a.med_id]) doctorWeekMap[a.med_id] = Array(wks.length).fill(null);
-        if (doctorWeekMap[a.med_id][wi] === null) doctorWeekMap[a.med_id][wi] = a.type_abs;
-      });
-    });
-
-    const rows = [];
-    for (const [medIdRaw, weekTypes] of Object.entries(doctorWeekMap)) {
-      const medId = isNaN(+medIdRaw) ? medIdRaw : +medIdRaw;
-      const med = medecins.find(m => m.id === medId);
-      if (!med) continue;
-      // Construire les spans (runs consécutifs de même type)
-      const spans = [];
-      let i = 0;
-      while (i < weekTypes.length) {
-        const type = weekTypes[i];
-        if (!type) { spans.push({ type: null, count: 1 }); i++; continue; }
-        let count = 1;
-        while (i + count < weekTypes.length && weekTypes[i + count] === type) count++;
-        spans.push({ type, count });
-        i += count;
-      }
-      rows.push({ med, spans });
-    }
-    rows.sort((a, b) => a.med.nom.localeCompare(b.med.nom, 'fr'));
-    return rows;
-  }, [rotationMode, y, mo, absences, medecins]);
-
   // ── Candidats pour la dialog click-to-assign (vide sans recherche) ─────────────
   const assignCandidates = useMemo(() => {
     if (!pendingAssign || !assignSearch.trim()) return [];
@@ -619,49 +573,6 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                     ))}
                   </Fragment>
                 ))}
-                {/* P24 — Section absences fusionnées */}
-                {rotationAbsenceRows.length > 0 && (
-                  <>
-                    <tr>
-                      <td
-                        colSpan={weeks.length + 1}
-                        style={{
-                          padding:'4px 8px', fontSize:10, fontWeight:700,
-                          letterSpacing:'.06em', textTransform:'uppercase',
-                          color:'var(--text2)', background:'var(--surface2)',
-                          borderTop:'2px solid var(--border2)',
-                        }}
-                      >
-                        Absences
-                      </td>
-                    </tr>
-                    {rotationAbsenceRows.map(({ med, spans }) => (
-                      <tr key={med.id}>
-                        <td className="rotation-poste-lbl">
-                          <span style={{ fontWeight: med.type === 'ph' ? 700 : 400, fontStyle: med.type === 'ph' ? 'normal' : 'italic', fontSize:11, color:'var(--text)' }}>
-                            {med.nom}
-                          </span>
-                        </td>
-                        {spans.map((span, si) => {
-                          if (!span.type) {
-                            return <td key={si} className="rotation-cell" style={{ background:'transparent' }} />;
-                          }
-                          const c = absColor(span.type);
-                          const short = TYPE_ABS_SHORT[span.type] ?? span.type;
-                          return (
-                            <td key={si} colSpan={span.count} className="rotation-cell"
-                              style={{ background: c + '18', borderLeft:`2px solid ${c}55`, padding:'3px 6px' }}
-                            >
-                              <span style={{ fontSize:10, fontWeight:700, color: c, whiteSpace:'nowrap' }}>
-                                {short}{span.count > 1 ? ` ×${span.count}` : ''}
-                              </span>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </>
-                )}
               </tbody>
             </table>
             </div>
