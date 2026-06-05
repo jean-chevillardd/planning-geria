@@ -2,6 +2,7 @@
 
 | Date | # | Titre |
 |---|---|---|
+| 2026-06-05 | DT2 | JWT_SECRET persistant sur Railway (variable d'environnement configurée) |
 | 2026-06-05 | P24 | Vue Rotation : absences fusionnées multi-semaines (colspan par type) |
 | 2026-06-05 | P25 | Ordre services : indispensables → dispensables (vue Semaine + Rotation) |
 | 2026-06-05 | DT1 | Migration better-sqlite3 — `POST /api/planning/copy` 500 résolu |

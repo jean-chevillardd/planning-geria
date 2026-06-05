@@ -6,9 +6,7 @@
 
 ## 🔥 Sprint en cours
 
-| # | Titre | Effort | WSJF |
-|---|---|---|---|
-| DT2 | JWT_SECRET sur Railway (variable d'environnement persistante) | XS | 16.0 |
+_(vide — DT2 clôturé)_
 
 ---
 
@@ -46,5 +44,3 @@
 ## Notes métier
 
 **P28** — Hypothèse de définition : semaine où un PH est affecté à un service différent de son service habituel (défini dans `sched` TeamTab). Clarification obligatoire le 9 juin avant toute implémentation.
-
-**DT2** — `JWT_SECRET` lu depuis `process.env.JWT_SECRET` avec fallback aléatoire (ligne 67 `server/index.js`). Configurer la variable dans le dashboard Railway pour éviter les déconnexions à chaque redéploiement.
