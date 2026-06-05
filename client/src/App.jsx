@@ -464,7 +464,7 @@ export default function App({ role, onLogout }) {
               <>
                 <div className="print-hide" style={{ marginBottom:4 }}>
                   <WeekNav monday={monday} onChange={setMonday} onCopy={handleCopyWeek}
-                    onGoToday={() => setMonday(getMonday(new Date()))} isGestionnaire={isGestionnaire}
+                    onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isGestionnaire}
                     medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
                 </div>
                 {planLoading && !planningData && (
@@ -475,7 +475,7 @@ export default function App({ role, onLogout }) {
                 {planningData && (
                   <div style={{ opacity: planLoading ? 0.55 : 1, transition:'opacity .15s', pointerEvents: planLoading ? 'none' : undefined }}>
                     <PlanningGrid monday={monday} planningData={planningData} absences={absences}
-                      medecins={medecins} isGestionnaire={isGestionnaire} doctorFilter={doctorFilter}
+                      medecins={medecins} isSecretary={isGestionnaire} doctorFilter={doctorFilter}
                       onCellClick={(poste, dayIso) => {
                         if (!isGestionnaire) return;
                         // HDJ programmé fermé systématiquement le mercredi
@@ -493,7 +493,7 @@ export default function App({ role, onLogout }) {
 
             {/* Sous-vues Mois et Rotation */}
             {(planningView === 'mois' || planningView === 'rotation') && (
-              <MonthView medecins={medecins} absences={absences} isGestionnaire={isGestionnaire}
+              <MonthView medecins={medecins} absences={absences} isSecretary={isGestionnaire}
                 rotationMode={planningView === 'rotation'}
                 reloadKey={monthReloadKey}
                 onMonthAssign={handleMonthAssign}
@@ -503,8 +503,8 @@ export default function App({ role, onLogout }) {
             )}
           </>
         )}
-        {tab === 'equipe'   && <TeamTab medecins={medecins} isGestionnaire={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
-        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isGestionnaire={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} initNav={absencesInitNav} />}
+        {tab === 'equipe'   && <TeamTab medecins={medecins} isSecretary={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
+        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isSecretary={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} initNav={absencesInitNav} />}
         {tab === 'stats'      && <StatsTab medecins={medecins} onGoToAbsences={(medId, monthKey) => {
           setAbsencesInitNav({ medId, monthDate: new Date(monthKey + '-15'), nonce: Date.now() });
           setTab('absences');
@@ -512,7 +512,7 @@ export default function App({ role, onLogout }) {
         {tab === 'astreintes' && (
           <AstreintesTab
             medecins={medecins}
-            isGestionnaire={isGestionnaire}
+            isSecretary={isGestionnaire}
             onToast={showToast}
             onPushUndo={pushUndo}
             dayIso={astreintesDay}
