@@ -67,6 +67,12 @@ const exclusionExtraSchema = z.object({
   jour:     isoDate,
 });
 
+const extrasBulkDeleteSchema = z.object({
+  week_key: isoDate,
+  poste_id: z.string().min(1, 'poste_id requis'),
+  med_id:   z.string().min(1, 'med_id requis'),
+});
+
 const renfortSchema = z.object({
   week_key: isoDate,
   poste_id: z.string().min(1, 'poste_id requis'),
@@ -89,6 +95,30 @@ const teamCodeUpdateSchema = z.object({
   code: z.string().min(4, 'Code trop court (4 caractères minimum)').trim(),
 });
 
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Mot de passe actuel requis'),
+  newPassword:     z.string().min(6, 'Le nouveau mot de passe doit comporter au moins 6 caractères'),
+});
+
+const createGestionnaireSchema = z.object({
+  nom:      z.string().min(1, 'Nom requis').trim(),
+  email:    z.string().email('Adresse e-mail invalide').toLowerCase().trim(),
+  password: z.string().min(6, 'Le mot de passe doit comporter au moins 6 caractères'),
+});
+
+const updateGestionnaireSchema = z.object({
+  nom:   z.string().min(1, 'Nom requis').trim(),
+  email: z.string().email('Adresse e-mail invalide').toLowerCase().trim(),
+});
+
+const auditLogQuerySchema = z.object({
+  action: z.string().optional(),
+  table:  z.string().optional(),
+  from:   z.string().regex(ISO_DATE_RE, 'Format YYYY-MM-DD attendu').optional(),
+  to:     z.string().regex(ISO_DATE_RE, 'Format YYYY-MM-DD attendu').optional(),
+  page:   z.coerce.number().int().min(1).optional().default(1),
+});
+
 function validate(schema, data) {
   const result = schema.safeParse(data);
   if (!result.success) {
@@ -106,10 +136,15 @@ module.exports = {
   affectationSchema,
   affectationMoveSchema,
   exclusionExtraSchema,
+  extrasBulkDeleteSchema,
   renfortSchema,
   astreintesCreateSchema,
   planningCopySchema,
   teamCodeUpdateSchema,
+  changePasswordSchema,
+  createGestionnaireSchema,
+  updateGestionnaireSchema,
+  auditLogQuerySchema,
   isoDate,
   month,
   MED_TYPES,

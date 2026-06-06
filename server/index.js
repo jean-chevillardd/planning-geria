@@ -13,8 +13,9 @@ const {
   medecinsCreateSchema, medecinsUpdateSchema,
   absencesCreateSchema,
   affectationSchema, affectationMoveSchema,
-  exclusionExtraSchema, renfortSchema,
+  exclusionExtraSchema, extrasBulkDeleteSchema, renfortSchema,
   astreintesCreateSchema, planningCopySchema, teamCodeUpdateSchema,
+  changePasswordSchema, createGestionnaireSchema, updateGestionnaireSchema, auditLogQuerySchema,
   isoDate: zodIsoDate, month: zodMonth,
 } = require('./validation');
 
@@ -199,7 +200,8 @@ function createApp(dbLib) {
     });
   }
 
-  app._makeToken = (role = 'gestionnaire') => jwt.sign({ role }, JWT_SECRET, { expiresIn: '1h' });
+  app._makeToken = (role = 'gestionnaire', userId = null) =>
+    jwt.sign(userId ? { role, userId } : { role }, JWT_SECRET, { expiresIn: '1h' });
 
   // Guard global : toutes les mutations exigent le rôle gestionnaire
   app.use((req, res, next) => {
@@ -454,6 +456,16 @@ function createApp(dbLib) {
     const { week_key, poste_id, med_id, jour } = v.data;
     dbLib.run('DELETE FROM extras WHERE week_key=? AND poste_id=? AND med_id=? AND jour=?',
       [week_key, poste_id, med_id, jour]);
+    res.json({ ok: true });
+  });
+
+  // Supprime tous les extras d'un médecin dans un poste pour toute la semaine (nettoyage doublon)
+  app.delete('/api/extras/poste', (req, res) => {
+    const v = validate(extrasBulkDeleteSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { week_key, poste_id, med_id } = v.data;
+    dbLib.run('DELETE FROM extras WHERE week_key=? AND poste_id=? AND med_id=?',
+      [week_key, poste_id, med_id]);
     res.json({ ok: true });
   });
 
@@ -743,6 +755,98 @@ function createApp(dbLib) {
     dbLib.run("INSERT OR REPLACE INTO settings (key, value) VALUES ('team_code', ?)", [newCode]);
     logAudit(req.authUser.userId, 'update', 'settings', 'team_code', null, { team_code: newCode });
     res.json({ ok: true });
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // GESTIONNAIRES & AUDIT LOG (onglet Paramètres — P31)
+  // ═══════════════════════════════════════════════════════
+
+  app.put('/api/auth/change-password', requireGestionnaire, async (req, res) => {
+    const v = validate(changePasswordSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { currentPassword, newPassword } = v.data;
+    const user = dbLib.queryOne('SELECT * FROM users WHERE id=?', [req.authUser.userId]);
+    if (!user) return res.status(404).json({ error: 'Compte introuvable' });
+    const match = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!match) return res.status(401).json({ error: 'Mot de passe actuel incorrect' });
+    const newHash = await bcrypt.hash(newPassword, 10);
+    dbLib.run('UPDATE users SET password_hash=? WHERE id=?', [newHash, user.id]);
+    logAudit(req.authUser.userId, 'UPDATE', 'users', user.id, null, { password: 'changed' });
+    res.json({ ok: true });
+  });
+
+  app.get('/api/gestionnaires', requireGestionnaire, (req, res) => {
+    const rows = dbLib.queryAll('SELECT id, nom, email, created_at FROM users ORDER BY created_at ASC');
+    res.json(rows);
+  });
+
+  app.post('/api/gestionnaires', requireGestionnaire, async (req, res) => {
+    const v = validate(createGestionnaireSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { nom, email, password } = v.data;
+    const existing = dbLib.queryOne('SELECT id FROM users WHERE email=?', [email]);
+    if (existing) return res.status(409).json({ error: 'Un compte avec cet email existe déjà' });
+    const hash = await bcrypt.hash(password, 10);
+    const result = dbLib.run('INSERT INTO users (nom, email, password_hash) VALUES (?,?,?)', [nom, email, hash]);
+    const newId = result.lastInsertRowid;
+    logAudit(req.authUser.userId, 'CREATE', 'users', newId, null, { nom, email });
+    const created = dbLib.queryOne('SELECT id, nom, email, created_at FROM users WHERE id=?', [newId]);
+    res.status(201).json(created);
+  });
+
+  app.put('/api/gestionnaires/:id', requireGestionnaire, (req, res) => {
+    const id = Number(req.params.id);
+    if (id === req.authUser.userId) return res.status(403).json({ error: 'Impossible de modifier son propre compte via cette route' });
+    const v = validate(updateGestionnaireSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { nom, email } = v.data;
+    const user = dbLib.queryOne('SELECT * FROM users WHERE id=?', [id]);
+    if (!user) return res.status(404).json({ error: 'Gestionnaire introuvable' });
+    const emailConflict = dbLib.queryOne('SELECT id FROM users WHERE email=? AND id!=?', [email, id]);
+    if (emailConflict) return res.status(409).json({ error: 'Un compte avec cet email existe déjà' });
+    dbLib.run('UPDATE users SET nom=?, email=? WHERE id=?', [nom, email, id]);
+    logAudit(req.authUser.userId, 'UPDATE', 'users', id, { nom: user.nom, email: user.email }, { nom, email });
+    res.json({ id, nom, email });
+  });
+
+  app.delete('/api/gestionnaires/:id', requireGestionnaire, (req, res) => {
+    const id = Number(req.params.id);
+    if (id === req.authUser.userId) return res.status(403).json({ error: 'Impossible de supprimer son propre compte' });
+    const user = dbLib.queryOne('SELECT id, nom, email FROM users WHERE id=?', [id]);
+    if (!user) return res.status(404).json({ error: 'Gestionnaire introuvable' });
+    const count = dbLib.queryOne('SELECT COUNT(*) as n FROM users').n;
+    if (count <= 1) return res.status(409).json({ error: 'Impossible de supprimer le dernier gestionnaire' });
+    dbLib.run('DELETE FROM users WHERE id=?', [id]);
+    logAudit(req.authUser.userId, 'DELETE', 'users', id, { nom: user.nom, email: user.email }, null);
+    res.json({ ok: true });
+  });
+
+  const AUDIT_PAGE_SIZE = 20;
+  app.get('/api/audit-log', requireGestionnaire, (req, res) => {
+    const v = validate(auditLogQuerySchema, req.query);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { action, table, from, to, page } = v.data;
+    const conditions = [];
+    const params = [];
+    if (action) { conditions.push('UPPER(al.action)=?');        params.push(action.toUpperCase()); }
+    if (table)  { conditions.push('al.table_name=?');            params.push(table); }
+    if (from)   { conditions.push("date(al.created_at)>=?");    params.push(from); }
+    if (to)     { conditions.push("date(al.created_at)<=?");    params.push(to); }
+    const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+    const total = dbLib.queryOne(
+      `SELECT COUNT(*) as n FROM audit_log al ${where}`, params
+    ).n;
+    const offset = (page - 1) * AUDIT_PAGE_SIZE;
+    const rows = dbLib.queryAll(
+      `SELECT al.*, u.nom as gestionnaire_nom
+       FROM audit_log al
+       LEFT JOIN users u ON u.id = CAST(al.user_id AS INTEGER)
+       ${where}
+       ORDER BY al.id DESC
+       LIMIT ? OFFSET ?`,
+      [...params, AUDIT_PAGE_SIZE, offset]
+    );
+    res.json({ total, page, totalPages: Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE)), rows });
   });
 
   // ═══════════════════════════════════════════════════════

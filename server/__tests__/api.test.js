@@ -1026,3 +1026,244 @@ describe('Validation P1.3 — med_id inconnu', () => {
     expect(res.body.error).toMatch(/med_id inconnu/);
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// P31 — GESTIONNAIRES & AUDIT LOG
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('GET /api/gestionnaires', () => {
+  test('retourne un tableau', async () => {
+    const res = await request(app).get('/api/gestionnaires')
+      .set('Authorization', `Bearer ${app._makeToken()}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  test('401 sans token', async () => {
+    const res = await request(app).get('/api/gestionnaires');
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('POST /api/gestionnaires', () => {
+  test('crée un gestionnaire et le retourne', async () => {
+    const res = await authReq(app).post('/api/gestionnaires').send({
+      nom: 'Alice Test', email: 'alice@test.fr', password: 'azerty123',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body.nom).toBe('Alice Test');
+    expect(res.body.email).toBe('alice@test.fr');
+    expect(res.body.password_hash).toBeUndefined();
+  });
+
+  test('409 si email déjà utilisé', async () => {
+    await authReq(app).post('/api/gestionnaires').send({
+      nom: 'Bob Test', email: 'bob@test.fr', password: 'azerty123',
+    });
+    const res = await authReq(app).post('/api/gestionnaires').send({
+      nom: 'Bob Doublon', email: 'bob@test.fr', password: 'azerty123',
+    });
+    expect(res.status).toBe(409);
+  });
+
+  test('400 si mot de passe trop court', async () => {
+    const res = await authReq(app).post('/api/gestionnaires').send({
+      nom: 'Court', email: 'court@test.fr', password: '123',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  test('400 si email invalide', async () => {
+    const res = await authReq(app).post('/api/gestionnaires').send({
+      nom: 'Invalid', email: 'pas-un-email', password: 'azerty123',
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('PUT /api/gestionnaires/:id', () => {
+  let targetId;
+
+  beforeAll(async () => {
+    const r = await authReq(app).post('/api/gestionnaires').send({
+      nom: 'Cible Update', email: 'cible.update@test.fr', password: 'azerty123',
+    });
+    targetId = r.body.id;
+  });
+
+  test('modifie nom et email', async () => {
+    const res = await authReq(app).put(`/api/gestionnaires/${targetId}`).send({
+      nom: 'Cible Modifiée', email: 'cible.modifiee@test.fr',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.nom).toBe('Cible Modifiée');
+  });
+
+  test('404 si id inconnu', async () => {
+    const res = await authReq(app).put('/api/gestionnaires/99999').send({
+      nom: 'Fantôme', email: 'fantome@test.fr',
+    });
+    expect(res.status).toBe(404);
+  });
+
+  test('403 si on tente de modifier son propre compte', async () => {
+    const r = await authReq(app).post('/api/gestionnaires').send({
+      nom: 'Self Edit', email: 'self.edit@test.fr', password: 'azerty123',
+    });
+    const selfId = r.body.id;
+    const token = app._makeToken('gestionnaire', selfId);
+    const res = await request(app).put(`/api/gestionnaires/${selfId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ nom: 'Self Modifié', email: 'self.modifie@test.fr' });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('DELETE /api/gestionnaires/:id', () => {
+  test('supprime un gestionnaire existant', async () => {
+    const r = await authReq(app).post('/api/gestionnaires').send({
+      nom: 'À Supprimer', email: 'del@test.fr', password: 'azerty123',
+    });
+    const id = r.body.id;
+    const res = await authReq(app).delete(`/api/gestionnaires/${id}`);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    const check = await request(app).get('/api/gestionnaires')
+      .set('Authorization', `Bearer ${app._makeToken()}`);
+    expect(check.body.some(g => g.id === id)).toBe(false);
+  });
+
+  test('403 si on tente de supprimer son propre compte', async () => {
+    const r = await authReq(app).post('/api/gestionnaires').send({
+      nom: 'Self Del', email: 'self.del@test.fr', password: 'azerty123',
+    });
+    const selfId = r.body.id;
+    const token = app._makeToken('gestionnaire', selfId);
+    const res = await request(app).delete(`/api/gestionnaires/${selfId}`)
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(403);
+  });
+
+  test('404 si id inconnu', async () => {
+    const res = await authReq(app).delete('/api/gestionnaires/99999');
+    expect(res.status).toBe(404);
+  });
+
+  test('409 si tentative de supprimer le dernier gestionnaire', async () => {
+    const Database = require('better-sqlite3');
+    const { applySchema } = require('../db_schema');
+    const { createApp } = require('../index');
+    const bcrypt = require('bcryptjs');
+
+    const dbIso = new Database(':memory:');
+    dbIso.pragma('foreign_keys = ON');
+    applySchema(dbIso);
+
+    const dbLibIso = {
+      queryOne: (sql, p = []) => dbIso.prepare(sql).get(...p) || null,
+      queryAll: (sql, p = []) => dbIso.prepare(sql).all(...p),
+      run:      (sql, p = []) => {
+        const info = dbIso.prepare(sql).run(...p);
+        return { lastInsertRowid: info.lastInsertRowid };
+      },
+      transaction: (fn) => dbIso.transaction(fn)(),
+    };
+
+    const hash = await bcrypt.hash('testpwd', 10);
+    dbIso.prepare('INSERT INTO users (nom, email, password_hash) VALUES (?,?,?)')
+      .run('Unique Admin', 'unique@test.fr', hash);
+
+    const isoApp = createApp(dbLibIso);
+    isoApp._setDbReady();
+
+    // id=1 (le seul compte) ; token d'un user différent (id=999) pour éviter le 403 auto-delete
+    const token = isoApp._makeToken('gestionnaire', 999);
+    const res = await request(isoApp).delete('/api/gestionnaires/1')
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/dernier/);
+  });
+});
+
+describe('PUT /api/auth/change-password', () => {
+  let userId;
+  const EMAIL = 'chpwd@test.fr';
+  const OLD_PWD = 'ancien123';
+  const NEW_PWD = 'nouveau456';
+
+  beforeAll(async () => {
+    const r = await authReq(app).post('/api/gestionnaires').send({
+      nom: 'Change Pwd', email: EMAIL, password: OLD_PWD,
+    });
+    userId = r.body.id;
+  });
+
+  test('change le mot de passe avec un bon ancien mdp', async () => {
+    const token = app._makeToken('gestionnaire', userId);
+    const res = await request(app).put('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: OLD_PWD, newPassword: NEW_PWD });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+  });
+
+  test('401 si ancien mot de passe incorrect', async () => {
+    const token = app._makeToken('gestionnaire', userId);
+    const res = await request(app).put('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: 'mauvais', newPassword: 'nouveau789' });
+    expect(res.status).toBe(401);
+  });
+
+  test('400 si nouveau mot de passe trop court', async () => {
+    const token = app._makeToken('gestionnaire', userId);
+    const res = await request(app).put('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: NEW_PWD, newPassword: '123' });
+    expect(res.status).toBe(400);
+  });
+
+  test('404 si userId absent du token', async () => {
+    const token = app._makeToken('gestionnaire'); // pas de userId
+    const res = await request(app).put('/api/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: OLD_PWD, newPassword: 'nouveau789' });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /api/audit-log', () => {
+  test('retourne la structure paginée', async () => {
+    const res = await request(app).get('/api/audit-log')
+      .set('Authorization', `Bearer ${app._makeToken()}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('total');
+    expect(res.body).toHaveProperty('page');
+    expect(res.body).toHaveProperty('totalPages');
+    expect(Array.isArray(res.body.rows)).toBe(true);
+  });
+
+  test('filtre par action', async () => {
+    const res = await request(app).get('/api/audit-log?action=CREATE')
+      .set('Authorization', `Bearer ${app._makeToken()}`);
+    expect(res.status).toBe(200);
+    res.body.rows.forEach(r => expect(r.action.toUpperCase()).toBe('CREATE'));
+  });
+
+  test('400 si page invalide', async () => {
+    const res = await request(app).get('/api/audit-log?page=0')
+      .set('Authorization', `Bearer ${app._makeToken()}`);
+    expect(res.status).toBe(400);
+  });
+
+  test('400 si from invalide', async () => {
+    const res = await request(app).get('/api/audit-log?from=pas-une-date')
+      .set('Authorization', `Bearer ${app._makeToken()}`);
+    expect(res.status).toBe(400);
+  });
+
+  test('401 sans token', async () => {
+    const res = await request(app).get('/api/audit-log');
+    expect(res.status).toBe(401);
+  });
+});
