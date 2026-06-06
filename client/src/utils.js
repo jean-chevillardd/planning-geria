@@ -206,13 +206,8 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
           return !!(m.sched[idx] || m.sched[idx + 1]);
         });
         if (joursActifs.length === 0) continue;
-        if (joursActifs.length < days.length) {
-          // Sched partiel : présent seulement certains jours
-          const joursPresents = joursActifs.map((_, i) => DAYS_FR[dayIsos.indexOf(joursActifs[i])]);
-          partial.push({ ...m, joursPresents });
-        } else {
-          full.push({ ...m, schedNote: buildSchedNote(m) });
-        }
+        // Sched partiel (ex : 80%) = présent selon son planning, pas une absence → full
+        full.push({ ...m, schedNote: buildSchedNote(m) });
       }
     } else {
       // Assigné : libre uniquement les jours où exclu de TOUS ses postes
