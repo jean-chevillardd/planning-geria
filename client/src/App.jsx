@@ -12,6 +12,7 @@ import AbsencesTab   from './components/AbsencesTab';
 import StatsTab      from './components/StatsTab';
 import MonthView     from './components/MonthView';
 import AstreintesTab from './components/AstreintesTab';
+import SettingsTab  from './components/SettingsTab';
 
 // ── Tab definitions — no emoji, SVG icons ──────────────────
 const TAB_ICONS = {
@@ -59,14 +60,23 @@ const TAB_ICONS = {
       <path d="M5.5 12a1.5 1.5 0 0 0 3 0"/>
     </svg>
   ),
+  parametres: (active) => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+      stroke={active ? '#2563eb' : '#c8c5bc'} strokeWidth="1.5"
+      strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  ),
 };
 
 const TABS = [
-  { id:'planning',   label:'Planning' },
-  { id:'equipe',     label:'Équipe' },
-  { id:'absences',   label:'Absences' },
-  { id:'stats',      label:'Synthèse' },
-  { id:'astreintes', label:'Astreintes' },
+  { id:'planning',   label:'Planning',    gestionnaireOnly: false },
+  { id:'equipe',     label:'Équipe',      gestionnaireOnly: true  },
+  { id:'absences',   label:'Absences',    gestionnaireOnly: false },
+  { id:'stats',      label:'Synthèse',    gestionnaireOnly: false },
+  { id:'astreintes', label:'Astreintes',  gestionnaireOnly: false },
+  { id:'parametres', label:'Paramètres',  gestionnaireOnly: true  },
 ];
 
 const PLANNING_VIEWS = [
@@ -99,7 +109,7 @@ export default function App({ role, onLogout }) {
   const weekKey = toIso(monday);
 
   const { medecins, absences, loading: baseLoading, error: baseError, reload: reloadBase } = useBaseData();
-  const { data: planningData, loading: planLoading, reload: reloadPlan } = usePlanning(weekKey);
+  const { data: planningData, setData: setPlanningData, loading: planLoading, reload: reloadPlan } = usePlanning(weekKey);
   const reload = useCallback(() => { reloadBase(); reloadPlan(); }, [reloadBase, reloadPlan]);
 
   function showToast(msg, type = 'ok') {
@@ -209,12 +219,28 @@ export default function App({ role, onLogout }) {
   }
 
   // ── Drag & Drop : déplacement d'un praticien vers un autre poste ──
+  // Supprime instantanément (optimiste) les extras d'un médecin dans un poste,
+  // puis persiste via un seul appel API bulk.
+  async function cleanExtrasInPoste(weekKey, posteId, medId) {
+    setPlanningData(prev => prev ? {
+      ...prev,
+      extras: prev.extras.filter(e => !(String(e.med_id) === String(medId) && e.poste_id === posteId)),
+    } : prev);
+    await api.deleteExtrasForPoste({ week_key: weekKey, poste_id: posteId, med_id: String(medId) }).catch(() => {});
+  }
+
   async function handleMove({ mode, weekKey, sourcePid, targetPid, medId, dayIso, isExtra }) {
     try {
       let undoFn;
       if (mode === 'day') {
         if (isExtra) await api.deleteExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
         else         await api.addExclusion({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
+        // Mise à jour optimiste : retirer l'extra existant de la cible immédiatement
+        setPlanningData(prev => prev ? {
+          ...prev,
+          extras: prev.extras.filter(e => !(String(e.med_id) === String(medId) && e.poste_id === targetPid && e.jour === dayIso)),
+        } : prev);
+        await api.deleteExtra({ week_key:weekKey, poste_id:targetPid, med_id:medId, jour:dayIso }).catch(() => {});
         await api.addExtra({ week_key:weekKey, poste_id:targetPid, med_id:medId, jour:dayIso });
         undoFn = async () => {
           await api.deleteExtra({ week_key:weekKey, poste_id:targetPid, med_id:medId, jour:dayIso });
@@ -226,6 +252,7 @@ export default function App({ role, onLogout }) {
         if (isExtra) {
           await api.deleteExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
           await api.addAffectation({ week_key:weekKey, poste_id:targetPid, med_id:medId });
+          await cleanExtrasInPoste(weekKey, targetPid, medId);
           undoFn = async () => {
             await api.deleteAffectation({ week_key:weekKey, poste_id:targetPid, med_id:medId });
             await api.addExtra({ week_key:weekKey, poste_id:sourcePid, med_id:medId, jour:dayIso });
@@ -233,6 +260,7 @@ export default function App({ role, onLogout }) {
           };
         } else {
           await api.moveAffectation({ week_key:weekKey, source_poste_id:sourcePid, target_poste_id:targetPid, med_id:medId });
+          await cleanExtrasInPoste(weekKey, targetPid, medId);
           undoFn = async () => {
             await api.moveAffectation({ week_key:weekKey, source_poste_id:targetPid, target_poste_id:sourcePid, med_id:medId });
             reloadPlan();
@@ -247,10 +275,22 @@ export default function App({ role, onLogout }) {
 
   async function handleAssign({ mode, medId, targetPid, dayIso: assignDay, weekKey: assignWk, autoExcludeDays }) {
     if (mode === 'week') {
-      await handleAction('add_affectation', {
-        week_key: assignWk, poste_id: targetPid, med_id: medId,
-        ...(autoExcludeDays?.length ? { auto_exclude_days: autoExcludeDays } : {}),
-      });
+      // Ne pas passer par handleAction (qui appelle reloadPlan() en interne non-awaité),
+      // pour éviter que le reload écrase le nettoyage des extras avant qu'il soit terminé.
+      try {
+        await api.addAffectation({ week_key: assignWk, poste_id: targetPid, med_id: medId });
+        for (const jour of (autoExcludeDays || []))
+          await api.addExclusion({ week_key: assignWk, poste_id: targetPid, med_id: medId, jour });
+        await cleanExtrasInPoste(assignWk, targetPid, medId); // optimiste + bulk delete AVANT reload
+        pushUndo('Ajout affectation', async () => {
+          await api.deleteAffectation({ week_key: assignWk, poste_id: targetPid, med_id: medId });
+          for (const jour of (autoExcludeDays || []))
+            await api.deleteExclusion({ week_key: assignWk, poste_id: targetPid, med_id: medId, jour });
+          reloadPlan();
+        });
+        reloadPlan();
+        showToast('Enregistré');
+      } catch(e) { showToast(e.message || "Erreur lors de l'affectation", 'err'); }
     } else {
       await handleAction('add_extra', { week_key: assignWk, poste_id: targetPid, med_id: medId, jour: assignDay });
     }
@@ -427,7 +467,7 @@ export default function App({ role, onLogout }) {
       <div className="main">
         {/* ── Tabs ── */}
         <div className="tabs" style={{ alignItems:'center' }}>
-          {TABS.filter(t => t.id !== 'equipe' || isGestionnaire).map(t => (
+          {TABS.filter(t => !t.gestionnaireOnly || isGestionnaire).map(t => (
             <button key={t.id} className={`tab${tab===t.id?' active':''}`} onClick={() => setTab(t.id)}>
               {TAB_ICONS[t.id](tab === t.id)}
               {t.label}
@@ -463,7 +503,7 @@ export default function App({ role, onLogout }) {
               <>
                 <div className="print-hide" style={{ marginBottom:4 }}>
                   <WeekNav monday={monday} onChange={setMonday} onCopy={handleCopyWeek}
-                    onGoToday={() => setMonday(getMonday(new Date()))} isGestionnaire={isGestionnaire}
+                    onGoToday={() => setMonday(getMonday(new Date()))} isSecretary={isGestionnaire}
                     medecins={medecins} doctorFilter={doctorFilter} onDoctorFilterChange={setDoctorFilter} />
                 </div>
                 {planLoading && !planningData && (
@@ -516,6 +556,10 @@ export default function App({ role, onLogout }) {
             onPushUndo={pushUndo}
             dayIso={astreintesDay}
           />
+        )}
+
+        {tab === 'parametres' && isGestionnaire && (
+          <SettingsTab showToast={showToast} />
         )}
 
         <div className="foot">Pôle Gériatrie — Planning interne · Base de données SQLite</div>

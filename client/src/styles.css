@@ -335,6 +335,342 @@ th.rotation-poste-lbl {
   font-family: inherit;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   P31 — Onglet Paramètres
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Layout principal (sidebar fixe + zone contenu) */
+.settings-layout {
+  display: flex;
+  gap: 0;
+  min-height: 500px;
+  background: var(--bg);
+}
+
+/* Sidebar navigation */
+.settings-nav {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 8px;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.settings-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-radius: var(--r);
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background .12s, color .12s;
+}
+.settings-nav-item:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+.settings-nav-item.active {
+  background: var(--accent-light);
+  color: var(--accent);
+}
+
+/* Zone de contenu à droite */
+.settings-content {
+  flex: 1;
+  padding: 28px 32px;
+  overflow-y: auto;
+}
+
+/* En-têtes de section */
+.sec-body {}
+.sec-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+.sec-desc {
+  font-size: 13px;
+  color: var(--text2);
+  margin: 0 0 20px;
+}
+
+/* Rangée de cards côte à côte */
+.cards-row {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+/* Card individuelle */
+.mcard {
+  flex: 1;
+  min-width: 280px;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--r) + 2px);
+  padding: 20px 22px 22px;
+}
+.card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.card-desc {
+  font-size: 12.5px;
+  color: var(--text2);
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+/* Champs de formulaire */
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+  margin-bottom: 5px;
+}
+.form-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  transition: border-color .12s;
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Input mot de passe avec bouton œil */
+.pwd-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.pwd-wrap .form-input {
+  padding-right: 36px;
+}
+.pwd-eye {
+  position: absolute;
+  right: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text3);
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  transition: color .12s;
+}
+.pwd-eye:hover { color: var(--text2); }
+
+/* Messages inline erreur / succès */
+.field-err {
+  font-size: 12px;
+  color: var(--danger, #dc2626);
+  margin-top: 6px;
+}
+.field-ok {
+  font-size: 12px;
+  color: #16a34a;
+  margin-top: 6px;
+}
+
+/* Bouton principal */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--r);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .12s;
+}
+.btn-primary:hover:not(:disabled) { opacity: .87; }
+.btn-primary:disabled { opacity: .4; cursor: default; }
+
+/* Séparateur section (utilisé dans Gestionnaires) */
+.sec-s-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+/* ── Tableau de données ──────────────────────────────────────────────────── */
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  margin-top: 14px;
+}
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.data-table th {
+  background: var(--surface2, #ededea);
+  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--text2);
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: middle;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.trow-hover:hover td { background: var(--accent-light); }
+.tr-delete td { background: #fff5f5; }
+
+/* Ligne d'édition inline */
+.tr-inline-edit td { padding: 10px 12px; background: var(--accent-light); }
+.inline-edit-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.inline-edit-bar .fld { flex: 1; min-width: 160px; }
+
+/* Actions colonne */
+.row-actions     { text-align: right; white-space: nowrap; }
+.row-actions-hdr { text-align: right; }
+
+/* Petits boutons */
+.btn-xs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .1s;
+}
+.btn-xs:hover:not(:disabled) { background: var(--bg); }
+.btn-xs:disabled { opacity: .4; cursor: default; }
+.bsec   { border-color: var(--accent); color: var(--accent); }
+.bsec:hover:not(:disabled) { background: var(--accent-light); }
+.bdanger { border-color: #ef4444; color: #dc2626; }
+.bdanger:hover:not(:disabled) { background: #fee2e2; }
+.bconfirm { background: #fef2f2 !important; animation: pulse-btn 0.6s infinite alternate; }
+
+@keyframes pulse-btn {
+  from { opacity: 1; }
+  to   { opacity: .6; }
+}
+
+/* Formulaire nouveau gestionnaire */
+.new-mgr-form {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  background: var(--accent-light);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px;
+  margin-bottom: 14px;
+}
+.new-mgr-form .fld { flex: 1; min-width: 160px; }
+.new-mgr-err { flex: 0 0 100%; margin-top: -4px; }
+
+/* ── Barre de filtres (Historique) ───────────────────────────────────────── */
+.filter-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 4px;
+}
+.flt-item { display: flex; flex-direction: column; gap: 4px; min-width: 120px; }
+.flt-btns { flex-direction: row; gap: 8px; }
+
+/* ── Pagination ──────────────────────────────────────────────────────────── */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding: 4px 0;
+}
+.pg-info {
+  font-size: 12px;
+  color: var(--text2);
+}
+
+/* ── État vide ───────────────────────────────────────────────────────────── */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 32px;
+  color: var(--text3);
+  font-size: 13px;
+}
+
+/* ── Table Historique ────────────────────────────────────────────────────── */
+.hist-table td:last-child {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Responsive : sidebar → tabs scrollables < 900 px */
+@media (max-width: 900px) {
+  .settings-layout { flex-direction: column; }
+  .settings-nav {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+    padding: 6px 8px;
+  }
+  .settings-nav-item { white-space: nowrap; }
+  .settings-content { padding: 20px 16px; }
+}
+
 @media print {
   @page { size: A4 landscape; margin: 12mm 10mm; }
 

@@ -50,8 +50,9 @@ export const addExclusion    = (data) => req('POST',   '/exclusions', data);
 export const deleteExclusion = (data) => req('DELETE', '/exclusions', data);
 
 // ── Extras journaliers ──────────────────────────────────
-export const addExtra    = (data) => req('POST',   '/extras', data);
-export const deleteExtra = (data) => req('DELETE', '/extras', data);
+export const addExtra             = (data) => req('POST',   '/extras', data);
+export const deleteExtra          = (data) => req('DELETE', '/extras', data);
+export const deleteExtrasForPoste = (data) => req('DELETE', '/extras/poste', data);
 
 // ── Copier semaine ──────────────────────────────────────
 export const copyWeek = (from_week, to_week) =>
@@ -79,6 +80,20 @@ export const deleteAstreinte = (id)    => req('DELETE', `/astreintes/${id}`);
 // ── Settings ────────────────────────────────────────────
 export const getTeamCode    = ()      => req('GET', '/settings/team-code');
 export const updateTeamCode = (code)  => req('PUT', '/settings/team-code', { code });
+export const changePassword = (currentPassword, newPassword) =>
+  req('PUT', '/auth/change-password', { currentPassword, newPassword });
+
+// ── Gestionnaires (admin) ────────────────────────────────
+export const getGestionnaires   = ()         => req('GET',    '/gestionnaires');
+export const createGestionnaire = (data)     => req('POST',   '/gestionnaires', data);
+export const updateGestionnaire = (id, data) => req('PUT',    `/gestionnaires/${id}`, data);
+export const deleteGestionnaire = (id)       => req('DELETE', `/gestionnaires/${id}`);
+
+// ── Journal d'audit ──────────────────────────────────────
+export const getAuditLog = (params = {}) => {
+  const qs = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+  return req('GET', `/audit-log${qs ? '?' + qs : ''}`);
+};
 
 // ── Backup base de données ──────────────────────────────
 export function downloadBackup() {
