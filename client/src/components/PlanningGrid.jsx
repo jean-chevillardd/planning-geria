@@ -320,6 +320,21 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     if (targetPoste.id === dragInfo.sourcePid) { setDragInfo(null); return; }
     if (targetPoste.intern && dragInfo.medType !== 'interne') { setDragInfo(null); return; }
     if (!targetPoste.intern && dragInfo.medType === 'interne') { setDragInfo(null); return; }
+    const tIds   = [targetPoste.id, ...(targetPoste.combineWith ? [targetPoste.combineWith] : [])];
+    const dayIso = dragInfo.dayIso;
+    const medId  = String(dragInfo.medId);
+    // Bloquer si le médecin est déjà présent dans le poste cible ce jour
+    const alreadyRegular = tIds.some(pid =>
+      (byPoste[pid]?.medecins || []).some(m =>
+        String(m.id) === medId &&
+        worksDay(m, dayIso, absences) &&
+        !exclusions.some(e => e.poste_id === pid && String(e.med_id) === medId && e.jour === dayIso)
+      )
+    );
+    const alreadyExtra = extras.some(e =>
+      String(e.med_id) === medId && tIds.includes(e.poste_id) && e.jour === dayIso
+    );
+    if (alreadyRegular || alreadyExtra) { setDragInfo(null); return; }
     setPendingMove({ ...dragInfo, targetPoste });
     setDragInfo(null);
   }
@@ -345,6 +360,20 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
 
   function handlePanelCellDrop(targetPoste, dayIso) {
     if (!panelDragMed) return;
+    const tIds  = [targetPoste.id, ...(targetPoste.combineWith ? [targetPoste.combineWith] : [])];
+    const medId = String(panelDragMed.id);
+    // Bloquer si le médecin est déjà présent dans le poste cible ce jour (regular ou extra)
+    const alreadyRegular = tIds.some(pid =>
+      (byPoste[pid]?.medecins || []).some(m =>
+        String(m.id) === medId &&
+        worksDay(m, dayIso, absences) &&
+        !exclusions.some(e => e.poste_id === pid && String(e.med_id) === medId && e.jour === dayIso)
+      )
+    );
+    const alreadyExtra = extras.some(e =>
+      String(e.med_id) === medId && tIds.includes(e.poste_id) && e.jour === dayIso
+    );
+    if (alreadyRegular || alreadyExtra) { setPanelDragMed(null); return; }
     setPendingPanelAssign({ med: panelDragMed, targetPoste, dayIso });
     setPanelDragMed(null);
   }

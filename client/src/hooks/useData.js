@@ -51,5 +51,5 @@ export function usePlanning(weekKey) {
 
   useEffect(() => { reload(); }, [reload]);
 
-  return { data, loading, error, reload };
+  return { data, setData, loading, error, reload };
 }
