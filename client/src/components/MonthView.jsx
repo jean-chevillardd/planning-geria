@@ -128,7 +128,8 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
   const [doctorFilter, setDoctorFilter] = useState('');
   const [pickerOpen,   setPickerOpen]   = useState(false);
   // ── Mode Rotation (état local pour D&D dialogs) ──
-  const [pendingDrop,   setPendingDrop]   = useState(null);   // { med, poste, weekKey } — conservé pour l'éventuel D&D futur
+  const [panelDragMed,  setPanelDragMed]  = useState(null);
+  const [pendingDrop,   setPendingDrop]   = useState(null);   // { med, poste, weekKey }
   const [pendingAssign, setPendingAssign] = useState(null);   // { poste, weekKey }
   const [durMode,       setDurMode]       = useState('week');
   const [durN,          setDurN]          = useState(2);
@@ -244,6 +245,67 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
     return result;
   }, [weekData, filter, subFilter]);
 
+
+  // ── PH disponibles ce mois (panel gauche rotation) ──────────────────────────────
+  const monthPhDisponibles = useMemo(() => {
+    if (!isSecretary) return { full: [], partial: [] };
+    const monthStart = `${y}-${String(mo + 1).padStart(2,'0')}-01`;
+    const lastDay    = new Date(y, mo + 1, 0).getDate();
+    const monthEnd   = `${y}-${String(mo + 1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+    const full = [], partial = [];
+    for (const m of medecins) {
+      if (!m.actif || m.type !== 'ph' || m.service !== 'geriatrie') continue;
+      const monthAbsences = absences.filter(a =>
+        a.med_id === m.id && a.date_debut <= monthEnd && a.date_fin >= monthStart
+      );
+      if (monthAbsences.length === 0) { full.push(m); continue; }
+      let absenceDays = 0;
+      for (let d = 1; d <= lastDay; d++) {
+        const dStr = `${y}-${String(mo + 1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const dow = new Date(dStr + 'T12:00:00').getDay();
+        if (dow === 0 || dow === 6) continue;
+        const idx = (dow - 1) * 2;
+        if (!(m.sched[idx] || m.sched[idx + 1])) continue;
+        if (monthAbsences.some(a => a.date_debut <= dStr && a.date_fin >= dStr)) absenceDays++;
+      }
+      if (absenceDays >= 5) {
+        partial.push({ ...m, _monthAbsences: monthAbsences });
+      } else {
+        full.push(m);
+      }
+    }
+    full.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    partial.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    return { full, partial };
+  }, [isSecretary, medecins, absences, y, mo]);
+
+  // ── PH en congés ce mois ──────────────────────────────────
+  const enCongesMois = useMemo(() => {
+    if (!isSecretary) return [];
+    const monthStart = `${y}-${String(mo + 1).padStart(2,'0')}-01`;
+    const lastDay    = new Date(y, mo + 1, 0).getDate();
+    const monthEnd   = `${y}-${String(mo + 1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+    const result = [];
+    for (const m of medecins) {
+      if (!m.actif || m.type !== 'ph' || m.service !== 'geriatrie') continue;
+      const moisAbs = absences.filter(a =>
+        a.med_id === m.id && a.date_debut <= monthEnd && a.date_fin >= monthStart
+      );
+      if (moisAbs.length === 0) continue;
+      const absItems = moisAbs.map(a => {
+        const debut = a.date_debut < monthStart ? monthStart : a.date_debut;
+        const fin   = a.date_fin   > monthEnd   ? monthEnd   : a.date_fin;
+        const d1 = parseInt(debut.split('-')[2], 10);
+        const d2 = parseInt(fin.split('-')[2], 10);
+        const typeShort = TYPE_ABS_SHORT[a.type_abs] ?? a.type_abs;
+        const label = d1 === d2 ? `le ${d1}` : `du ${d1} au ${d2}`;
+        return { typeShort, label };
+      });
+      result.push({ ...m, absItems });
+    }
+    result.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    return result;
+  }, [isSecretary, medecins, absences, y, mo]);
 
   // ── Candidats pour la dialog click-to-assign (vide sans recherche) ─────────────
   const assignCandidates = useMemo(() => {
@@ -489,7 +551,7 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
           {rotationMode ? (
             /* ── Vue Rotation : postes × semaines ── */
             <div className="grid-wrap" style={{ overflow:'auto' }}>
-            <table className="rotation-grid">
+            <table className={`rotation-grid${panelDragMed ? ' has-drag' : ''}`}>
               <thead>
                 <tr>
                   <th className="rotation-poste-lbl">Poste</th>
@@ -539,7 +601,18 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                               (stableOrder[a.id] ?? 9999) - (stableOrder[b.id] ?? 9999)
                             );
                             return (
-                              <td key={wk} className="rotation-cell">
+                              <td key={wk} className="rotation-cell"
+                                onClick={isSecretary ? () => {
+                                  setDurMode('week'); setAssignMed(null); setAssignSearch('');
+                                  setPendingAssign({ poste, weekKey: wk });
+                                } : undefined}
+                                onDragOver={isSecretary && panelDragMed ? e => e.preventDefault() : undefined}
+                                onDrop={isSecretary && panelDragMed ? () => {
+                                  setDurMode('week');
+                                  setPendingDrop({ med: panelDragMed, poste, weekKey: wk });
+                                  setPanelDragMed(null);
+                                } : undefined}
+                              >
                                 {sortedAssigned.map(m => (
                                   <div key={m.id} className="rotation-chip"
                                     style={{ background: poste.c + '18', borderColor: poste.c + '55', color: poste.c }}>
@@ -551,6 +624,7 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                                     </span>
                                   </div>
                                 ))}
+                                {isSecretary && <span className="add-lnk print-hide">+ affecter</span>}
                               </td>
                             );
                           })}
@@ -725,6 +799,113 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
           )}
         </div>{/* fin zone grille */}
 
+        {/* ── Panneaux latéraux (Mode Rotation uniquement, à gauche) ── */}
+        {isSecretary && rotationMode && (
+          <div className="print-hide" style={{ position:'sticky', top:60, alignSelf:'flex-start', display:'flex', flexDirection:'column', gap:10, width:188, flexShrink:0, order:-1 }}>
+
+            {/* PH disponibles ce mois */}
+            <div className="available-panel" style={{ marginTop:0, maxHeight:'55vh', overflowY:'auto' }}>
+              <div className="available-panel-header">
+                PH — {new Date(y, mo, 1).toLocaleDateString('fr-FR', { month:'long' })}
+                <span className="available-count"
+                  aria-label={`${monthPhDisponibles.full.length + monthPhDisponibles.partial.length} PH ce mois`}>
+                  {monthPhDisponibles.full.length + monthPhDisponibles.partial.length}
+                </span>
+              </div>
+              <div className="panel-drag-hint" aria-label="Glisser vers un poste pour affecter">
+                <svg width="9" height="13" viewBox="0 0 9 13" fill="currentColor" aria-hidden="true" style={{ flexShrink:0 }}>
+                  <circle cx="2" cy="2"  r="1.3"/><circle cx="7" cy="2"  r="1.3"/>
+                  <circle cx="2" cy="6.5" r="1.3"/><circle cx="7" cy="6.5" r="1.3"/>
+                  <circle cx="2" cy="11" r="1.3"/><circle cx="7" cy="11" r="1.3"/>
+                </svg>
+                Glisser vers un poste pour affecter
+              </div>
+              {monthPhDisponibles.full.length > 0 && (
+                <>
+                  <div className="available-group-label">Présents tout le mois</div>
+                  <ul className="available-list">
+                    {monthPhDisponibles.full.map(m => (
+                      <li key={m.id} className="available-item"
+                        draggable
+                        onDragStart={() => setPanelDragMed(m)}
+                        onDragEnd={() => setPanelDragMed(null)}
+                        style={{ cursor:'grab' }}
+                      >
+                        <span className="drag-handle" aria-hidden="true">
+                          <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
+                            <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
+                            <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
+                            <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
+                          </svg>
+                        </span>
+                        <span className="available-dot" style={{ background: '#16a34a' }} />
+                        <span>{m.prenom} {m.nom}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {monthPhDisponibles.partial.length > 0 && (
+                <>
+                  <div className="available-group-label" style={{ marginTop: monthPhDisponibles.full.length ? 10 : 0 }}>
+                    Présents partiellement
+                  </div>
+                  <ul className="available-list">
+                    {monthPhDisponibles.partial.map(m => (
+                      <li key={m.id} className="available-item"
+                        draggable
+                        onDragStart={() => setPanelDragMed(m)}
+                        onDragEnd={() => setPanelDragMed(null)}
+                        style={{ cursor:'grab' }}
+                      >
+                        <span className="drag-handle" aria-hidden="true">
+                          <svg width="6" height="10" viewBox="0 0 6 10" fill="currentColor">
+                            <circle cx="1.5" cy="1.5" r="1.2"/><circle cx="4.5" cy="1.5" r="1.2"/>
+                            <circle cx="1.5" cy="5"   r="1.2"/><circle cx="4.5" cy="5"   r="1.2"/>
+                            <circle cx="1.5" cy="8.5" r="1.2"/><circle cx="4.5" cy="8.5" r="1.2"/>
+                          </svg>
+                        </span>
+                        <span className="available-dot" style={{ background: '#f59e0b' }} />
+                        <span>{m.prenom} {m.nom}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {monthPhDisponibles.full.length === 0 && monthPhDisponibles.partial.length === 0 && (
+                <p className="available-empty">Aucun PH actif</p>
+              )}
+            </div>
+
+            {/* En congés ce mois */}
+            {enCongesMois.length > 0 && (
+              <div className="available-panel" style={{ maxHeight:'40vh', overflowY:'auto' }}>
+                <div className="available-panel-header">
+                  En congés ce mois
+                  <span className="available-count" style={{ background:'var(--text3)' }}>
+                    {enCongesMois.length}
+                  </span>
+                </div>
+                <ul className="available-list">
+                  {enCongesMois.map(m => (
+                    <li key={m.id} className="available-item" style={{ cursor:'default' }}>
+                      <span className="available-dot" style={{ background: m.couleur || 'var(--text3)' }} />
+                      <span>
+                        {m.prenom} {m.nom}
+                        {m.absItems.map((a, i) => (
+                          <span key={i} className="available-days">
+                            {a.typeShort} {a.label}
+                          </span>
+                        ))}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+          </div>
+        )}
       </div>{/* fin flex-layout */}
 
       {/* ── Dialog D&D : durée uniquement (PH connu) ── */}

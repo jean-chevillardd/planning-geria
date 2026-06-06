@@ -774,8 +774,7 @@ function SettingsPanel({ onToast, onClose }) {
 }
 
 // ── Composant principal ──────────────────────────────────────
-export default function TeamTab({ medecins, isGestionnaire, onReload, onToast, onPushUndo = () => {} }) {
-  const isSecretary = isGestionnaire;
+export default function TeamTab({ medecins, isSecretary = false, onReload, onToast, onPushUndo = () => {} }) {
   const [selected,      setSelected]      = useState(null); // member obj | { isNew:true, defaultCat } | null
   const [search,        setSearch]        = useState('');
   const [campaignOpen,  setCampaignOpen]  = useState(false);
