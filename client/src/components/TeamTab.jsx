@@ -437,6 +437,172 @@ const TYPE_OPTIONS = [
   { type:'externe', label:'Externes' },
 ];
 
+// ── Helpers timer ────────────────────────────────────────
+function fmtTimeLeft(ms) {
+  if (ms <= 0) return '0h';
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return h > 0 ? `${h}h ${m > 0 ? m + 'min' : ''}`.trim() : `${m}min`;
+}
+
+function StatusBadge({ status }) {
+  const cfg = {
+    responded: { bg:'#f0fdf4', border:'#86efac', color:'#16a34a', label:'A répondu' },
+    pending:   { bg:'#fffbeb', border:'#fcd34d', color:'#b45309', label:'En attente' },
+    expired:   { bg:'#fef2f2', border:'#fca5a5', color:'#dc2626', label:'Expiré'    },
+  }[status] || { bg:'#f3f4f6', border:'#d1d5db', color:'#6b7280', label:'Inconnu' };
+  return (
+    <span style={{
+      display:'inline-block', padding:'2px 8px', borderRadius:4, fontSize:11, fontWeight:600,
+      background:cfg.bg, border:`1px solid ${cfg.border}`, color:cfg.color,
+    }}>{cfg.label}</span>
+  );
+}
+
+function CampaignStatusModal({ onClose, onToast }) {
+  const [campaign, setCampaign] = useState(undefined); // undefined=loading, null=aucune
+  const [tick,     setTick]     = useState(0);
+  const [extending, setExtending] = useState(null); // med_id en cours
+
+  useEffect(() => {
+    api.getCampaignLatest()
+      .then(setCampaign)
+      .catch(() => { onToast('Impossible de charger le suivi', 'err'); setCampaign(null); });
+  }, []);
+
+  // Rafraîchit les timers chaque minute
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  async function handleExtend(medId) {
+    setExtending(medId);
+    try {
+      await api.extendCampaignToken(medId, 48);
+      const updated = await api.getCampaignLatest();
+      setCampaign(updated);
+      onToast('Délai prolongé de 48h');
+    } catch(e) {
+      onToast(e.message || 'Erreur lors de la prolongation', 'err');
+    } finally {
+      setExtending(null);
+    }
+  }
+
+  async function handleResend(medId) {
+    setExtending(medId);
+    try {
+      await api.resendCampaignToken(medId, window.location.origin);
+      const updated = await api.getCampaignLatest();
+      setCampaign(updated);
+      onToast('Nouveau lien envoyé');
+    } catch(e) {
+      onToast(e.message || 'Erreur lors du renvoi', 'err');
+    } finally {
+      setExtending(null);
+    }
+  }
+
+  const responded = campaign?.members?.filter(m => m.status === 'responded').length ?? 0;
+  const total     = campaign?.members?.length ?? 0;
+
+  return (
+    <div className="mbg open" onClick={e => e.target.classList.contains('mbg') && onClose()}>
+      <div className="mbox" style={{ width: 560, maxHeight: '80vh', display:'flex', flexDirection:'column' }}>
+
+        <div className="mhead">
+          <div className="mttl">Suivi de la campagne congés</div>
+          <button className="mclose" onClick={onClose}>×</button>
+        </div>
+
+        <div style={{ overflowY:'auto', flex:1 }}>
+          {campaign === undefined && (
+            <div style={{ padding:32, textAlign:'center', color:'var(--text2)', fontSize:13 }}>
+              Chargement…
+            </div>
+          )}
+
+          {campaign === null && (
+            <div style={{ padding:32, textAlign:'center', color:'var(--text2)', fontSize:13 }}>
+              Aucune campagne envoyée pour l'instant.
+            </div>
+          )}
+
+          {campaign && (
+            <>
+              {/* En-tête campagne */}
+              <div style={{ padding:'14px 20px 10px', borderBottom:'1px solid var(--border)' }}>
+                <div style={{ fontSize:12, color:'var(--text2)', fontFamily:'inherit' }}>
+                  Envoyée le {new Date(campaign.created_at).toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })}
+                  {' · '}
+                  <strong style={{ color: responded === total ? '#16a34a' : 'var(--text)' }}>
+                    {responded}/{total}
+                  </strong>
+                  {' '}réponse{responded > 1 ? 's' : ''}
+                </div>
+              </div>
+
+              {/* Tableau membres */}
+              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, fontFamily:'inherit' }}>
+                <thead>
+                  <tr style={{ background:'var(--surface2)', color:'var(--text2)', textAlign:'left' }}>
+                    <th style={{ padding:'7px 12px', fontWeight:600 }}>Praticien</th>
+                    <th style={{ padding:'7px 12px', fontWeight:600 }}>Statut</th>
+                    <th style={{ padding:'7px 12px', fontWeight:600 }}>Délai</th>
+                    <th style={{ padding:'7px 12px', fontWeight:600 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {campaign.members.map(m => (
+                    <tr key={m.med_id} style={{
+                      borderBottom:'1px solid var(--border)',
+                      background: m.status === 'expired' ? 'var(--danger-bg, #fef2f2)' : 'transparent',
+                    }}>
+                      <td style={{ padding:'8px 12px', fontWeight:500 }}>{m.nom}</td>
+                      <td style={{ padding:'8px 12px' }}><StatusBadge status={m.status} /></td>
+                      <td style={{ padding:'8px 12px', color:'var(--text2)' }}>
+                        {m.status === 'pending' ? fmtTimeLeft(m.ms_left - (tick * 60_000)) : '—'}
+                      </td>
+                      <td style={{ padding:'8px 12px' }}>
+                        {m.status === 'responded' && (
+                          <span style={{ fontSize:11, color:'var(--text3)' }}>Réponse reçue</span>
+                        )}
+                        {m.status === 'pending' && (
+                          <button
+                            className="btn-xs bsec"
+                            disabled={extending === m.med_id}
+                            onClick={() => handleExtend(m.med_id)}
+                          >
+                            {extending === m.med_id ? '…' : 'Prolonger +48h'}
+                          </button>
+                        )}
+                        {m.status === 'expired' && (
+                          <button
+                            className="btn-xs bdanger"
+                            disabled={extending === m.med_id}
+                            onClick={() => handleResend(m.med_id)}
+                          >
+                            {extending === m.med_id ? '…' : 'Renvoyer'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+        </div>
+
+        <div style={{ padding:'10px 20px', borderTop:'1px solid var(--border)', textAlign:'right' }}>
+          <button className="btn-primary" onClick={onClose}>Fermer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CampaignModal({ medecins, onClose, onToast }) {
   const [selectedTypes, setSelectedTypes] = useState(['ph', 'padhue', 'ipa']);
   const [phase, setPhase]                 = useState('select'); // select | sending | done
@@ -710,9 +876,10 @@ function ArchivedSection({ isSecretary, onReactivate }) {
 
 // ── Composant principal ──────────────────────────────────────
 export default function TeamTab({ medecins, isSecretary = false, onReload, onToast, onPushUndo = () => {} }) {
-  const [selected,      setSelected]      = useState(null); // member obj | { isNew:true, defaultCat } | null
-  const [search,        setSearch]        = useState('');
-  const [campaignOpen,  setCampaignOpen]  = useState(false);
+  const [selected,            setSelected]            = useState(null);
+  const [search,              setSearch]              = useState('');
+  const [campaignOpen,        setCampaignOpen]        = useState(false);
+  const [campaignStatusOpen,  setCampaignStatusOpen]  = useState(false);
 
   const members = useMemo(() => medecins.map(normalizeMedecin), [medecins]);
 
@@ -807,6 +974,17 @@ export default function TeamTab({ medecins, isSecretary = false, onReload, onToa
                 <path d="M1.5 2.5h11l-5 6v3.5l-2-1.2V8.5l-4-6z" strokeLinejoin="round"/>
               </svg>
               Campagne congés
+            </button>
+            <button
+              className="btn-secondary"
+              onClick={() => setCampaignStatusOpen(true)}
+              title="Voir qui a répondu à la campagne en cours"
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 13px', fontSize:12 }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="8" cy="8" r="6.5"/><line x1="8" y1="4.5" x2="8" y2="8.5"/><line x1="8" y1="8.5" x2="10.5" y2="10.5"/>
+              </svg>
+              Suivi
             </button>
             <button
               className="btn-secondary"
@@ -937,6 +1115,14 @@ export default function TeamTab({ medecins, isSecretary = false, onReload, onToa
         <CampaignModal
           medecins={members}
           onClose={() => setCampaignOpen(false)}
+          onToast={onToast}
+        />
+      )}
+
+      {/* Modale suivi campagne */}
+      {campaignStatusOpen && (
+        <CampaignStatusModal
+          onClose={() => setCampaignStatusOpen(false)}
           onToast={onToast}
         />
       )}
