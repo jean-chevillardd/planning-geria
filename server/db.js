@@ -23,6 +23,8 @@ async function init() {
   try { db.exec(`ALTER TABLE medecins ADD COLUMN email TEXT DEFAULT NULL`); } catch(_) {}
   try { db.exec(`ALTER TABLE absences ADD COLUMN demi_journee TEXT DEFAULT NULL`); } catch(_) {}
   try { db.exec(`ALTER TABLE medecins ADD COLUMN actif INTEGER NOT NULL DEFAULT 1`); } catch(_) {}
+  try { db.exec(`ALTER TABLE conge_tokens ADD COLUMN used_at TEXT DEFAULT NULL`); } catch(_) {}
+  try { db.exec(`ALTER TABLE conge_tokens ADD COLUMN campaign_id INTEGER DEFAULT NULL`); } catch(_) {}
 
   applySeed(db);
   const count = db.prepare('SELECT COUNT(*) as n FROM medecins').get().n;

@@ -68,11 +68,21 @@ function applySchema(db) {
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_aff_week_med ON affectations(week_key, med_id)`);
   } catch(_) {}
   db.exec(`
-    CREATE TABLE IF NOT EXISTS conge_tokens (
-      token      TEXT PRIMARY KEY,
-      med_id     TEXT NOT NULL,
+    CREATE TABLE IF NOT EXISTS conge_campaigns (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
       created_at TEXT NOT NULL,
-      expires_at TEXT NOT NULL
+      created_by INTEGER,
+      types      TEXT NOT NULL
+    )
+  `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS conge_tokens (
+      token       TEXT PRIMARY KEY,
+      med_id      TEXT NOT NULL,
+      created_at  TEXT NOT NULL,
+      expires_at  TEXT NOT NULL,
+      used_at     TEXT DEFAULT NULL,
+      campaign_id INTEGER DEFAULT NULL
     )
   `);
   db.exec(`
