@@ -119,6 +119,10 @@ const auditLogQuerySchema = z.object({
   page:   z.coerce.number().int().min(1).optional().default(1),
 });
 
+const extendTokenSchema = z.object({
+  hours: z.number().int().min(1).max(168).optional().default(48),
+});
+
 function validate(schema, data) {
   const result = schema.safeParse(data);
   if (!result.success) {
@@ -145,6 +149,7 @@ module.exports = {
   createGestionnaireSchema,
   updateGestionnaireSchema,
   auditLogQuerySchema,
+  extendTokenSchema,
   isoDate,
   month,
   MED_TYPES,

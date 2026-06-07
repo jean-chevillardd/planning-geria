@@ -15,7 +15,7 @@ const {
   affectationSchema, affectationMoveSchema,
   exclusionExtraSchema, extrasBulkDeleteSchema, renfortSchema,
   astreintesCreateSchema, planningCopySchema, teamCodeUpdateSchema,
-  changePasswordSchema, createGestionnaireSchema, updateGestionnaireSchema, auditLogQuerySchema,
+  changePasswordSchema, createGestionnaireSchema, updateGestionnaireSchema, auditLogQuerySchema, extendTokenSchema,
   isoDate: zodIsoDate, month: zodMonth,
 } = require('./validation');
 
@@ -139,6 +139,7 @@ function createApp(dbLib) {
     const now = new Date().toISOString();
     const row = dbLib.queryOne('SELECT * FROM conge_tokens WHERE token=?', [token]);
     if (!row) return res.status(404).json({ error: 'Lien invalide ou expiré' });
+    if (row.used_at) return res.status(410).json({ error: 'Ce lien a déjà été utilisé' });
     if (row.expires_at < now) return res.status(410).json({ error: 'Ce lien a expiré (72h)' });
     const med = dbLib.queryOne('SELECT id, nom, type FROM medecins WHERE id=?', [row.med_id]);
     if (!med) return res.status(404).json({ error: 'Praticien introuvable' });
@@ -151,6 +152,7 @@ function createApp(dbLib) {
     const now = new Date().toISOString();
     const row = dbLib.queryOne('SELECT * FROM conge_tokens WHERE token=?', [token]);
     if (!row) return res.status(404).json({ error: 'Lien invalide' });
+    if (row.used_at) return res.status(410).json({ error: 'Ce lien a déjà été utilisé' });
     if (row.expires_at < now) return res.status(410).json({ error: 'Ce lien a expiré' });
     if (!Array.isArray(absences) || absences.length === 0)
       return res.status(400).json({ error: 'Aucune absence fournie' });
@@ -174,7 +176,7 @@ function createApp(dbLib) {
         );
         count++;
       }
-      dbLib.run('DELETE FROM conge_tokens WHERE token=?', [token]);
+      dbLib.run('UPDATE conge_tokens SET used_at=? WHERE token=?', [now, token]);
     });
     res.json({ ok: true, count });
   });
@@ -523,14 +525,21 @@ function createApp(dbLib) {
     const createdAt = now.toISOString();
     const expiresAt = new Date(now.getTime() + 72 * 60 * 60 * 1000).toISOString();
 
+    const createdById = req.authUser?.userId ?? null;
+    const campaignRow = dbLib.run(
+      'INSERT INTO conge_campaigns (created_at, created_by, types) VALUES (?,?,?)',
+      [createdAt, createdById, JSON.stringify(types)]
+    );
+    const campaignId = campaignRow.lastInsertRowid;
+
     let sent = 0;
     const errors = [];
 
     for (const med of medecins) {
       const token = crypto.randomBytes(32).toString('hex');
       dbLib.run(
-        'INSERT INTO conge_tokens (token,med_id,created_at,expires_at) VALUES (?,?,?,?)',
-        [token, med.id, createdAt, expiresAt]
+        'INSERT INTO conge_tokens (token,med_id,created_at,expires_at,campaign_id) VALUES (?,?,?,?,?)',
+        [token, med.id, createdAt, expiresAt, campaignId]
       );
 
       const link      = `${appUrl}/conge/${token}`;
@@ -576,7 +585,160 @@ function createApp(dbLib) {
       }
     }
 
-    res.json({ ok: true, sent, total: medecins.length, errors });
+    res.json({ ok: true, sent, total: medecins.length, errors, campaign_id: campaignId });
+  });
+
+  // ── Suivi de campagne ────────────────────────────────────
+
+  app.get('/api/conge/campaign/latest', requireGestionnaire, (req, res) => {
+    const campaign = dbLib.queryOne(
+      'SELECT * FROM conge_campaigns ORDER BY id DESC LIMIT 1'
+    );
+    if (!campaign) return res.json(null);
+
+    const now = new Date().toISOString();
+    const tokens = dbLib.queryAll(
+      `SELECT ct.token, ct.med_id, ct.created_at, ct.expires_at, ct.used_at,
+              m.nom, m.type, m.email
+       FROM conge_tokens ct
+       JOIN medecins m ON m.id = ct.med_id
+       WHERE ct.campaign_id = ?
+       ORDER BY m.nom`,
+      [campaign.id]
+    );
+
+    const members = tokens.map(t => {
+      let status;
+      if (t.used_at) {
+        status = 'responded';
+      } else if (t.expires_at < now) {
+        status = 'expired';
+      } else {
+        status = 'pending';
+      }
+      const msLeft = status === 'pending'
+        ? Math.max(0, new Date(t.expires_at).getTime() - Date.now())
+        : 0;
+      return {
+        med_id:     t.med_id,
+        nom:        t.nom,
+        type:       t.type,
+        email:      t.email,
+        status,
+        expires_at: t.expires_at,
+        used_at:    t.used_at,
+        ms_left:    msLeft,
+      };
+    });
+
+    res.json({
+      id:         campaign.id,
+      created_at: campaign.created_at,
+      types:      JSON.parse(campaign.types),
+      members,
+    });
+  });
+
+  app.put('/api/conge/campaign/extend/:medId', requireGestionnaire, (req, res) => {
+    const v = validate(extendTokenSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { hours } = v.data;
+
+    const campaign = dbLib.queryOne(
+      'SELECT id FROM conge_campaigns ORDER BY id DESC LIMIT 1'
+    );
+    if (!campaign) return res.status(404).json({ error: 'Aucune campagne trouvée' });
+
+    const token = dbLib.queryOne(
+      'SELECT * FROM conge_tokens WHERE campaign_id=? AND med_id=? AND used_at IS NULL',
+      [campaign.id, req.params.medId]
+    );
+    if (!token) return res.status(404).json({ error: 'Token introuvable ou déjà utilisé' });
+
+    const newExpiry = new Date(
+      Math.max(Date.now(), new Date(token.expires_at).getTime()) + hours * 60 * 60 * 1000
+    ).toISOString();
+    dbLib.run('UPDATE conge_tokens SET expires_at=? WHERE token=?', [newExpiry, token.token]);
+    res.json({ ok: true, expires_at: newExpiry });
+  });
+
+  app.post('/api/conge/campaign/resend/:medId', requireGestionnaire, async (req, res) => {
+    if (!emailConfig || !emailConfig.gmail_user || !emailConfig.gmail_pass)
+      return res.status(503).json({ error: 'Configuration email manquante' });
+    if (!nodemailer)
+      return res.status(503).json({ error: 'nodemailer non installé' });
+
+    const campaign = dbLib.queryOne(
+      'SELECT * FROM conge_campaigns ORDER BY id DESC LIMIT 1'
+    );
+    if (!campaign) return res.status(404).json({ error: 'Aucune campagne trouvée' });
+
+    const med = dbLib.queryOne(
+      'SELECT id, nom, type, email FROM medecins WHERE id=? AND actif=1',
+      [req.params.medId]
+    );
+    if (!med) return res.status(404).json({ error: 'Praticien introuvable' });
+    if (!med.email) return res.status(400).json({ error: 'Aucun email pour ce praticien' });
+
+    // Invalide les anciens tokens de cette campagne pour ce médecin
+    dbLib.run(
+      "UPDATE conge_tokens SET expires_at=datetime('now') WHERE campaign_id=? AND med_id=? AND used_at IS NULL",
+      [campaign.id, med.id]
+    );
+
+    const now       = new Date();
+    const createdAt = now.toISOString();
+    const expiresAt = new Date(now.getTime() + 72 * 60 * 60 * 1000).toISOString();
+    const token     = crypto.randomBytes(32).toString('hex');
+    dbLib.run(
+      'INSERT INTO conge_tokens (token,med_id,created_at,expires_at,campaign_id) VALUES (?,?,?,?,?)',
+      [token, med.id, createdAt, expiresAt, campaign.id]
+    );
+
+    const appUrl    = (req.body?.base_url || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const link      = `${appUrl}/conge/${token}`;
+    const firstName = med.nom.split(' ')[0];
+
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: emailConfig.gmail_user, pass: emailConfig.gmail_pass },
+    });
+
+    try {
+      await transporter.sendMail({
+        from:    `"Planning Gériatrie" <${emailConfig.gmail_user}>`,
+        to:      med.email,
+        subject: 'Nouveau lien — Saisissez vos congés',
+        html: `
+          <div style="font-family:system-ui,Arial,sans-serif;max-width:500px;margin:auto;padding:24px">
+            <div style="background:#1858c8;color:#fff;padding:18px 24px;border-radius:10px 10px 0 0">
+              <strong style="font-size:16px">Planning Pôle Gériatrie</strong>
+            </div>
+            <div style="border:1px solid #ddd;border-top:none;padding:28px 24px;border-radius:0 0 10px 10px;background:#fff">
+              <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a">Bonjour <strong>${firstName}</strong>,</p>
+              <p style="margin:0 0 24px;font-size:14px;color:#444;line-height:1.6">
+                Un nouveau lien personnel vous a été envoyé pour saisir vos congés.<br>
+                Il est <strong>valable 72 heures</strong>.
+              </p>
+              <p style="text-align:center;margin:28px 0">
+                <a href="${link}"
+                   style="background:#2272f0;color:#fff;padding:14px 32px;border-radius:9px;
+                          text-decoration:none;font-weight:700;font-size:15px;display:inline-block">
+                  Saisir mes congés
+                </a>
+              </p>
+              <p style="font-size:12px;color:#999;margin:24px 0 0">
+                Si le bouton ne fonctionne pas : <span style="color:#2272f0">${link}</span>
+              </p>
+            </div>
+          </div>
+        `,
+        text: `Bonjour ${firstName},\n\nNouvel accès pour saisir vos congés (72h) :\n${link}\n\nCHU · Pôle Gériatrie`,
+      });
+      res.json({ ok: true, expires_at: expiresAt });
+    } catch(e) {
+      res.status(500).json({ error: e.message });
+    }
   });
 
   app.get('/api/conge/preview', (req, res) => {
