@@ -1109,6 +1109,130 @@ describe('Congés self-service', () => {
       .set('Authorization', `Bearer ${medToken}`);
     expect(res.status).toBe(403);
   });
+
+  // ── P32 — confirm + edit-token ──────────────────────────
+
+  function submitToken(token) {
+    dbLib.run('UPDATE conge_tokens SET used_at=? WHERE token=?', [new Date().toISOString(), token]);
+  }
+
+  function insertAbsenceWithToken(tok) {
+    const row = dbLib.run(
+      'INSERT INTO absences (med_id,date_debut,date_fin,type_abs,source_token) VALUES (?,?,?,?,?)',
+      [medId, '2026-08-01', '2026-08-05', 'CA', tok]
+    );
+    return row.lastInsertRowid;
+  }
+
+  test('POST /api/conge/campaign/confirm/:medId — valide les absences non confirmées', async () => {
+    const campId = insertCampaign(['ph']);
+    const tok = insertCampaignToken(campId, '_confirm');
+    submitToken(tok);
+    insertAbsenceWithToken(tok);
+    insertAbsenceWithToken(tok);
+    const res = await authReq(app).post(`/api/conge/campaign/confirm/${medId}`);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.count).toBe(2);
+    // Vérifier que les absences sont bien confirmées
+    const abs = dbLib.queryAll('SELECT confirmed FROM absences WHERE source_token=?', [tok]);
+    expect(abs.every(a => a.confirmed === 1)).toBe(true);
+  });
+
+  test('POST /api/conge/campaign/confirm/:medId — 404 si aucune réponse', async () => {
+    const campId = insertCampaign(['ph']);
+    insertCampaignToken(campId, '_confno'); // token non utilisé
+    const res = await authReq(app).post(`/api/conge/campaign/confirm/${medId}`);
+    expect(res.status).toBe(404);
+  });
+
+  test('POST /api/conge/campaign/confirm/:medId — 403 si rôle médecin', async () => {
+    const medToken = app._makeToken('medecin');
+    const res = await request(app)
+      .post(`/api/conge/campaign/confirm/${medId}`)
+      .set('Authorization', `Bearer ${medToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  test('POST /api/conge/campaign/edit-token/:medId — crée un nouveau token et supprime absences non confirmées', async () => {
+    const campId = insertCampaign(['ph']);
+    const tok = insertCampaignToken(campId, '_edit');
+    submitToken(tok);
+    const absId = insertAbsenceWithToken(tok);
+    const res = await authReq(app).post(`/api/conge/campaign/edit-token/${medId}`).send({ base_url: 'http://localhost' });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(typeof res.body.token).toBe('string');
+    expect(res.body.url).toMatch(/\/conge\//);
+    // L'absence non confirmée doit avoir été supprimée
+    const abs = dbLib.queryOne('SELECT id FROM absences WHERE id=?', [absId]);
+    expect(abs).toBeNull();
+  });
+
+  test('POST /api/conge/campaign/edit-token/:medId — préserve les absences confirmées', async () => {
+    const campId = insertCampaign(['ph']);
+    const tok = insertCampaignToken(campId, '_editconf');
+    submitToken(tok);
+    const absId = insertAbsenceWithToken(tok);
+    dbLib.run('UPDATE absences SET confirmed=1 WHERE id=?', [absId]);
+    await authReq(app).post(`/api/conge/campaign/edit-token/${medId}`).send({ base_url: 'http://localhost' });
+    // L'absence confirmée doit être préservée
+    const abs = dbLib.queryOne('SELECT id FROM absences WHERE id=?', [absId]);
+    expect(abs).not.toBeNull();
+  });
+
+  test('POST /api/conge/campaign/edit-token/:medId — 403 si rôle médecin', async () => {
+    const medToken = app._makeToken('medecin');
+    const res = await request(app)
+      .post(`/api/conge/campaign/edit-token/${medId}`)
+      .set('Authorization', `Bearer ${medToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  test('PATCH /api/absences/:id/confirm — confirme une absence individuelle', async () => {
+    const row = dbLib.run(
+      'INSERT INTO absences (med_id,date_debut,date_fin,type_abs) VALUES (?,?,?,?)',
+      [medId, '2026-09-01', '2026-09-02', 'CA']
+    );
+    const id = row.lastInsertRowid;
+    const res = await authReq(app).patch(`/api/absences/${id}/confirm`);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    const abs = dbLib.queryOne('SELECT confirmed FROM absences WHERE id=?', [id]);
+    expect(abs.confirmed).toBe(1);
+  });
+
+  test('PATCH /api/absences/:id/confirm — 404 si absence inexistante', async () => {
+    const res = await authReq(app).patch('/api/absences/99999/confirm');
+    expect(res.status).toBe(404);
+  });
+
+  test('PATCH /api/absences/:id/confirm — 403 si rôle médecin', async () => {
+    const row = dbLib.run(
+      'INSERT INTO absences (med_id,date_debut,date_fin,type_abs) VALUES (?,?,?,?)',
+      [medId, '2026-09-03', '2026-09-03', 'RTT']
+    );
+    const medToken = app._makeToken('medecin');
+    const res = await request(app)
+      .patch(`/api/absences/${row.lastInsertRowid}/confirm`)
+      .set('Authorization', `Bearer ${medToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  test('GET /api/conge/campaign/latest — responded member inclut absences + all_confirmed', async () => {
+    const campId = insertCampaign(['ph']);
+    const tok = insertCampaignToken(campId, '_latabs');
+    submitToken(tok);
+    insertAbsenceWithToken(tok);
+    const res = await gestReq(app).get('/api/conge/campaign/latest');
+    expect(res.status).toBe(200);
+    const member = res.body.members.find(m => m.med_id === medId && m.status === 'responded');
+    expect(member).toBeDefined();
+    expect(Array.isArray(member.absences)).toBe(true);
+    expect(member.absences.length).toBeGreaterThan(0);
+    expect(typeof member.all_confirmed).toBe('boolean');
+    expect(member.token).toBeDefined();
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════
