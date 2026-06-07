@@ -35,8 +35,18 @@
 | # | Titre | Bloquant | WSJF |
 |---|---|---|---|
 | P28 | "Semaines d'instabilité" : définition métier + tracking StatsTab | Réunion 9 juin | 5.3 |
+| P26 | ~~StatsTab filtre période personnalisée~~ | ✅ Livré | — |
 | P30 | Recueil souhaits praticiens (magic link V2) | [Spec](BACKLOG/P30-recueil-souhaits-praticiens.md) + après P28 | 1.8 |
 | P11 | Refonte onglet Absences | [Session spec UX](BACKLOG/P11-refonte-absences.md) | 1.3 |
+
+---
+
+## 📋 Prêt à implémenter
+
+| # | Titre | Effort | Spec |
+|---|---|---|---|
+| ~~P32~~ | ~~Suivi de campagne congés — dashboard gestionnaire~~ | ✅ Livré 2026-06-06 | [Spec](BACKLOG/P32-suivi-campagne-conges.md) |
+| P33 | Icône de notification gestionnaire (type cloche) — liste "Dr X a renseigné ses congés", badge compteur non lu | S | [Spec](BACKLOG/P33-notifications-gestionnaire.md) |
 
 ---
 

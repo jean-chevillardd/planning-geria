@@ -44,7 +44,9 @@
       "Bash(sqlite3 database.sqlite \"SELECT COUNT\\(*\\) FROM absences WHERE type_abs='Congé annuel \\(CA\\)';\")",
       "Bash(railway up *)",
       "Bash(railway *)",
-      "Skill(land-and-deploy)"
+      "Skill(land-and-deploy)",
+      "Bash(curl -s https://api.github.com/repos/lharries/whatsapp-mcp)",
+      "mcp__whatsapp__search_contacts"
     ]
   }
 }
