@@ -171,8 +171,8 @@ function createApp(dbLib) {
     dbLib.transaction(() => {
       for (const abs of absences) {
         dbLib.run(
-          'INSERT INTO absences (med_id,date_debut,date_fin,type_abs) VALUES (?,?,?,?)',
-          [row.med_id, abs.date_debut, abs.date_fin, abs.type_abs]
+          'INSERT INTO absences (med_id,date_debut,date_fin,type_abs,source_token) VALUES (?,?,?,?,?)',
+          [row.med_id, abs.date_debut, abs.date_fin, abs.type_abs, token]
         );
         count++;
       }
@@ -607,6 +607,21 @@ function createApp(dbLib) {
       [campaign.id]
     );
 
+    // Charger les absences de tous les tokens utilisés en une seule requête
+    const respondedTokens = tokens.filter(t => t.used_at).map(t => t.token);
+    const absencesByToken = {};
+    if (respondedTokens.length > 0) {
+      const placeholders = respondedTokens.map(() => '?').join(',');
+      const rows = dbLib.queryAll(
+        `SELECT id, date_debut, date_fin, type_abs, confirmed, source_token FROM absences WHERE source_token IN (${placeholders})`,
+        respondedTokens
+      );
+      for (const a of rows) {
+        if (!absencesByToken[a.source_token]) absencesByToken[a.source_token] = [];
+        absencesByToken[a.source_token].push(a);
+      }
+    }
+
     const members = tokens.map(t => {
       let status;
       if (t.used_at) {
@@ -619,7 +634,7 @@ function createApp(dbLib) {
       const msLeft = status === 'pending'
         ? Math.max(0, new Date(t.expires_at).getTime() - Date.now())
         : 0;
-      return {
+      const member = {
         med_id:     t.med_id,
         nom:        t.nom,
         type:       t.type,
@@ -629,6 +644,13 @@ function createApp(dbLib) {
         used_at:    t.used_at,
         ms_left:    msLeft,
       };
+      if (status === 'responded') {
+        const abs = absencesByToken[t.token] || [];
+        member.absences      = abs.map(({ source_token: _, ...a }) => a);
+        member.all_confirmed = abs.length > 0 && abs.every(a => a.confirmed === 1);
+        member.token         = t.token;
+      }
+      return member;
     });
 
     res.json({
@@ -739,6 +761,59 @@ function createApp(dbLib) {
     } catch(e) {
       res.status(500).json({ error: e.message });
     }
+  });
+
+  app.post('/api/conge/campaign/confirm/:medId', requireGestionnaire, (req, res) => {
+    const campaign = dbLib.queryOne('SELECT id FROM conge_campaigns ORDER BY id DESC LIMIT 1');
+    if (!campaign) return res.status(404).json({ error: 'Aucune campagne trouvée' });
+    const token = dbLib.queryOne(
+      'SELECT token FROM conge_tokens WHERE campaign_id=? AND med_id=? AND used_at IS NOT NULL',
+      [campaign.id, req.params.medId]
+    );
+    if (!token) return res.status(404).json({ error: 'Aucune réponse trouvée pour ce praticien' });
+    const pending = dbLib.queryAll(
+      'SELECT id FROM absences WHERE source_token=? AND confirmed=0',
+      [token.token]
+    );
+    dbLib.run('UPDATE absences SET confirmed=1 WHERE source_token=?', [token.token]);
+    res.json({ ok: true, count: pending.length });
+  });
+
+  app.post('/api/conge/campaign/edit-token/:medId', requireGestionnaire, (req, res) => {
+    const campaign = dbLib.queryOne('SELECT id FROM conge_campaigns ORDER BY id DESC LIMIT 1');
+    if (!campaign) return res.status(404).json({ error: 'Aucune campagne trouvée' });
+    const med = dbLib.queryOne(
+      'SELECT id FROM medecins WHERE id=? AND actif=1',
+      [req.params.medId]
+    );
+    if (!med) return res.status(404).json({ error: 'Praticien introuvable' });
+    // Supprimer les absences non confirmées de l'ancienne soumission
+    const oldToken = dbLib.queryOne(
+      'SELECT token FROM conge_tokens WHERE campaign_id=? AND med_id=? AND used_at IS NOT NULL',
+      [campaign.id, med.id]
+    );
+    if (oldToken) {
+      dbLib.run('DELETE FROM absences WHERE source_token=? AND confirmed=0', [oldToken.token]);
+    }
+    // Créer un nouveau token de 72h
+    const now     = new Date();
+    const newTok  = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(now.getTime() + 72 * 60 * 60 * 1000).toISOString();
+    dbLib.run(
+      'INSERT INTO conge_tokens (token,med_id,created_at,expires_at,campaign_id) VALUES (?,?,?,?,?)',
+      [newTok, med.id, now.toISOString(), expires, campaign.id]
+    );
+    const appUrl = (req.body?.base_url || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    res.json({ ok: true, token: newTok, url: `${appUrl}/conge/${newTok}` });
+  });
+
+  app.patch('/api/absences/:id/confirm', requireGestionnaire, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'ID invalide' });
+    const abs = dbLib.queryOne('SELECT id FROM absences WHERE id=?', [id]);
+    if (!abs) return res.status(404).json({ error: 'Absence introuvable' });
+    dbLib.run('UPDATE absences SET confirmed=1 WHERE id=?', [id]);
+    res.json({ ok: true });
   });
 
   app.get('/api/conge/preview', (req, res) => {
