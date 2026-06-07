@@ -939,6 +939,13 @@ describe('Congés self-service', () => {
     expect(res.status).toBe(404);
   });
 
+  test('GET /api/conge/token/:token — token déjà utilisé → 410', async () => {
+    const token = insertToken('_usedget');
+    dbLib.run('UPDATE conge_tokens SET used_at=? WHERE token=?', [new Date().toISOString(), token]);
+    const res = await request(app).get(`/api/conge/token/${token}`);
+    expect(res.status).toBe(410);
+  });
+
   test('POST /api/conge/submit — happy path', async () => {
     const token = insertToken('_submit');
     const res = await authReq(app).post('/api/conge/submit').send({
@@ -957,12 +964,12 @@ describe('Congés self-service', () => {
       token,
       absences: [{ date_debut: '2025-10-01', date_fin: '2025-10-01', type_abs: 'RTT' }]
     });
-    // Deuxième soumission avec le même token : 404
+    // Deuxième soumission avec le même token : 410 (déjà utilisé)
     const res2 = await authReq(app).post('/api/conge/submit').send({
       token,
       absences: [{ date_debut: '2025-10-02', date_fin: '2025-10-02', type_abs: 'RTT' }]
     });
-    expect(res2.status).toBe(404);
+    expect(res2.status).toBe(410);
   });
 
   test('POST /api/conge/submit — 400 si token manquant', async () => {
@@ -992,6 +999,115 @@ describe('Congés self-service', () => {
     const res = await request(app).get('/api/conge/preview');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([]);
+  });
+
+  // ── P32 — Suivi de campagne ──────────────────────────
+
+  function insertCampaign(types = ['ph']) {
+    const row = dbLib.run(
+      'INSERT INTO conge_campaigns (created_at, created_by, types) VALUES (?,?,?)',
+      [new Date().toISOString(), null, JSON.stringify(types)]
+    );
+    return row.lastInsertRowid;
+  }
+
+  function insertCampaignToken(campaignId, suffix = '') {
+    const now = new Date();
+    const token = 'camp_token_' + Date.now() + suffix;
+    const expires = new Date(now.getTime() + 72 * 60 * 60 * 1000).toISOString();
+    dbLib.run(
+      'INSERT INTO conge_tokens (token,med_id,created_at,expires_at,campaign_id) VALUES (?,?,?,?,?)',
+      [token, medId, now.toISOString(), expires, campaignId]
+    );
+    return token;
+  }
+
+  function gestReq(app) {
+    const token = app._makeToken('gestionnaire');
+    return { get: (url) => request(app).get(url).set('Authorization', `Bearer ${token}`) };
+  }
+
+  test('GET /api/conge/campaign/latest — sans campagne → null ou objet', async () => {
+    const res = await gestReq(app).get('/api/conge/campaign/latest');
+    expect(res.status).toBe(200);
+    expect(res.body === null || typeof res.body === 'object').toBe(true);
+  });
+
+  test('GET /api/conge/campaign/latest — retourne la campagne avec membres', async () => {
+    const campId = insertCampaign(['ph']);
+    insertCampaignToken(campId, '_status');
+    const res = await gestReq(app).get('/api/conge/campaign/latest');
+    expect(res.status).toBe(200);
+    expect(res.body).not.toBeNull();
+    expect(res.body.id).toBe(campId);
+    expect(Array.isArray(res.body.members)).toBe(true);
+    const member = res.body.members.find(m => m.med_id === medId);
+    expect(member).toBeDefined();
+    expect(member.status).toBe('pending');
+    expect(typeof member.ms_left).toBe('number');
+  });
+
+  test('GET /api/conge/campaign/latest — token utilisé → statut responded', async () => {
+    const campId = insertCampaign(['ph']);
+    const token = insertCampaignToken(campId, '_used');
+    dbLib.run('UPDATE conge_tokens SET used_at=? WHERE token=?', [new Date().toISOString(), token]);
+    const res = await gestReq(app).get('/api/conge/campaign/latest');
+    expect(res.status).toBe(200);
+    const member = res.body.members.find(m => m.med_id === medId);
+    expect(member.status).toBe('responded');
+  });
+
+  test('GET /api/conge/campaign/latest — 401 sans JWT', async () => {
+    const res = await request(app).get('/api/conge/campaign/latest');
+    expect(res.status).toBe(401);
+  });
+
+  test('PUT /api/conge/campaign/extend/:medId — prolonge le token', async () => {
+    const campId = insertCampaign(['ph']);
+    insertCampaignToken(campId, '_ext');
+    const res = await authReq(app).put(`/api/conge/campaign/extend/${medId}`).send({ hours: 24 });
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(typeof res.body.expires_at).toBe('string');
+  });
+
+  test('PUT /api/conge/campaign/extend/:medId — 404 si token déjà utilisé', async () => {
+    const campId = insertCampaign(['ph']);
+    const token = insertCampaignToken(campId, '_extused');
+    dbLib.run('UPDATE conge_tokens SET used_at=? WHERE token=?', [new Date().toISOString(), token]);
+    const res = await authReq(app).put(`/api/conge/campaign/extend/${medId}`).send({ hours: 24 });
+    expect(res.status).toBe(404);
+  });
+
+  test('PUT /api/conge/campaign/extend/:medId — 400 si hours invalide', async () => {
+    const campId = insertCampaign(['ph']);
+    insertCampaignToken(campId, '_extbad');
+    const res = await authReq(app).put(`/api/conge/campaign/extend/${medId}`).send({ hours: 999 });
+    expect(res.status).toBe(400);
+  });
+
+  test('PUT /api/conge/campaign/extend/:medId — 403 si rôle médecin', async () => {
+    const campId = insertCampaign(['ph']);
+    insertCampaignToken(campId, '_extmed');
+    const medToken = app._makeToken('medecin');
+    const res = await request(app)
+      .put(`/api/conge/campaign/extend/${medId}`)
+      .set('Authorization', `Bearer ${medToken}`)
+      .send({ hours: 24 });
+    expect(res.status).toBe(403);
+  });
+
+  test('POST /api/conge/campaign/resend/:medId — 401 sans JWT', async () => {
+    const res = await request(app).post(`/api/conge/campaign/resend/${medId}`);
+    expect(res.status).toBe(401);
+  });
+
+  test('POST /api/conge/campaign/resend/:medId — 403 si rôle médecin', async () => {
+    const medToken = app._makeToken('medecin');
+    const res = await request(app)
+      .post(`/api/conge/campaign/resend/${medId}`)
+      .set('Authorization', `Bearer ${medToken}`);
+    expect(res.status).toBe(403);
   });
 });
 
