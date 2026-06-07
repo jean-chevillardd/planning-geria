@@ -21,7 +21,9 @@ function applySchema(db) {
       date_debut   TEXT NOT NULL,
       date_fin     TEXT NOT NULL,
       type_abs     TEXT NOT NULL,
-      demi_journee TEXT DEFAULT NULL
+      demi_journee TEXT DEFAULT NULL,
+      source_token TEXT DEFAULT NULL,
+      confirmed    INTEGER NOT NULL DEFAULT 0
     )
   `);
   db.exec(`
