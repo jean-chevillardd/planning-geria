@@ -460,9 +460,9 @@ function StatusBadge({ status }) {
 }
 
 function CampaignStatusModal({ onClose, onToast }) {
-  const [campaign, setCampaign] = useState(undefined); // undefined=loading, null=aucune
-  const [tick,     setTick]     = useState(0);
-  const [extending, setExtending] = useState(null); // med_id en cours
+  const [campaign,  setCampaign]  = useState(undefined); // undefined=loading, null=aucune
+  const [tick,      setTick]      = useState(0);
+  const [extending, setExtending] = useState(null); // med_id en cours d'action
 
   useEffect(() => {
     api.getCampaignLatest()
@@ -499,6 +499,33 @@ function CampaignStatusModal({ onClose, onToast }) {
       onToast('Nouveau lien envoyé');
     } catch(e) {
       onToast(e.message || 'Erreur lors du renvoi', 'err');
+    } finally {
+      setExtending(null);
+    }
+  }
+
+  async function handleConfirmAll(medId) {
+    setExtending(medId);
+    try {
+      await api.confirmCampaignMember(medId);
+      const updated = await api.getCampaignLatest();
+      setCampaign(updated);
+      onToast('Absences validées');
+    } catch(e) {
+      onToast(e.message || 'Erreur lors de la validation', 'err');
+    } finally {
+      setExtending(null);
+    }
+  }
+
+  async function handleEditToken(medId) {
+    setExtending(medId);
+    try {
+      const { url } = await api.editCampaignToken(medId, window.location.origin);
+      window.open(url, '_blank', 'noopener');
+      onToast('Lien d\'édition ouvert dans un nouvel onglet');
+    } catch(e) {
+      onToast(e.message || 'Erreur lors de la création du lien d\'édition', 'err');
     } finally {
       setExtending(null);
     }
@@ -560,13 +587,43 @@ function CampaignStatusModal({ onClose, onToast }) {
                       background: m.status === 'expired' ? 'var(--danger-bg, #fef2f2)' : 'transparent',
                     }}>
                       <td style={{ padding:'8px 12px', fontWeight:500 }}>{m.nom}</td>
-                      <td style={{ padding:'8px 12px' }}><StatusBadge status={m.status} /></td>
+                      <td style={{ padding:'8px 12px' }}>
+                        <StatusBadge status={m.status} />
+                        {m.status === 'responded' && m.absences?.length > 0 && (
+                          <div style={{ fontSize:10, color:'var(--text2)', marginTop:3 }}>
+                            {m.all_confirmed
+                              ? <span style={{ color:'#16a34a' }}>✓ tout validé</span>
+                              : `${m.absences.filter(a => a.confirmed).length}/${m.absences.length} validée${m.absences.length > 1 ? 's' : ''}`
+                            }
+                          </div>
+                        )}
+                      </td>
                       <td style={{ padding:'8px 12px', color:'var(--text2)' }}>
                         {m.status === 'pending' ? fmtTimeLeft(m.ms_left - (tick * 60_000)) : '—'}
                       </td>
                       <td style={{ padding:'8px 12px' }}>
                         {m.status === 'responded' && (
-                          <span style={{ fontSize:11, color:'var(--text3)' }}>Réponse reçue</span>
+                          <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                            {!m.all_confirmed ? (
+                              <button
+                                className="btn-xs bsec"
+                                disabled={extending === m.med_id}
+                                onClick={() => handleConfirmAll(m.med_id)}
+                              >
+                                {extending === m.med_id ? '…' : 'Valider tout'}
+                              </button>
+                            ) : (
+                              <span style={{ fontSize:11, color:'#16a34a', alignSelf:'center' }}>✓ Validé</span>
+                            )}
+                            <button
+                              className="btn-xs"
+                              disabled={extending === m.med_id}
+                              onClick={() => handleEditToken(m.med_id)}
+                              title="Générer un nouveau lien pour que le praticien modifie ses congés"
+                            >
+                              Modifier
+                            </button>
+                          </div>
                         )}
                         {m.status === 'pending' && (
                           <button

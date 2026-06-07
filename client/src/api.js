@@ -120,6 +120,9 @@ export const validateCongeToken  = (token)               => req('GET',  `/conge/
 export const submitCongeAbsences = (token, absences)     => req('POST', '/conge/submit', { token, absences });
 export const previewCampaign     = (types)               => req('GET',  `/conge/preview?types=${types.join(',')}`);
 export const sendCampaign        = (types, base_url)     => req('POST', '/conge/campaign', { types, base_url });
-export const getCampaignLatest   = ()                    => req('GET',  '/conge/campaign/latest');
-export const extendCampaignToken = (medId, hours)        => req('PUT',  `/conge/campaign/extend/${medId}`, { hours });
-export const resendCampaignToken = (medId, base_url)     => req('POST', `/conge/campaign/resend/${medId}`, { base_url });
+export const getCampaignLatest      = ()                    => req('GET',   '/conge/campaign/latest');
+export const extendCampaignToken    = (medId, hours)        => req('PUT',   `/conge/campaign/extend/${medId}`, { hours });
+export const resendCampaignToken    = (medId, base_url)     => req('POST',  `/conge/campaign/resend/${medId}`, { base_url });
+export const confirmCampaignMember  = (medId)               => req('POST',  `/conge/campaign/confirm/${medId}`);
+export const editCampaignToken      = (medId, base_url)     => req('POST',  `/conge/campaign/edit-token/${medId}`, { base_url });
+export const confirmAbsence         = (id)                  => req('PATCH', `/absences/${id}/confirm`);
