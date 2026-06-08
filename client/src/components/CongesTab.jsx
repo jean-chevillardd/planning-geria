@@ -288,6 +288,9 @@ const CONGE_TYPES_MODAL = [
   'RTT',
   'Formation',
   'Activité hors site',
+  'Congé maladie',
+  'Congé maternité',
+  'Récupération de garde',
   'Autre',
 ];
 
