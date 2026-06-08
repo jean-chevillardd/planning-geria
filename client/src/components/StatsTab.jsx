@@ -536,6 +536,12 @@ function SidePanel({ p, onClose, practitioners, from, to }) {
   const cat = CATS.find(c => c.id === p.type);
   const idx = practitioners.findIndex(x => x.id === p.id);
 
+  useEffect(() => {
+    function h(e) { if (e.key === 'Escape') { e.preventDefault(); onClose(null); } }
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
   return (
     <div style={{
       width:380, flexShrink:0,

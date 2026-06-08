@@ -1,4 +1,5 @@
 // index.js — serveur Express + API REST
+require('dotenv').config();
 const express   = require('express');
 const cors      = require('cors');
 const fs        = require('fs');

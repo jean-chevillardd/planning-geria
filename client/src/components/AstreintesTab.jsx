@@ -67,7 +67,7 @@ function getWeekendPartner(dateIso) {
 
 // ── EPill — name chip ────────────────────────────────────
 function EPill({ slotType, entry, dateIso, isSecretary, sel, onSel, onEdit }) {
-  const { c, dot, bg } = slotType;
+  const { c } = slotType;
   const name = entry?.med_nom;
   const isSel = sel != null && entry != null && sel === entry.med_id;
   if (!entry && !isSecretary) return null;
@@ -76,24 +76,26 @@ function EPill({ slotType, entry, dateIso, isSecretary, sel, onSel, onEdit }) {
     else if (entry) onSel?.(isSel ? null : entry.med_id);
   }
   return (
-    <div onClick={handleClick} style={{
-      display:'flex', alignItems:'center', gap:4,
-      background: isSel ? `${c}22` : bg,
-      border:`1.5px solid ${isSel ? c : isSecretary ? `${c}50` : 'transparent'}`,
-      borderRadius:6, padding:'3px 7px 3px 5px',
-      cursor:'pointer', transition:'all .15s', userSelect:'none',
-      opacity: !entry && isSecretary ? 0.55 : 1,
-    }}>
-      <span style={{color:c, fontSize:9, lineHeight:1, flexShrink:0}}>{dot}</span>
-      <span style={{
-        fontSize:11.5, fontWeight: isSel ? 700 : 400,
-        color: isSel ? c : name ? 'var(--text)' : 'var(--text3)',
-        whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:120,
-        fontFamily:'sans-serif',
+    <div
+      className="chip"
+      onClick={handleClick}
+      style={{
+        background:  c + (isSel ? '33' : '18'),
+        borderColor: c + (isSel ? 'cc' : '55'),
+        boxShadow:   isSel ? `0 0 0 2px ${c}55` : 'none',
+        cursor:      'pointer',
+        transition:  'all .15s',
+        opacity:     !entry && isSecretary ? 0.55 : 1,
+      }}
+    >
+      <span className="chip-nm" style={{
+        color:      c + (isSel ? '' : 'a0'),
+        fontWeight: isSel ? 700 : 600,
+        fontStyle:  'normal',
       }}>
-        {name ?? '— à assigner'}
+        {name ?? <span style={{ color:'var(--text3)', fontWeight:400, fontStyle:'italic' }}>— à assigner</span>}
       </span>
-      {isSecretary && <span style={{fontSize:9, color:'var(--text3)', marginLeft:'auto', paddingLeft:4}}>✎</span>}
+      {isSecretary && <span style={{ fontSize:9, color:'var(--text3)', flexShrink:0 }}>✎</span>}
     </div>
   );
 }
