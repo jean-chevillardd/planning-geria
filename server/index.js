@@ -776,6 +776,7 @@ function createApp(dbLib) {
       [token.token]
     );
     dbLib.run('UPDATE absences SET confirmed=1 WHERE source_token=?', [token.token]);
+    logAudit(req.authUser.userId, 'UPDATE', 'absences', null, null, { med_id: req.params.medId, confirmed: true, count: pending.length });
     res.json({ ok: true, count: pending.length });
   });
 
@@ -794,6 +795,8 @@ function createApp(dbLib) {
     );
     if (oldToken) {
       dbLib.run('DELETE FROM absences WHERE source_token=? AND confirmed=0', [oldToken.token]);
+      // Invalider l'ancien token pour éviter que confirm/:medId le retrouve et fasse un no-op
+      dbLib.run('DELETE FROM conge_tokens WHERE token=?', [oldToken.token]);
     }
     // Créer un nouveau token de 72h
     const now     = new Date();
@@ -803,6 +806,7 @@ function createApp(dbLib) {
       'INSERT INTO conge_tokens (token,med_id,created_at,expires_at,campaign_id) VALUES (?,?,?,?,?)',
       [newTok, med.id, now.toISOString(), expires, campaign.id]
     );
+    logAudit(req.authUser.userId, 'UPDATE', 'conge_tokens', null, { med_id: med.id, old_token: oldToken?.token ?? null }, { new_token: newTok });
     const appUrl = (req.body?.base_url || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
     res.json({ ok: true, token: newTok, url: `${appUrl}/conge/${newTok}` });
   });
@@ -810,9 +814,10 @@ function createApp(dbLib) {
   app.patch('/api/absences/:id/confirm', requireGestionnaire, (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!id) return res.status(400).json({ error: 'ID invalide' });
-    const abs = dbLib.queryOne('SELECT id FROM absences WHERE id=?', [id]);
+    const abs = dbLib.queryOne('SELECT id, confirmed FROM absences WHERE id=?', [id]);
     if (!abs) return res.status(404).json({ error: 'Absence introuvable' });
     dbLib.run('UPDATE absences SET confirmed=1 WHERE id=?', [id]);
+    logAudit(req.authUser.userId, 'UPDATE', 'absences', id, { confirmed: abs.confirmed }, { confirmed: 1 });
     res.json({ ok: true });
   });
 

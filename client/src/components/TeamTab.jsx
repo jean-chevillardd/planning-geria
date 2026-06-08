@@ -45,7 +45,7 @@ function denormalizeMedecin(data, existingMember) {
   const isAstreinte = data.cat === 'astreinte';
   const sched = isAstreinte ? Array(10).fill(0) : data.presence.flat();
   const service = isAstreinte ? (data.service || '') : 'geriatrie';
-  return { nom, type, sched, service, tel: existingMember?.tel || '', email: data.email || '' };
+  return { nom, type, sched, service, tel: existingMember?.tel || '', email: data.email || null };
 }
 
 // ── Avatar ───────────────────────────────────────────────────
@@ -470,6 +470,12 @@ function CampaignStatusModal({ onClose, onToast }) {
       .catch(() => { onToast('Impossible de charger le suivi', 'err'); setCampaign(null); });
   }, []);
 
+  useEffect(() => {
+    function h(e) { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
   // Rafraîchit les timers chaque minute
   useEffect(() => {
     const id = setInterval(() => setTick(t => t + 1), 60_000);
@@ -523,6 +529,8 @@ function CampaignStatusModal({ onClose, onToast }) {
     try {
       const { url } = await api.editCampaignToken(medId, window.location.origin);
       window.open(url, '_blank', 'noopener');
+      const updated = await api.getCampaignLatest();
+      setCampaign(updated);
       onToast('Lien d\'édition ouvert dans un nouvel onglet');
     } catch(e) {
       onToast(e.message || 'Erreur lors de la création du lien d\'édition', 'err');
@@ -604,7 +612,7 @@ function CampaignStatusModal({ onClose, onToast }) {
                       <td style={{ padding:'8px 12px' }}>
                         {m.status === 'responded' && (
                           <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                            {!m.all_confirmed ? (
+                            {!m.all_confirmed && m.absences?.length > 0 ? (
                               <button
                                 className="btn-xs bsec"
                                 disabled={extending === m.med_id}
@@ -612,9 +620,9 @@ function CampaignStatusModal({ onClose, onToast }) {
                               >
                                 {extending === m.med_id ? '…' : 'Valider tout'}
                               </button>
-                            ) : (
+                            ) : m.all_confirmed ? (
                               <span style={{ fontSize:11, color:'#16a34a', alignSelf:'center' }}>✓ Validé</span>
-                            )}
+                            ) : null}
                             <button
                               className="btn-xs"
                               disabled={extending === m.med_id}
@@ -665,14 +673,21 @@ function CampaignModal({ medecins, onClose, onToast }) {
   const [phase, setPhase]                 = useState('select'); // select | sending | done
   const [result, setResult]               = useState(null);
 
+  useEffect(() => {
+    function h(e) { if (e.key === 'Escape') { e.preventDefault(); onClose(); } }
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
   function toggleType(t) {
     setSelectedTypes(prev =>
       prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
     );
   }
 
-  // Liste des praticiens qui seraient contactés
+  // Liste des praticiens qui seraient contactés (médecins d'astreinte exclus)
   const previewed = medecins.filter(m => {
+    if (m.cat === 'astreinte') return false;
     const rawType = m._rawType || m.type;
     return selectedTypes.includes(rawType);
   });
@@ -747,8 +762,8 @@ function CampaignModal({ medecins, onClose, onToast }) {
             <div style={{ marginBottom: 14 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Catégories</div>
               {TYPE_OPTIONS.map(({ type, label }) => {
-                const count = medecins.filter(m => (m._rawType || m.type) === type).length;
-                const withMail = medecins.filter(m => (m._rawType || m.type) === type && m.email).length;
+                const count = medecins.filter(m => m.cat !== 'astreinte' && (m._rawType || m.type) === type).length;
+                const withMail = medecins.filter(m => m.cat !== 'astreinte' && (m._rawType || m.type) === type && m.email).length;
                 const checked = selectedTypes.includes(type);
                 return (
                   <label key={type} style={{
@@ -988,7 +1003,7 @@ export default function TeamTab({ medecins, isSecretary = false, onReload, onToa
         const oldData = {
           nom: selected._rawNom, type: selected._rawType,
           sched: selected._rawSched, service: selected._rawService,
-          tel: selected.tel, email: selected.email || '',
+          tel: selected.tel, email: selected.email || null,
         };
         const medId = selected.id;
         await api.updateMedecin(medId, apiData);

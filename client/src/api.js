@@ -125,4 +125,3 @@ export const extendCampaignToken    = (medId, hours)        => req('PUT',   `/co
 export const resendCampaignToken    = (medId, base_url)     => req('POST',  `/conge/campaign/resend/${medId}`, { base_url });
 export const confirmCampaignMember  = (medId)               => req('POST',  `/conge/campaign/confirm/${medId}`);
 export const editCampaignToken      = (medId, base_url)     => req('POST',  `/conge/campaign/edit-token/${medId}`, { base_url });
-export const confirmAbsence         = (id)                  => req('PATCH', `/absences/${id}/confirm`);

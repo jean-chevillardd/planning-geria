@@ -158,6 +158,12 @@ Les routes `/api/conge/*` sont publiques. Le lien envoyé par email contient un 
 | GET | `/api/backup/download` | Téléchargement SQLite |
 | GET | `/api/conge/preview` | Aperçu campagne congés |
 | POST | `/api/conge/campaign` | Lancer une campagne d'emails |
+| GET | `/api/conge/campaign/latest` | Statut de la dernière campagne (membres, absences, timers) |
+| PUT | `/api/conge/campaign/extend/:medId` | Prolonger le token d'un praticien (+N heures) |
+| POST | `/api/conge/campaign/resend/:medId` | Régénérer et renvoyer le magic link d'un praticien |
+| POST | `/api/conge/campaign/confirm/:medId` | Valider toutes les absences soumises par un praticien |
+| POST | `/api/conge/campaign/edit-token/:medId` | Générer un nouveau lien pour qu'un praticien modifie ses congés |
+| PATCH | `/api/absences/:id/confirm` | Valider une absence individuelle |
 
 ---
 
