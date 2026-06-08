@@ -4,6 +4,18 @@
 
 ---
 
+## ✅ Polish UX (2026-06-07)
+
+| # | Tâche | Statut |
+|---|---|---|
+| UX1 | CampaignModal : médecins d'astreinte exclus de la ligne "Externes" | ✅ |
+| UX2 | TeamTab : email non bloquant à l'ajout/modif d'un médecin d'astreinte (fix Zod `""` → `null`) | ✅ |
+| UX3 | `.btn-primary` : `justify-content:center` — texte centré sur bouton pleine largeur | ✅ |
+| UX4 | Escape ferme toutes les popups (CampaignStatusModal, CampaignModal, BarPopover, SidePanel Stats) | ✅ |
+| UX5 | AstreintesTab : chips praticiens alignés sur look Planning/semaine + suppression pdots | ✅ |
+
+---
+
 ## 🔥 Sprint en cours — Qualité & UX (2026-06-05)
 
 | # | Tâche | Statut |
@@ -37,7 +49,7 @@
 | P28 | "Semaines d'instabilité" : définition métier + tracking StatsTab | Réunion 9 juin | 5.3 |
 | P26 | ~~StatsTab filtre période personnalisée~~ | ✅ Livré | — |
 | P30 | Recueil souhaits praticiens (magic link V2) | [Spec](BACKLOG/P30-recueil-souhaits-praticiens.md) + après P28 | 1.8 |
-| P11 | Refonte onglet Absences | [Session spec UX](BACKLOG/P11-refonte-absences.md) | 1.3 |
+| P11 | Refonte onglet Absences → Congés | F1 ✅ livré — F2 en cours | 1.3 |
 
 ---
 

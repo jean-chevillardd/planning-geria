@@ -88,6 +88,20 @@ function applySchema(db) {
     )
   `);
   db.exec(`
+    CREATE TABLE IF NOT EXISTS conge_requests (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      medecin_id  TEXT NOT NULL,
+      date_debut  TEXT NOT NULL,
+      date_fin    TEXT NOT NULL,
+      type        TEXT NOT NULL,
+      note        TEXT,
+      statut      TEXT NOT NULL DEFAULT 'pending',
+      absence_id  INTEGER DEFAULT NULL,
+      created_at  TEXT NOT NULL,
+      FOREIGN KEY (medecin_id) REFERENCES medecins(id)
+    )
+  `);
+  db.exec(`
     CREATE TABLE IF NOT EXISTS astreintes (
       id       INTEGER PRIMARY KEY AUTOINCREMENT,
       date_iso TEXT NOT NULL,

@@ -123,6 +123,19 @@ const extendTokenSchema = z.object({
   hours: z.number().int().min(1).max(168).optional().default(48),
 });
 
+const CONGE_REQUEST_TYPES = [
+  'Congé annuel (CA)', 'RTT', 'Formation', 'Activité hors site',
+  'Congé maladie', 'Congé maternité', 'Récupération de garde', 'Autre',
+];
+
+const congeRequestSchema = z.object({
+  medecin_id: z.string().min(1, 'medecin_id requis'),
+  date_debut:  isoDate,
+  date_fin:    isoDate,
+  type:        z.enum(CONGE_REQUEST_TYPES),
+  note:        z.string().max(500).optional().nullable(),
+});
+
 function validate(schema, data) {
   const result = schema.safeParse(data);
   if (!result.success) {
@@ -134,6 +147,7 @@ function validate(schema, data) {
 
 module.exports = {
   validate,
+  congeRequestSchema,
   medecinsCreateSchema,
   medecinsUpdateSchema,
   absencesCreateSchema,

@@ -34,6 +34,8 @@ export const getArchivedMedecins  = ()         => req('GET',   '/medecins/archiv
 
 // ── Absences ────────────────────────────────────────────
 export const getAbsences   = ()     => req('GET',    '/absences');
+export const getMesConges      = (medecin_id) => req('GET', `/absences?medecin_id=${medecin_id}&futur=1`);
+export const createCongeRequest = (data)       => req('POST', '/conge-requests', data);
 export const addAbsence    = (data) => req('POST',   '/absences', data);
 export const deleteAbsence = (id)   => req('DELETE', `/absences/${id}`);
 

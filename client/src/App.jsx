@@ -8,7 +8,7 @@ import WeekNav       from './components/WeekNav';
 import PlanningGrid  from './components/PlanningGrid';
 import AssignModal   from './components/AssignModal';
 import TeamTab       from './components/TeamTab';
-import AbsencesTab   from './components/AbsencesTab';
+import CongesTab     from './components/CongesTab';
 import StatsTab      from './components/StatsTab';
 import MonthView     from './components/MonthView';
 import AstreintesTab from './components/AstreintesTab';
@@ -73,7 +73,7 @@ const TAB_ICONS = {
 const TABS = [
   { id:'planning',   label:'Planning',    gestionnaireOnly: false },
   { id:'equipe',     label:'Équipe',      gestionnaireOnly: true  },
-  { id:'absences',   label:'Absences',    gestionnaireOnly: false },
+  { id:'absences',   label:'Congés',      gestionnaireOnly: false },
   { id:'stats',      label:'Synthèse',    gestionnaireOnly: false },
   { id:'astreintes', label:'Astreintes',  gestionnaireOnly: false },
   { id:'parametres', label:'Paramètres',  gestionnaireOnly: true  },
@@ -543,7 +543,7 @@ export default function App({ role, onLogout }) {
           </>
         )}
         {tab === 'equipe'   && <TeamTab medecins={medecins} isSecretary={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
-        {tab === 'absences' && <AbsencesTab medecins={medecins} absences={absences} isSecretary={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} initNav={absencesInitNav} />}
+        {tab === 'absences' && <CongesTab medecins={medecins} isGestionnaire={isGestionnaire} />}
         {tab === 'stats'      && <StatsTab medecins={medecins} onGoToAbsences={(medId, monthKey) => {
           setAbsencesInitNav({ medId, monthDate: new Date(monthKey + '-15'), nonce: Date.now() });
           setTab('absences');

@@ -10,6 +10,7 @@ const jwt       = require('jsonwebtoken');
 const crypto    = require('crypto');
 const {
   validate,
+  congeRequestSchema,
   medecinsCreateSchema, medecinsUpdateSchema,
   absencesCreateSchema,
   affectationSchema, affectationMoveSchema,
@@ -289,16 +290,20 @@ function createApp(dbLib) {
   // ABSENCES
   // ═══════════════════════════════════════════════════════
   app.get('/api/absences', (req, res) => {
-    const year = new Date().getFullYear();
-    const from = `${year - 1}-01-01`;
-    const to   = `${year + 1}-12-31`;
-    const rows = dbLib.queryAll(`
-      SELECT a.id, a.med_id, a.date_debut, a.date_fin, a.type_abs, a.demi_journee, m.nom as med_nom
+    const { medecin_id, futur } = req.query;
+    const year  = new Date().getFullYear();
+    const today = new Date().toISOString().slice(0, 10);
+    const from  = futur === '1' ? today : `${year - 1}-01-01`;
+    const to    = `${year + 1}-12-31`;
+    let sql = `
+      SELECT a.id, a.med_id, a.date_debut, a.date_fin, a.type_abs, a.demi_journee, a.confirmed, m.nom as med_nom
       FROM absences a JOIN medecins m ON a.med_id=m.id
       WHERE a.date_fin >= ? AND a.date_debut <= ?
-      ORDER BY a.date_debut DESC
-    `, [from, to]);
-    res.json(rows);
+    `;
+    const params = [from, to];
+    if (medecin_id) { sql += ' AND a.med_id = ?'; params.push(medecin_id); }
+    sql += futur === '1' ? ' ORDER BY a.date_debut ASC' : ' ORDER BY a.date_debut DESC';
+    res.json(dbLib.queryAll(sql, params));
   });
 
   app.post('/api/absences', (req, res) => {
@@ -321,6 +326,75 @@ function createApp(dbLib) {
     dbLib.run('DELETE FROM absences WHERE id=?', [req.params.id]);
     if (before) logAudit('DELETE', 'absences', req.params.id, before, null);
     res.json({ ok: true });
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // DEMANDES PONCTUELLES CONGÉS (médecin → gestionnaire)
+  // ═══════════════════════════════════════════════════════
+
+  app.post('/api/conge-requests', async (req, res) => {
+    const v = validate(congeRequestSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { medecin_id, date_debut, date_fin, type, note } = v.data;
+
+    const med = dbLib.queryOne('SELECT * FROM medecins WHERE id=? AND actif=1', [medecin_id]);
+    if (!med) return res.status(400).json({ error: 'Praticien introuvable' });
+    if (date_fin < date_debut) return res.status(400).json({ error: 'date_fin < date_debut' });
+
+    const now = new Date().toISOString();
+    const absResult = dbLib.run(
+      'INSERT INTO absences (med_id,date_debut,date_fin,type_abs,confirmed) VALUES (?,?,?,?,0)',
+      [medecin_id, date_debut, date_fin, type]
+    );
+    const absenceId = absResult.lastInsertRowid;
+
+    const reqResult = dbLib.run(
+      'INSERT INTO conge_requests (medecin_id,date_debut,date_fin,type,note,statut,absence_id,created_at) VALUES (?,?,?,?,?,?,?,?)',
+      [medecin_id, date_debut, date_fin, type, note || null, 'pending', absenceId, now]
+    );
+    logAudit(null, 'CREATE', 'conge_requests', reqResult.lastInsertRowid, null, { medecin_id, date_debut, date_fin, type });
+
+    // Mail aux gestionnaires (best effort)
+    if (emailConfig?.gmail_user && emailConfig?.gmail_pass && nodemailer) {
+      const gests = dbLib.queryAll('SELECT nom, email FROM users WHERE email IS NOT NULL AND TRIM(email) != \'\'');
+      if (gests.length > 0) {
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user: emailConfig.gmail_user, pass: emailConfig.gmail_pass },
+        });
+        const fmtDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+        for (const g of gests) {
+          try {
+            await transporter.sendMail({
+              from: `"Planning Gériatrie" <${emailConfig.gmail_user}>`,
+              to:   g.email,
+              subject: `Nouvelle demande de congé — ${med.nom}`,
+              html: `
+                <div style="font-family:system-ui,Arial,sans-serif;max-width:500px;margin:auto;padding:24px">
+                  <div style="background:#1858c8;color:#fff;padding:18px 24px;border-radius:10px 10px 0 0">
+                    <strong style="font-size:16px">Planning Pôle Gériatrie</strong>
+                  </div>
+                  <div style="border:1px solid #ddd;border-top:none;padding:28px 24px;border-radius:0 0 10px 10px;background:#fff">
+                    <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a">Bonjour <strong>${g.nom}</strong>,</p>
+                    <p style="margin:0 0 8px;font-size:14px;color:#444">
+                      <strong>${med.nom}</strong> a soumis une nouvelle demande de congé :
+                    </p>
+                    <table style="border-collapse:collapse;font-size:13px;color:#444;margin-bottom:20px">
+                      <tr><td style="padding:4px 12px 4px 0;color:#888">Période</td><td><strong>${fmtDate(date_debut)} → ${fmtDate(date_fin)}</strong></td></tr>
+                      <tr><td style="padding:4px 12px 4px 0;color:#888">Type</td><td>${type}</td></tr>
+                      ${note ? `<tr><td style="padding:4px 12px 4px 0;color:#888">Note</td><td style="font-style:italic">${note}</td></tr>` : ''}
+                    </table>
+                    <p style="font-size:12px;color:#999;margin:0">Connectez-vous au planning pour valider ou refuser cette demande.</p>
+                  </div>
+                </div>
+              `,
+            });
+          } catch(_) { /* email non bloquant */ }
+        }
+      }
+    }
+
+    res.json({ id: reqResult.lastInsertRowid, absence_id: absenceId });
   });
 
   // ═══════════════════════════════════════════════════════

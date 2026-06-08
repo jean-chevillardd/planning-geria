@@ -176,6 +176,26 @@ button, input, select { font-family:inherit; }
 .cg-rm { cursor:pointer; color:var(--text2); font-size:15px; background:none; border:none; }
 .empty-msg { font-size:13px; color:var(--text2); padding:4px 0; }
 
+/* CongesTab — DateRangePicker deux mois */
+.drp-wrap       { width:450px; max-width:100%; }
+.drp-nav        { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+.drp-nav-btn    { background:var(--surface2); border:1px solid var(--border); border-radius:var(--r); width:24px; height:24px; cursor:pointer; font-size:14px; color:var(--text2); display:inline-flex; align-items:center; justify-content:center; line-height:1; }
+.drp-months     { display:flex; gap:0; }
+.drp-divider    { width:1px; background:var(--border); flex-shrink:0; margin:0 10px; }
+.drp-month-hd   { text-align:center; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); margin-bottom:6px; }
+.drp-grid       { display:grid; grid-template-columns:repeat(7,28px); }
+.drp-dj         { text-align:center; font-size:9px; font-weight:700; padding:2px 0; }
+.drp-cell       { height:28px; display:flex; align-items:center; justify-content:center; }
+.drp-day        { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; font-size:11px; box-sizing:border-box; }
+
+/* CongesTab — cartes */
+.cg-card        { display:flex; background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; box-shadow:var(--sh); transition:background .1s; }
+.cg-card:hover  { background:#fafaf9; }
+.cg-card-bar    { width:3px; flex-shrink:0; }
+.cg-card-body   { flex:1; padding:9px 12px; display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.cg-card-date   { font-size:13px; font-weight:600; line-height:1.2; }
+.cg-card-meta   { font-size:11px; color:var(--text2); margin-top:3px; }
+
 /* Stats */
 .sgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(110px,1fr)); gap:8px; margin-bottom:1.1rem; }
 .scard { background:var(--surface); border:1px solid var(--border); border-radius:var(--rl); padding:9px 11px; box-shadow:var(--sh); }
@@ -500,6 +520,7 @@ th.rotation-poste-lbl {
 .btn-primary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 8px 16px;
   background: var(--accent);
