@@ -188,6 +188,53 @@ button, input, select { font-family:inherit; }
 .drp-cell       { height:28px; display:flex; align-items:center; justify-content:center; }
 .drp-day        { display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; font-size:11px; box-sizing:border-box; pointer-events:none; cursor:default; }
 
+/* CongesTab — placeholder vue médecin */
+.conge-placeholder {
+  text-align: center; padding: 28px 16px;
+  color: var(--text3); font-size: 12px;
+  background: var(--surface2);
+  border-radius: var(--r);
+  border: 1px dashed var(--border2);
+}
+
+/* CongesTab — Demandes ponctuelles */
+.ponctuel-section {
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
+  border-left: 3px solid #9333ea;
+  border-radius: var(--rl);
+  overflow: hidden;
+  margin-top: 16px;
+}
+.ponctuel-hdr {
+  display: flex; align-items: center;
+  justify-content: space-between; gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e9d5ff;
+}
+.ponctuel-badge {
+  background: #9333ea; color: #fff;
+  border-radius: 20px; padding: 1px 7px;
+  font-size: 10px; font-weight: 700;
+}
+.ponctuel-list { padding: 4px 0; }
+.ponctuel-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #e9d5ff;
+  transition: background .08s;
+}
+.ponctuel-row:last-child { border-bottom: none; }
+.ponctuel-row:hover { background: #f3e8ff; }
+.ponctuel-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #9333ea; flex-shrink: 0;
+}
+.ponctuel-info { flex: 1; font-size: 11px; color: var(--text); }
+.ponctuel-info strong { font-weight: 700; }
+.ponctuel-meta { font-size: 10px; color: var(--text3); margin-top: 1px; }
+.ponctuel-actions { display: flex; gap: 5px; flex-shrink: 0; }
+
 /* CongesTab — cartes */
 .cg-card        { display:flex; background:var(--surface); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; box-shadow:var(--sh); transition:background .1s; }
 .cg-card:hover  { background:#fafaf9; }

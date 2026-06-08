@@ -1,6 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import * as api from '../api';
-import { toIso } from '../utils';
 
 const TC = {
   'Congé annuel (CA)':     { color:'#2563eb', bg:'#eff6ff' },
@@ -31,102 +30,46 @@ function fmtRange(d1, d2) {
   return `${f1} → ${new Date(d2 + 'T12:00:00').toLocaleDateString('fr-FR', opts)}`;
 }
 
-function MedDropdown({ medecins, value, onChange }) {
-  const [search, setSearch] = useState('');
-  const [open, setOpen]     = useState(false);
-  const ref = useRef(null);
+function fmtDateShort(iso) {
+  return new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'short' });
+}
 
-  useEffect(() => {
-    if (!open) return;
-    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, [open]);
+// ── Sélecteur identité — <select> natif ─────────────────────
 
-  const selected = value ? medecins.find(m => m.id === value) : null;
-  const q = search.trim().toLowerCase();
-  const filtered = q ? medecins.filter(m => m.nom.toLowerCase().includes(q)) : medecins;
-
-  function pick(m) {
-    onChange(m.id);
-    setSearch('');
-    setOpen(false);
-  }
-
-  function clear() {
-    onChange(null);
-    setSearch('');
-    setOpen(false);
-  }
-
+function IdentitySelect({ medecins, value, onChange }) {
   return (
-    <div ref={ref} style={{ display:'flex', alignItems:'center', gap:10 }}>
-      <span style={{ fontSize:13, fontWeight:700, color:'var(--text2)', whiteSpace:'nowrap' }}>
-        Je suis :
-      </span>
-      <div style={{ position:'relative', flex:1, maxWidth:280 }}>
-        <input
-          type="text"
-          placeholder="Rechercher votre nom…"
-          value={selected ? selected.nom : search}
-          readOnly={!!selected}
-          onChange={e => { if (!selected) { setSearch(e.target.value); setOpen(true); } }}
-          onFocus={() => { if (!selected) setOpen(true); }}
-          onBlur={() => setTimeout(() => setOpen(false), 150)}
+    <div style={{
+      background:'var(--surface)', border:'1px solid var(--border)',
+      borderRadius:'var(--rl)', boxShadow:'var(--sh)',
+      padding:'12px 14px', marginBottom:14,
+    }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+        <span style={{ fontSize:12, fontWeight:700, color:'var(--text2)', whiteSpace:'nowrap' }}>Je suis :</span>
+        <select
+          value={value ?? ''}
+          onChange={e => onChange(e.target.value ? Number(e.target.value) : null)}
           style={{
-            width:'100%', height:32, padding:'0 28px 0 10px', boxSizing:'border-box',
-            border:`1px solid ${selected ? 'var(--accent-mid)' : 'var(--border2)'}`,
-            borderRadius:'var(--r)', fontSize:13, background: selected ? 'var(--accent-light)' : 'var(--surface)',
-            color:'var(--text)', outline:'none',
+            flex:1, minWidth:140, height:30, padding:'0 28px 0 10px',
+            border:'1px solid var(--border2)', borderRadius:'var(--r)',
+            background:'var(--surface)',
+            fontSize:12, fontFamily:'inherit', color:'var(--text)',
+            cursor:'pointer', outline:'none', appearance:'none',
+            backgroundImage:`url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236a6860' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+            backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center',
           }}
-        />
-        {(selected || search) && (
-          <button
-            onMouseDown={e => { e.preventDefault(); clear(); }}
-            style={{
-              position:'absolute', right:6, top:'50%', transform:'translateY(-50%)',
-              background:'none', border:'none', cursor:'pointer',
-              color:'var(--text3)', fontSize:16, lineHeight:1, padding:0,
-            }}
-          >×</button>
-        )}
-        {open && !selected && filtered.length > 0 && (
-          <div style={{
-            position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:300,
-            background:'var(--surface)', border:'1px solid var(--border2)',
-            borderRadius:'var(--r)', boxShadow:'0 4px 16px rgba(0,0,0,.12)',
-            maxHeight:200, overflowY:'auto',
-          }}>
-            {filtered.map(m => (
-              <div
-                key={m.id}
-                onMouseDown={() => pick(m)}
-                style={{
-                  padding:'7px 12px', cursor:'pointer', fontSize:12,
-                  borderBottom:'1px solid var(--border)',
-                  color:'var(--text)',
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-light)'}
-                onMouseLeave={e => e.currentTarget.style.background = ''}
-              >
-                {m.nom}
-              </div>
-            ))}
-          </div>
-        )}
-        {open && !selected && q && filtered.length === 0 && (
-          <div style={{
-            position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:300,
-            background:'var(--surface)', border:'1px solid var(--border2)',
-            borderRadius:'var(--r)', padding:'8px 12px', fontSize:11, color:'var(--text3)',
-          }}>
-            Aucun résultat
-          </div>
-        )}
+        >
+          <option value="">— Sélectionnez votre nom —</option>
+          {medecins.map(m => <option key={m.id} value={m.id}>{m.nom}</option>)}
+        </select>
+      </div>
+      <div style={{ fontSize:10, color:'var(--text3)', marginTop:4, fontStyle:'italic' }}>
+        Votre sélection n'est pas mémorisée — rechoisissez à chaque visite.
       </div>
     </div>
   );
 }
+
+// ── Carte congé médecin ──────────────────────────────────────
 
 function CCard({ abs }) {
   const { color } = tc(abs.type_abs);
@@ -153,135 +96,7 @@ function CCard({ abs }) {
   );
 }
 
-// ── DateRangePicker deux mois ────────────────────────────────
-
-const MONTHS_FR_LONG = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
-const DRP_DAYS_HDR = ['L','M','M','J','V','S','D'];
-
-function daysInMonthGrid(year, month) {
-  const first  = new Date(year, month, 1);
-  const last   = new Date(year, month + 1, 0);
-  const dow    = first.getDay();
-  const offset = dow === 0 ? 6 : dow - 1;
-  const cells  = [];
-  for (let i = 0; i < offset; i++) cells.push(null);
-  for (let d = 1; d <= last.getDate(); d++) cells.push(new Date(year, month, d));
-  return cells;
-}
-
-function DRPMonth({ year, month, start, end, hover, phase, onDayClick, onDayHover }) {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const cells = useMemo(() => daysInMonthGrid(year, month), [year, month]);
-  const effEnd = phase === 'end' && hover && start ? (hover >= start ? hover : start) : end;
-
-  return (
-    <div>
-      <div className="drp-month-hd">{MONTHS_FR_LONG[month].toUpperCase()} {year}</div>
-      <div className="drp-grid">
-        {DRP_DAYS_HDR.map((d, i) => (
-          <div key={`h${i}`} className="drp-dj" style={{ color: i >= 5 ? 'var(--text3)' : 'var(--text2)' }}>{d}</div>
-        ))}
-        {cells.map((d, i) => {
-          if (!d) return <div key={`e${i}`} className="drp-cell" />;
-          const iso       = toIso(d);
-          const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-          const isToday   = iso === today;
-          const isStart   = iso === start;
-          const isEnd     = !!effEnd && iso === effEnd;
-          const inRange   = !!(start && effEnd && iso > start && iso < effEnd);
-          const isSelected = isStart || isEnd;
-
-          let cellBg = 'transparent';
-          if (inRange) cellBg = 'var(--accent-light)';
-
-          let dayBg     = 'transparent';
-          let dayColor  = isWeekend ? 'var(--text3)' : 'var(--text)';
-          let dayBorder = 'none';
-          if (isSelected)     { dayBg = 'var(--accent)'; dayColor = '#fff'; }
-          else if (isToday)   { dayBorder = '1.5px solid var(--accent)'; dayColor = 'var(--accent)'; }
-
-          return (
-            <div
-              key={iso}
-              className="drp-cell"
-              style={{ background: cellBg, cursor: isWeekend ? 'default' : 'pointer' }}
-              onClick={() => !isWeekend && onDayClick(iso)}
-              onMouseEnter={() => !isWeekend && phase === 'end' && onDayHover(iso)}
-              onMouseLeave={() => phase === 'end' && onDayHover(null)}
-            >
-              <span className="drp-day" style={{
-                background: dayBg, color: dayColor, border: dayBorder,
-                opacity: isWeekend ? .35 : 1,
-                fontWeight: isToday ? 700 : 400,
-              }}>
-                {d.getDate()}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function DRP({ start, end, onChange }) {
-  const now = new Date();
-  const [baseYear,  setBaseYear]  = useState(now.getFullYear());
-  const [baseMouth, setBaseMouth] = useState(now.getMonth());
-  const [phase, setPhase] = useState('start');
-  const [hover, setHover] = useState(null);
-
-  const m2Year  = baseMouth === 11 ? baseYear + 1 : baseYear;
-  const m2Month = baseMouth === 11 ? 0 : baseMouth + 1;
-
-  function handleDayClick(iso) {
-    if (phase === 'start' || (start && iso < start)) {
-      onChange({ start: iso, end: null });
-      setPhase('end');
-      setHover(null);
-    } else {
-      onChange({ start, end: iso });
-      setPhase('start');
-      setHover(null);
-    }
-  }
-
-  function prev() {
-    if (baseMouth === 0) { setBaseYear(y => y - 1); setBaseMouth(11); }
-    else setBaseMouth(m => m - 1);
-  }
-  function next() {
-    if (baseMouth === 11) { setBaseYear(y => y + 1); setBaseMouth(0); }
-    else setBaseMouth(m => m + 1);
-  }
-
-  return (
-    <div className="drp-wrap">
-      <div className="drp-nav">
-        <button type="button" className="drp-nav-btn" onClick={prev}>‹</button>
-        <span style={{ fontSize:11, color:'var(--accent)', fontWeight:600, userSelect:'none' }}>
-          {phase === 'start' ? '① Date de début' : '② Date de fin'}
-        </span>
-        <button type="button" className="drp-nav-btn" onClick={next}>›</button>
-      </div>
-      <div className="drp-months">
-        <DRPMonth
-          year={baseYear} month={baseMouth}
-          start={start} end={end} hover={hover} phase={phase}
-          onDayClick={handleDayClick} onDayHover={setHover}
-        />
-        <div className="drp-divider" />
-        <DRPMonth
-          year={m2Year} month={m2Month}
-          start={start} end={end} hover={hover} phase={phase}
-          onDayClick={handleDayClick} onDayHover={setHover}
-        />
-      </div>
-    </div>
-  );
-}
-
-// ── Modal demande de congé ───────────────────────────────────
+// ── Modal demande de congé — simplifiée ─────────────────────
 
 const CONGE_TYPES_MODAL = [
   'Congé annuel (CA)',
@@ -295,15 +110,17 @@ const CONGE_TYPES_MODAL = [
 ];
 
 function CongeModal({ medecin, onClose, onSent }) {
-  const [range,   setRange]   = useState({ start: null, end: null });
-  const [type,    setType]    = useState('Congé annuel (CA)');
-  const [note,    setNote]    = useState('');
-  const [sending, setSending] = useState(false);
-  const [done,    setDone]    = useState(false);
-  const [err,     setErr]     = useState(null);
+  const today = new Date().toISOString().slice(0, 10);
+  const [dateDebut, setDateDebut] = useState('');
+  const [dateFin,   setDateFin]   = useState('');
+  const [type,      setType]      = useState('Congé annuel (CA)');
+  const [note,      setNote]      = useState('');
+  const [sending,   setSending]   = useState(false);
+  const [done,      setDone]      = useState(false);
+  const [err,       setErr]       = useState(null);
 
-  const isValid = !!range.start && !!range.end;
-  const days    = isValid ? countWorkingDays(range.start, range.end) : 0;
+  const isValid = !!dateDebut && !!dateFin && dateFin >= dateDebut;
+  const days    = isValid ? countWorkingDays(dateDebut, dateFin) : 0;
 
   useEffect(() => {
     function h(e) { if (e.key === 'Escape') onClose(); }
@@ -317,8 +134,8 @@ function CongeModal({ medecin, onClose, onSent }) {
     try {
       await api.createCongeRequest({
         medecin_id: medecin.id,
-        date_debut: range.start,
-        date_fin:   range.end,
+        date_debut: dateDebut,
+        date_fin:   dateFin,
         type,
         note: note || null,
       });
@@ -331,103 +148,78 @@ function CongeModal({ medecin, onClose, onSent }) {
     }
   }
 
+  const inputStyle = {
+    height:30, padding:'0 8px', border:'1px solid var(--border2)',
+    borderRadius:'var(--r)', fontSize:12, fontFamily:'inherit',
+    background:'var(--surface)', color:'var(--text)', width:'100%', boxSizing:'border-box',
+  };
+  const labelStyle = {
+    display:'block', fontSize:10, fontWeight:700, letterSpacing:'.05em',
+    textTransform:'uppercase', color:'var(--text2)', marginBottom:5,
+  };
+
   return (
     <div
-      style={{
-        position:'fixed', inset:0, zIndex:1000,
-        background:'rgba(0,0,0,.45)',
-        display:'flex', alignItems:'center', justifyContent:'center',
-      }}
+      style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,.35)', display:'flex', alignItems:'center', justifyContent:'center' }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div style={{
-        background:'var(--surface)', borderRadius:'var(--rl)',
-        boxShadow:'0 16px 48px rgba(0,0,0,.22)',
-        width:500, maxWidth:'96vw', maxHeight:'92vh', overflowY:'auto',
-      }}>
-        {/* Header */}
-        <div style={{
-          padding:'12px 16px', borderBottom:'1px solid var(--border)',
-          display:'flex', alignItems:'center', justifyContent:'space-between',
-        }}>
-          <span style={{ fontWeight:700, fontSize:13 }}>Nouvelle demande de congé</span>
-          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, color:'var(--text3)', lineHeight:1 }}>×</button>
-        </div>
-
+      <div style={{ background:'var(--surface)', borderRadius:'var(--rl)', boxShadow:'0 16px 48px rgba(0,0,0,.22)', width:340, maxWidth:'calc(100vw - 32px)', padding:20 }}>
         {done ? (
-          /* ── Écran de confirmation ── */
-          <div style={{ padding:'40px 24px', textAlign:'center' }}>
-            <div style={{
-              width:52, height:52, borderRadius:'50%',
-              background:'#dcfce7', display:'flex', alignItems:'center', justifyContent:'center',
-              margin:'0 auto 14px', fontSize:24, color:'#16a34a',
-            }}>✓</div>
-            <div style={{ fontWeight:700, fontSize:15, marginBottom:8 }}>Demande envoyée</div>
-            <div style={{ fontSize:12, color:'var(--text2)', marginBottom:24 }}>
-              Les gestionnaires ont été notifiés par mail.
-            </div>
+          <div style={{ textAlign:'center', padding:'24px 0' }}>
+            <div style={{ width:48, height:48, borderRadius:'50%', background:'#dcfce7', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px', fontSize:22, color:'#16a34a' }}>✓</div>
+            <div style={{ fontWeight:700, fontSize:14, marginBottom:8 }}>Demande envoyée</div>
+            <div style={{ fontSize:12, color:'var(--text2)', marginBottom:20 }}>Les gestionnaires ont été notifiés par mail.</div>
             <button className="btn-primary" onClick={onClose}>Fermer</button>
           </div>
         ) : (
-          <div style={{ padding:'16px 18px' }}>
-            {/* ── DateRangePicker ── */}
-            <div style={{ marginBottom:16 }}>
-              <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'.07em', color:'var(--text2)', marginBottom:8 }}>
-                Période
+          <>
+            <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:16, paddingBottom:12, borderBottom:'1px solid var(--border)' }}>
+              Nouvelle demande de congé
+            </div>
+
+            {/* Période */}
+            <div style={{ marginBottom:12 }}>
+              <label style={labelStyle}>Période</label>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:6, alignItems:'center' }}>
+                <input
+                  type="date" min={today} value={dateDebut}
+                  onChange={e => { setDateDebut(e.target.value); if (dateFin && e.target.value > dateFin) setDateFin(''); }}
+                  style={inputStyle}
+                />
+                <span style={{ fontSize:14, color:'var(--text3)', textAlign:'center' }}>→</span>
+                <input
+                  type="date" min={dateDebut || today} value={dateFin}
+                  onChange={e => setDateFin(e.target.value)}
+                  style={inputStyle}
+                />
               </div>
-              <DRP start={range.start} end={range.end} onChange={setRange} />
               {isValid && (
-                <div style={{ marginTop:6, fontSize:11, color:'var(--text2)' }}>
+                <div style={{ marginTop:5, fontSize:11, color:'var(--text2)' }}>
                   {days} j. ouvré{days > 1 ? 's' : ''}
                 </div>
               )}
             </div>
 
-            {/* ── Type ── */}
-            <div style={{ marginBottom:16 }}>
-              <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'.07em', color:'var(--text2)', marginBottom:8 }}>
-                Type d'absence
-              </div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                {CONGE_TYPES_MODAL.map(t => {
-                  const { color, bg } = tc(t);
-                  const active = type === t;
-                  return (
-                    <button
-                      key={t} type="button"
-                      onClick={() => setType(t)}
-                      style={{
-                        padding:'5px 12px', fontSize:12, borderRadius:'var(--r)',
-                        border: `1.5px solid ${active ? color : 'var(--border2)'}`,
-                        background: active ? bg : 'var(--surface)',
-                        color: active ? color : 'var(--text2)',
-                        fontWeight: active ? 700 : 400,
-                        cursor:'pointer', transition:'all .1s',
-                      }}
-                    >
-                      {t}
-                    </button>
-                  );
-                })}
-              </div>
+            {/* Type */}
+            <div style={{ marginBottom:12 }}>
+              <label style={labelStyle}>Type</label>
+              <select
+                value={type} onChange={e => setType(e.target.value)}
+                style={{ ...inputStyle, height:30, padding:'0 10px', cursor:'pointer' }}
+              >
+                {CONGE_TYPES_MODAL.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
 
-            {/* ── Note ── */}
-            <div style={{ marginBottom:14 }}>
-              <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'.07em', color:'var(--text2)', marginBottom:6 }}>
-                Note <span style={{ fontWeight:400, textTransform:'none' }}>(optionnel)</span>
-              </div>
+            {/* Note */}
+            <div style={{ marginBottom:12 }}>
+              <label style={labelStyle}>
+                Précision <span style={{ fontWeight:400, textTransform:'none' }}>(facultatif)</span>
+              </label>
               <textarea
-                value={note}
-                onChange={e => setNote(e.target.value)}
-                placeholder="Précision optionnelle…"
-                rows={3}
-                style={{
-                  width:'100%', boxSizing:'border-box', padding:'8px 10px',
-                  border:'1px solid var(--border2)', borderRadius:'var(--r)',
-                  fontSize:12, color:'var(--text)', background:'var(--surface)',
-                  resize:'vertical', fontFamily:'inherit',
-                }}
+                value={note} onChange={e => setNote(e.target.value)}
+                rows={2} placeholder="Précision optionnelle…"
+                style={{ width:'100%', boxSizing:'border-box', padding:'8px 10px', border:'1px solid var(--border2)', borderRadius:'var(--r)', fontSize:12, fontFamily:'inherit', background:'var(--surface)', color:'var(--text)', resize:'none' }}
               />
             </div>
 
@@ -437,24 +229,17 @@ function CongeModal({ medecin, onClose, onSent }) {
               </div>
             )}
 
-            <p style={{ fontSize:11, color:'var(--text3)', margin:'0 0 14px' }}>
+            <div style={{ fontSize:10, color:'var(--text3)', fontStyle:'italic', textAlign:'center', marginBottom:12 }}>
               Un mail sera envoyé aux gestionnaires.
-            </p>
+            </div>
 
-            {/* ── Footer ── */}
-            <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>
-              <button type="button" className="btn-cancel" onClick={onClose}>Annuler</button>
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={!isValid || sending}
-                onClick={handleSubmit}
-                style={{ height:32 }}
-              >
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:8, paddingTop:12, borderTop:'1px solid var(--border)' }}>
+              <button className="btn-cancel" onClick={onClose}>Annuler</button>
+              <button className="btn-primary" disabled={!isValid || sending} onClick={handleSubmit}>
                 {sending ? '…' : 'Envoyer la demande'}
               </button>
             </div>
-          </div>
+          </>
         )}
       </div>
     </div>
@@ -462,10 +247,6 @@ function CongeModal({ medecin, onClose, onSent }) {
 }
 
 // ── Helpers campagne ─────────────────────────────────────────
-
-function fmtDateShort(iso) {
-  return new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'short' });
-}
 
 function absStatus(abs) {
   if (abs._local === 'refused') return 'refused';
@@ -566,9 +347,9 @@ function EditModal({ member, onClose, onSave }) {
                   {s === 'ok' ? 'Validé' : s === 'refused' ? 'Refusé' : 'En attente'}
                 </span>
                 <div style={{ display:'flex', gap:4 }}>
-                  {s !== 'ok'      && <button className="btn-xs bsec" onClick={() => setRowLocal(r.id, 'ok')}>Valider</button>}
+                  {s !== 'ok'      && <button className="btn-xs bsec"   onClick={() => setRowLocal(r.id, 'ok')}>Valider</button>}
                   {s !== 'refused' && <button className="btn-xs bdanger" onClick={() => setRowLocal(r.id, 'refused')}>Refuser</button>}
-                  {s !== 'pending' && <button className="btn-xs" onClick={() => setRowLocal(r.id, null)}>Remettre</button>}
+                  {s !== 'pending' && <button className="btn-xs"         onClick={() => setRowLocal(r.id, null)}>Remettre</button>}
                 </div>
               </div>
             );
@@ -609,7 +390,7 @@ function NewCampModal({ medecins, onClose, onLaunched }) {
   const [selectedIds, setSelectedIds] = useState(() =>
     medecins.filter(m => ['ph','ipa','padhue'].includes(m.type) && m.email).map(m => m.id)
   );
-  const [phase, setPhase] = useState('form'); // form | sending | done
+  const [phase,  setPhase]  = useState('form');
   const [result, setResult] = useState(null);
 
   useEffect(() => {
@@ -708,20 +489,19 @@ function NewCampModal({ medecins, onClose, onLaunched }) {
   );
 }
 
-// ── DemandesPonctuelles ───────────────────────────────────────
+// ── DemandesPonctuelles — liste style mockup ─────────────────
 
 function DemandesPonctuelles({ onToast }) {
-  const [reqs,    setReqs]    = useState(null);
-  const [acting,  setActing]  = useState(null);
-  const [filter,  setFilter]  = useState('pending');
+  const [reqs,   setReqs]   = useState(null);
+  const [acting, setActing] = useState(null);
 
   function reload() {
-    api.getCongeRequests(filter === 'all' ? undefined : filter)
+    api.getCongeRequests()
       .then(setReqs)
       .catch(() => setReqs([]));
   }
 
-  useEffect(() => { setReqs(null); reload(); }, [filter]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { reload(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function act(id, action) {
     setActing(id);
@@ -735,95 +515,63 @@ function DemandesPonctuelles({ onToast }) {
     } finally { setActing(null); }
   }
 
-  const STATUT = {
-    pending:  { label:'En attente', bg:'#fffbeb', color:'#b45309' },
-    accepted: { label:'Acceptée',   bg:'#f0fdf4', color:'#15803d' },
-    refused:  { label:'Refusée',    bg:'#fef2f2', color:'#dc2626' },
-  };
+  const pending = (reqs || []).filter(r => r.statut === 'pending');
+  const others  = (reqs || []).filter(r => r.statut !== 'pending');
+  const nbPend  = pending.length;
 
   return (
-    <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--rl)', boxShadow:'var(--sh)', overflow:'hidden', marginTop:16 }}>
-      <div style={{ padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)' }}>
-        <span style={{ fontWeight:700, fontSize:13 }}>Demandes ponctuelles</span>
-        <div style={{ display:'flex', gap:6 }}>
-          {['pending','accepted','refused','all'].map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              style={{
-                padding:'3px 10px', borderRadius:100, fontSize:11, fontWeight:600, cursor:'pointer', border:'none',
-                background: filter === f ? 'var(--accent)' : 'var(--surface2)',
-                color:      filter === f ? '#fff'          : 'var(--text2)',
-              }}
-            >
-              {{ pending:'En attente', accepted:'Acceptées', refused:'Refusées', all:'Toutes' }[f]}
-            </button>
-          ))}
-        </div>
+    <div className="ponctuel-section">
+      <div className="ponctuel-hdr">
+        <span style={{ fontWeight:700, fontSize:13, color:'#7c3aed' }}>Demandes ponctuelles</span>
+        {nbPend > 0 && (
+          <span className="ponctuel-badge">{nbPend} en attente</span>
+        )}
       </div>
 
       {reqs === null && (
-        <div style={{ padding:24, textAlign:'center', color:'var(--text3)', fontSize:12 }}>Chargement…</div>
+        <div style={{ padding:'14px', fontSize:12, color:'var(--text3)' }}>Chargement…</div>
       )}
       {reqs !== null && reqs.length === 0 && (
-        <div style={{ padding:24, textAlign:'center', color:'var(--text3)', fontSize:12 }}>Aucune demande.</div>
+        <div style={{ padding:'20px 14px', fontSize:12, color:'var(--text3)', textAlign:'center' }}>Aucune demande.</div>
       )}
+
       {reqs !== null && reqs.length > 0 && (
-        <div style={{ overflowX:'auto' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-            <thead>
-              <tr style={{ background:'var(--surface2)' }}>
-                {['Praticien','Période','Type','Note','Statut','Actions'].map(h => (
-                  <th key={h} style={{ padding:'7px 12px', textAlign:'left', fontWeight:600, color:'var(--text2)', fontSize:11, borderBottom:'1px solid var(--border2)', whiteSpace:'nowrap' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {reqs.map(r => {
-                const { color: tc, bg: tbg } = (TC[r.type] || { color:'#6b7280', bg:'#f3f4f6' });
-                const s = STATUT[r.statut] || STATUT.pending;
-                return (
-                  <tr key={r.id} style={{ borderBottom:'1px solid var(--border)' }}>
-                    <td style={{ padding:'8px 12px', fontWeight:500 }}>{r.medecin_nom}</td>
-                    <td style={{ padding:'8px 12px', whiteSpace:'nowrap' }}>
-                      {fmtDateShort(r.date_debut)}{r.date_fin !== r.date_debut ? ` → ${fmtDateShort(r.date_fin)}` : ''}
-                    </td>
-                    <td style={{ padding:'8px 12px' }}>
-                      <span className="ab-pill" style={{ color: tc, background: tbg }}>{r.type}</span>
-                    </td>
-                    <td style={{ padding:'8px 12px', color:'var(--text2)', fontStyle: r.note ? 'italic' : 'normal' }}>
-                      {r.note || '—'}
-                    </td>
-                    <td style={{ padding:'8px 12px', textAlign:'center' }}>
-                      <span style={{ display:'inline-flex', alignItems:'center', height:20, padding:'0 8px', borderRadius:100, fontSize:10, fontWeight:700, background:s.bg, color:s.color }}>{s.label}</span>
-                    </td>
-                    <td style={{ padding:'8px 12px' }}>
-                      {r.statut === 'pending' ? (
-                        <div style={{ display:'flex', gap:5 }}>
-                          <button
-                            className="btn-xs bsec"
-                            disabled={acting === r.id}
-                            onClick={() => act(r.id, 'accept')}
-                          >
-                            {acting === r.id ? '…' : 'Accepter'}
-                          </button>
-                          <button
-                            className="btn-xs bdanger"
-                            disabled={acting === r.id}
-                            onClick={() => act(r.id, 'refuse')}
-                          >
-                            {acting === r.id ? '…' : 'Refuser'}
-                          </button>
-                        </div>
-                      ) : (
-                        <span style={{ fontSize:11, color:'var(--text3)' }}>—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        <div className="ponctuel-list">
+          {pending.map(r => {
+            const days = countWorkingDays(r.date_debut, r.date_fin);
+            return (
+              <div key={r.id} className="ponctuel-row">
+                <div className="ponctuel-dot" />
+                <div className="ponctuel-info">
+                  <div><strong>{r.medecin_nom}</strong> — {r.type}</div>
+                  <div className="ponctuel-meta">
+                    {fmtDateShort(r.date_debut)}{r.date_fin !== r.date_debut ? ` → ${fmtDateShort(r.date_fin)}` : ''} · {days} j. ouvré{days > 1 ? 's' : ''}
+                    {r.note && <> · <em>{r.note}</em></>}
+                  </div>
+                </div>
+                <div className="ponctuel-actions">
+                  <button className="btn-xs bsec" disabled={acting === r.id} onClick={() => act(r.id, 'accept')}>
+                    {acting === r.id ? '…' : 'Valider'}
+                  </button>
+                  <button className="btn-xs bdanger" disabled={acting === r.id} onClick={() => act(r.id, 'refuse')}>
+                    {acting === r.id ? '…' : 'Refuser'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+
+          {others.map(r => {
+            const isOk = r.statut === 'accepted';
+            return (
+              <div key={r.id} className="ponctuel-row" style={{ opacity:.65 }}>
+                <div className="ponctuel-dot" style={{ background: isOk ? 'var(--ok)' : 'var(--danger)' }} />
+                <div className="ponctuel-info" style={{ color:'var(--text3)' }}>
+                  {r.medecin_nom} — {r.type} · {fmtDateShort(r.date_debut)}{r.date_fin !== r.date_debut ? ` → ${fmtDateShort(r.date_fin)}` : ''} · {isOk ? 'validée' : 'refusée'}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -859,7 +607,6 @@ function GestCampView({ medecins, onToast }) {
 
   return (
     <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--rl)', boxShadow:'var(--sh)', overflow:'hidden' }}>
-      {/* Header */}
       <div style={{ padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)' }}>
         <span style={{ fontWeight:700, fontSize:13 }}>Campagne congés</span>
         <button className="btn-primary" style={{ height:30, fontSize:12 }} onClick={() => setShowNew(true)}>
@@ -920,9 +667,7 @@ function GestCampView({ medecins, onToast }) {
                           >
                             {acting === m.med_id ? '…' : 'Valider tout'}
                           </button>
-                          <button className="btn-xs" onClick={() => setEditMember(m)}>
-                            Modifier
-                          </button>
+                          <button className="btn-xs" onClick={() => setEditMember(m)}>Modifier</button>
                         </div>
                       </td>
                     </tr>
@@ -952,6 +697,8 @@ function GestCampView({ medecins, onToast }) {
   );
 }
 
+// ── CongesTab ────────────────────────────────────────────────
+
 export default function CongesTab({ medecins, isGestionnaire }) {
   const [selectedMedId, setSelectedMedId] = useState(null);
   const [conges,        setConges]        = useState([]);
@@ -976,57 +723,56 @@ export default function CongesTab({ medecins, isGestionnaire }) {
     loadConges(selectedMedId);
   }, [selectedMedId]);
 
-  const hasSelection = !!selectedMedId;
-
   return (
     <div>
       <div className="sec-t" style={{ marginBottom:14 }}>Congés</div>
 
-      {/* ── Vue médecin ── */}
-      <div style={{
-        background:'var(--surface)', border:'1px solid var(--border)',
-        borderRadius:'var(--rl)', padding:'14px 16px', marginBottom:16, boxShadow:'var(--sh)',
-      }}>
-        <MedDropdown medecins={medecins} value={selectedMedId} onChange={setSelectedMedId} />
+      {/* ── Vue médecin (masquée pour les gestionnaires) ── */}
+      {!isGestionnaire && (
+        <>
+          <IdentitySelect medecins={medecins} value={selectedMedId} onChange={setSelectedMedId} />
 
-        {!hasSelection && (
-          <p style={{ margin:'10px 0 0', fontSize:12, color:'var(--text3)' }}>
-            Sélectionnez votre nom pour voir vos congés.
-          </p>
-        )}
-
-        <div style={{
-          opacity: hasSelection ? 1 : .28,
-          pointerEvents: hasSelection ? 'auto' : 'none',
-          transition:'opacity .15s',
-          marginTop:14,
-        }}>
-          <div style={{
-            fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'.07em',
-            color:'var(--text2)', marginBottom:8,
-          }}>
-            Mes congés à venir
-          </div>
-
-          {loading ? (
-            <p style={{ fontSize:12, color:'var(--text3)' }}>Chargement…</p>
-          ) : conges.length === 0 ? (
-            <p className="empty-msg">Aucun congé à venir.</p>
+          {!selectedMedId ? (
+            <div className="conge-placeholder">
+              Sélectionnez votre nom ci-dessus pour voir vos congés à venir.
+            </div>
           ) : (
-            <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:14 }}>
-              {conges.map(abs => <CCard key={abs.id} abs={abs} />)}
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--rl)', padding:'14px 16px', boxShadow:'var(--sh)' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+                <span style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'.07em', color:'var(--text2)' }}>
+                  Congés à venir
+                </span>
+                {!loading && conges.length > 0 && (
+                  <span style={{ fontSize:10, color:'var(--text3)' }}>
+                    {conges.length} congé{conges.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+
+              {loading ? (
+                <p style={{ fontSize:12, color:'var(--text3)', margin:'0 0 14px' }}>Chargement…</p>
+              ) : conges.length === 0 ? (
+                <p className="empty-msg" style={{ marginBottom:14 }}>Aucun congé à venir.</p>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:6, marginBottom:14 }}>
+                  {conges.map(abs => <CCard key={abs.id} abs={abs} />)}
+                </div>
+              )}
+
+              <button
+                className="btn-primary"
+                style={{ width:'100%', justifyContent:'center', height:32 }}
+                onClick={() => setShowModal(true)}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M12 5v14M5 12h14"/>
+                </svg>
+                Demander un congé
+              </button>
             </div>
           )}
-
-          <button
-            className="btn-primary"
-            style={{ marginTop: conges.length > 0 ? 0 : 8, height:32, fontSize:12 }}
-            onClick={() => setShowModal(true)}
-          >
-            ＋ Demander un congé
-          </button>
-        </div>
-      </div>
+        </>
+      )}
 
       {/* ── Vue gestionnaire ── */}
       {isGestionnaire && (
