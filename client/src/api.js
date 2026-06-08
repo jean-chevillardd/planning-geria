@@ -127,3 +127,11 @@ export const extendCampaignToken    = (medId, hours)        => req('PUT',   `/co
 export const resendCampaignToken    = (medId, base_url)     => req('POST',  `/conge/campaign/resend/${medId}`, { base_url });
 export const confirmCampaignMember  = (medId)               => req('POST',  `/conge/campaign/confirm/${medId}`);
 export const editCampaignToken      = (medId, base_url)     => req('POST',  `/conge/campaign/edit-token/${medId}`, { base_url });
+export const confirmAbsence         = (id)                  => req('PATCH', `/absences/${id}/confirm`);
+export const unconfirmAbsence       = (id)                  => req('PATCH', `/absences/${id}/unconfirm`);
+export const sendCampaignByIds      = (med_ids, base_url)   => req('POST',  '/conge/campaign', { med_ids, base_url });
+
+// ── Demandes ponctuelles (gestionnaire) ──────────────────
+export const getCongeRequests       = (statut) => req('GET', `/conge-requests${statut ? '?statut=' + statut : ''}`);
+export const acceptCongeRequest     = (id)     => req('PATCH', `/conge-requests/${id}/accept`);
+export const refuseCongeRequest     = (id)     => req('PATCH', `/conge-requests/${id}/refuse`);

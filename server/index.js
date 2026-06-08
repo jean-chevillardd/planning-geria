@@ -147,6 +147,71 @@ function createApp(dbLib) {
     res.json({ valid: true, med_id: med.id, nom: med.nom, type: med.type });
   });
 
+  // ── Demandes ponctuelles — route publique (médecins sans compte) ──
+  app.post('/api/conge-requests', async (req, res) => {
+    const v = validate(congeRequestSchema, req.body);
+    if (!v.ok) return res.status(400).json({ error: v.error });
+    const { medecin_id, date_debut, date_fin, type, note } = v.data;
+
+    const med = dbLib.queryOne('SELECT * FROM medecins WHERE id=? AND actif=1', [medecin_id]);
+    if (!med) return res.status(400).json({ error: 'Praticien introuvable' });
+    if (date_fin < date_debut) return res.status(400).json({ error: 'date_fin < date_debut' });
+
+    const now = new Date().toISOString();
+    const absResult = dbLib.run(
+      'INSERT INTO absences (med_id,date_debut,date_fin,type_abs,confirmed) VALUES (?,?,?,?,0)',
+      [medecin_id, date_debut, date_fin, type]
+    );
+    const absenceId = absResult.lastInsertRowid;
+
+    const reqResult = dbLib.run(
+      'INSERT INTO conge_requests (medecin_id,date_debut,date_fin,type,note,statut,absence_id,created_at) VALUES (?,?,?,?,?,?,?,?)',
+      [medecin_id, date_debut, date_fin, type, note || null, 'pending', absenceId, now]
+    );
+    logAudit(null, 'CREATE', 'conge_requests', reqResult.lastInsertRowid, null, { medecin_id, date_debut, date_fin, type });
+
+    if (emailConfig?.gmail_user && emailConfig?.gmail_pass && nodemailer) {
+      const gests = dbLib.queryAll('SELECT nom, email FROM users WHERE email IS NOT NULL AND TRIM(email) != \'\'');
+      if (gests.length > 0) {
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: { user: emailConfig.gmail_user, pass: emailConfig.gmail_pass },
+        });
+        const fmtDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
+        for (const g of gests) {
+          try {
+            await transporter.sendMail({
+              from: `"Planning Gériatrie" <${emailConfig.gmail_user}>`,
+              to:   g.email,
+              subject: `Nouvelle demande de congé — ${med.nom}`,
+              html: `
+                <div style="font-family:system-ui,Arial,sans-serif;max-width:500px;margin:auto;padding:24px">
+                  <div style="background:#1858c8;color:#fff;padding:18px 24px;border-radius:10px 10px 0 0">
+                    <strong style="font-size:16px">Planning Pôle Gériatrie</strong>
+                  </div>
+                  <div style="border:1px solid #ddd;border-top:none;padding:28px 24px;border-radius:0 0 10px 10px;background:#fff">
+                    <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a">Bonjour <strong>${g.nom}</strong>,</p>
+                    <p style="margin:0 0 8px;font-size:14px;color:#444">
+                      <strong>${med.nom}</strong> a soumis une nouvelle demande de congé :
+                    </p>
+                    <table style="border-collapse:collapse;font-size:13px;color:#444;margin-bottom:20px">
+                      <tr><td style="padding:4px 12px 4px 0;color:#888">Période</td><td><strong>${fmtDate(date_debut)} → ${fmtDate(date_fin)}</strong></td></tr>
+                      <tr><td style="padding:4px 12px 4px 0;color:#888">Type</td><td>${type}</td></tr>
+                      ${note ? `<tr><td style="padding:4px 12px 4px 0;color:#888">Note</td><td style="font-style:italic">${note}</td></tr>` : ''}
+                    </table>
+                    <p style="font-size:12px;color:#999;margin:0">Connectez-vous au planning pour valider ou refuser cette demande.</p>
+                  </div>
+                </div>
+              `,
+            });
+          } catch(_) { /* email non bloquant */ }
+        }
+      }
+    }
+
+    res.json({ id: reqResult.lastInsertRowid, absence_id: absenceId });
+  });
+
   app.post('/api/conge/submit', (req, res) => {
     const { token, absences } = req.body;
     if (!token) return res.status(400).json({ error: 'Token manquant' });
@@ -329,75 +394,6 @@ function createApp(dbLib) {
   });
 
   // ═══════════════════════════════════════════════════════
-  // DEMANDES PONCTUELLES CONGÉS (médecin → gestionnaire)
-  // ═══════════════════════════════════════════════════════
-
-  app.post('/api/conge-requests', async (req, res) => {
-    const v = validate(congeRequestSchema, req.body);
-    if (!v.ok) return res.status(400).json({ error: v.error });
-    const { medecin_id, date_debut, date_fin, type, note } = v.data;
-
-    const med = dbLib.queryOne('SELECT * FROM medecins WHERE id=? AND actif=1', [medecin_id]);
-    if (!med) return res.status(400).json({ error: 'Praticien introuvable' });
-    if (date_fin < date_debut) return res.status(400).json({ error: 'date_fin < date_debut' });
-
-    const now = new Date().toISOString();
-    const absResult = dbLib.run(
-      'INSERT INTO absences (med_id,date_debut,date_fin,type_abs,confirmed) VALUES (?,?,?,?,0)',
-      [medecin_id, date_debut, date_fin, type]
-    );
-    const absenceId = absResult.lastInsertRowid;
-
-    const reqResult = dbLib.run(
-      'INSERT INTO conge_requests (medecin_id,date_debut,date_fin,type,note,statut,absence_id,created_at) VALUES (?,?,?,?,?,?,?,?)',
-      [medecin_id, date_debut, date_fin, type, note || null, 'pending', absenceId, now]
-    );
-    logAudit(null, 'CREATE', 'conge_requests', reqResult.lastInsertRowid, null, { medecin_id, date_debut, date_fin, type });
-
-    // Mail aux gestionnaires (best effort)
-    if (emailConfig?.gmail_user && emailConfig?.gmail_pass && nodemailer) {
-      const gests = dbLib.queryAll('SELECT nom, email FROM users WHERE email IS NOT NULL AND TRIM(email) != \'\'');
-      if (gests.length > 0) {
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: { user: emailConfig.gmail_user, pass: emailConfig.gmail_pass },
-        });
-        const fmtDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
-        for (const g of gests) {
-          try {
-            await transporter.sendMail({
-              from: `"Planning Gériatrie" <${emailConfig.gmail_user}>`,
-              to:   g.email,
-              subject: `Nouvelle demande de congé — ${med.nom}`,
-              html: `
-                <div style="font-family:system-ui,Arial,sans-serif;max-width:500px;margin:auto;padding:24px">
-                  <div style="background:#1858c8;color:#fff;padding:18px 24px;border-radius:10px 10px 0 0">
-                    <strong style="font-size:16px">Planning Pôle Gériatrie</strong>
-                  </div>
-                  <div style="border:1px solid #ddd;border-top:none;padding:28px 24px;border-radius:0 0 10px 10px;background:#fff">
-                    <p style="margin:0 0 16px;font-size:15px;color:#1a1a1a">Bonjour <strong>${g.nom}</strong>,</p>
-                    <p style="margin:0 0 8px;font-size:14px;color:#444">
-                      <strong>${med.nom}</strong> a soumis une nouvelle demande de congé :
-                    </p>
-                    <table style="border-collapse:collapse;font-size:13px;color:#444;margin-bottom:20px">
-                      <tr><td style="padding:4px 12px 4px 0;color:#888">Période</td><td><strong>${fmtDate(date_debut)} → ${fmtDate(date_fin)}</strong></td></tr>
-                      <tr><td style="padding:4px 12px 4px 0;color:#888">Type</td><td>${type}</td></tr>
-                      ${note ? `<tr><td style="padding:4px 12px 4px 0;color:#888">Note</td><td style="font-style:italic">${note}</td></tr>` : ''}
-                    </table>
-                    <p style="font-size:12px;color:#999;margin:0">Connectez-vous au planning pour valider ou refuser cette demande.</p>
-                  </div>
-                </div>
-              `,
-            });
-          } catch(_) { /* email non bloquant */ }
-        }
-      }
-    }
-
-    res.json({ id: reqResult.lastInsertRowid, absence_id: absenceId });
-  });
-
-  // ═══════════════════════════════════════════════════════
   // PLANNING SEMAINE
   // ═══════════════════════════════════════════════════════
   app.get('/api/planning/:weekKey', (req, res) => {
@@ -572,20 +568,29 @@ function createApp(dbLib) {
   // ═══════════════════════════════════════════════════════
 
   app.post('/api/conge/campaign', async (req, res) => {
-    const { types, base_url } = req.body;
-    if (!Array.isArray(types) || types.length === 0)
-      return res.status(400).json({ error: 'types requis (tableau de types de médecins)' });
+    const { types, med_ids, base_url } = req.body;
+    if (!Array.isArray(types) && !Array.isArray(med_ids))
+      return res.status(400).json({ error: 'types ou med_ids requis' });
 
     if (!emailConfig || !emailConfig.gmail_user || !emailConfig.gmail_pass)
       return res.status(503).json({ error: 'Configuration email manquante — créez server/email.config.json (voir email.config.json.example)' });
     if (!nodemailer)
       return res.status(503).json({ error: 'nodemailer non installé' });
 
-    const placeholders = types.map(() => '?').join(',');
-    const medecins = dbLib.queryAll(
-      `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) AND actif=1 AND email IS NOT NULL AND TRIM(email) != ''`,
-      types
-    );
+    let medecins;
+    if (Array.isArray(med_ids) && med_ids.length > 0) {
+      const placeholders = med_ids.map(() => '?').join(',');
+      medecins = dbLib.queryAll(
+        `SELECT id, nom, type, email FROM medecins WHERE id IN (${placeholders}) AND actif=1 AND email IS NOT NULL AND TRIM(email) != ''`,
+        med_ids
+      );
+    } else {
+      const placeholders = types.map(() => '?').join(',');
+      medecins = dbLib.queryAll(
+        `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) AND actif=1 AND email IS NOT NULL AND TRIM(email) != ''`,
+        types
+      );
+    }
     if (medecins.length === 0)
       return res.status(400).json({ error: 'Aucun praticien avec adresse email dans les catégories sélectionnées' });
 
@@ -892,6 +897,58 @@ function createApp(dbLib) {
     if (!abs) return res.status(404).json({ error: 'Absence introuvable' });
     dbLib.run('UPDATE absences SET confirmed=1 WHERE id=?', [id]);
     logAudit(req.authUser.userId, 'UPDATE', 'absences', id, { confirmed: abs.confirmed }, { confirmed: 1 });
+    res.json({ ok: true });
+  });
+
+  app.patch('/api/absences/:id/unconfirm', requireGestionnaire, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'ID invalide' });
+    const abs = dbLib.queryOne('SELECT id, confirmed FROM absences WHERE id=?', [id]);
+    if (!abs) return res.status(404).json({ error: 'Absence introuvable' });
+    dbLib.run('UPDATE absences SET confirmed=0 WHERE id=?', [id]);
+    logAudit(req.authUser.userId, 'UPDATE', 'absences', id, { confirmed: abs.confirmed }, { confirmed: 0 });
+    res.json({ ok: true });
+  });
+
+  // ── Demandes ponctuelles — lecture et traitement (gestionnaire) ──
+  app.get('/api/conge-requests', requireGestionnaire, (req, res) => {
+    const { statut } = req.query;
+    const where = statut ? 'WHERE cr.statut=?' : '';
+    const params = statut ? [statut] : [];
+    const rows = dbLib.queryAll(
+      `SELECT cr.id, cr.medecin_id, cr.date_debut, cr.date_fin, cr.type, cr.note,
+              cr.statut, cr.absence_id, cr.created_at,
+              m.nom AS medecin_nom
+       FROM conge_requests cr
+       JOIN medecins m ON m.id = cr.medecin_id
+       ${where}
+       ORDER BY cr.created_at DESC`,
+      params
+    );
+    res.json(rows);
+  });
+
+  app.patch('/api/conge-requests/:id/accept', requireGestionnaire, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'ID invalide' });
+    const cr = dbLib.queryOne('SELECT * FROM conge_requests WHERE id=?', [id]);
+    if (!cr) return res.status(404).json({ error: 'Demande introuvable' });
+    if (cr.statut !== 'pending') return res.status(409).json({ error: 'Demande déjà traitée' });
+    dbLib.run('UPDATE conge_requests SET statut=\'accepted\' WHERE id=?', [id]);
+    if (cr.absence_id) dbLib.run('UPDATE absences SET confirmed=1 WHERE id=?', [cr.absence_id]);
+    logAudit(req.authUser.userId, 'UPDATE', 'conge_requests', id, { statut: 'pending' }, { statut: 'accepted' });
+    res.json({ ok: true });
+  });
+
+  app.patch('/api/conge-requests/:id/refuse', requireGestionnaire, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'ID invalide' });
+    const cr = dbLib.queryOne('SELECT * FROM conge_requests WHERE id=?', [id]);
+    if (!cr) return res.status(404).json({ error: 'Demande introuvable' });
+    if (cr.statut !== 'pending') return res.status(409).json({ error: 'Demande déjà traitée' });
+    dbLib.run('UPDATE conge_requests SET statut=\'refused\' WHERE id=?', [id]);
+    if (cr.absence_id) dbLib.run('DELETE FROM absences WHERE id=?', [cr.absence_id]);
+    logAudit(req.authUser.userId, 'UPDATE', 'conge_requests', id, { statut: 'pending' }, { statut: 'refused' });
     res.json({ ok: true });
   });
 
