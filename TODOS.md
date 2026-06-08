@@ -4,74 +4,66 @@
 
 ---
 
-## ✅ Polish UX (2026-06-07)
+## 🔧 Non commité — à committer
 
-| # | Tâche | Statut |
-|---|---|---|
-| UX1 | CampaignModal : médecins d'astreinte exclus de la ligne "Externes" | ✅ |
-| UX2 | TeamTab : email non bloquant à l'ajout/modif d'un médecin d'astreinte (fix Zod `""` → `null`) | ✅ |
-| UX3 | `.btn-primary` : `justify-content:center` — texte centré sur bouton pleine largeur | ✅ |
-| UX4 | Escape ferme toutes les popups (CampaignStatusModal, CampaignModal, BarPopover, SidePanel Stats) | ✅ |
-| UX5 | AstreintesTab : chips praticiens alignés sur look Planning/semaine + suppression pdots | ✅ |
+| Fichier | Nature |
+|---|---|
+| `client/src/components/CongesTab.jsx` | Refacto `MedDropdown` → `<select>` natif (simplification) |
+| `client/src/styles.css` | CSS complémentaire |
 
 ---
 
-## 🔥 Sprint en cours — Qualité & UX (2026-06-05)
+## 📋 Backlog actif — demandes terrain (réunion 2026-06-08)
 
-| # | Tâche | Statut |
+Prêt à implémenter, classé par priorité.
+
+### 🔴 Immédiat (XS — < 30 min chacun)
+
+| # | Tâche | Fichier(s) |
 |---|---|---|
-| DT7 | Validation entrée serveur (Zod) — `server/validation.js` + intégration toutes routes | ✅ |
-| P17 | Homogénéiser sélecteurs de dates — `MonthPicker.jsx` partagé, labels cliquables Astreintes | ✅ |
-| DT8 | Jours fériés : ponts décalés — `getFrenchBridgeDays`, affichage dans PlanningGrid | ✅ |
-| P3  | Export PDF planning semaine — fenêtre dédiée, distinct de `@media print` | ✅ |
+| B3 | **EMCC** : passer `dispensable → obligatoire` + fermé lun/mar/mer (`closedDays`) | `utils.js` |
+| B12 | **Orthopédie** : nouveau poste `ortho`, dispensable | `utils.js` |
 
----
+### 🟠 Court terme (S/M)
 
-## ✅ Sprint précédent — Auth deux rôles (2026-06-05)
-
-| # | Tâche | Statut |
-|---|---|---|
-| AUTH-1 | DB migrations (`users` + `settings`) | ✅ |
-| AUTH-2 | Routes `/api/auth/team` + `/api/auth/gestionnaire` | ✅ |
-| AUTH-3 | Middlewares `requireAuth` / `requireGestionnaire` | ✅ |
-| AUTH-4 | `LoginPage.jsx` (design fidèle Claude Design) | ✅ |
-| AUTH-5 | Refacto `App.jsx` — `isGestionnaire`, suppression `LockButton` | ✅ |
-| AUTH-6 | Visibilité conditionnelle onglets et boutons écriture | ✅ |
-| AUTH-7 | Panneau settings code équipe dans TeamTab | ✅ |
-| AUTH-8 | Tests serveur mis à jour (nouveau header, nouveaux rôles) | ✅ |
-
----
-
-## 🔒 Bloqués — ne pas commencer
-
-| # | Titre | Bloquant | WSJF |
+| # | Tâche | Effort | Fichier(s) |
 |---|---|---|---|
-| P28 | "Semaines d'instabilité" : définition métier + tracking StatsTab | Réunion 9 juin | 5.3 |
-| P26 | ~~StatsTab filtre période personnalisée~~ | ✅ Livré | — |
-| P30 | Recueil souhaits praticiens (magic link V2) | [Spec](BACKLOG/P30-recueil-souhaits-praticiens.md) + après P28 | 1.8 |
-| P11 | Refonte onglet Absences → Congés | F1 ✅ livré — F2 en cours | 1.3 |
+| B2 | **Vue mensuelle** : filtrer uniquement PH + services indispensables | XS | `MonthView.jsx` |
+| B7 | **HDJ programmé** : fermeture estivale semaines 29–33 (mi-juillet → mi-août) | XS | `utils.js`, `PlanningGrid.jsx` |
+| B4 | **Search bar** : renforts inclus dans les résultats + compteurs ligne/jour | S | `PlanningGrid.jsx`, `utils.js` |
+| B9 | **Bandeau congés** dans la vue planning (chips par médecin en congé, semaine affichée) | M | `PlanningGrid.jsx`, `MonthView.jsx` |
 
----
+### 🟡 Moyen terme (M/L)
 
-## 📋 Prêt à implémenter
-
-| # | Titre | Effort | Spec |
+| # | Tâche | Effort | Fichier(s) |
 |---|---|---|---|
-| ~~P32~~ | ~~Suivi de campagne congés — dashboard gestionnaire~~ | ✅ Livré 2026-06-06 | [Spec](BACKLOG/P32-suivi-campagne-conges.md) |
-| P33 | Icône de notification gestionnaire (type cloche) — liste "Dr X a renseigné ses congés", badge compteur non lu | S | [Spec](BACKLOG/P33-notifications-gestionnaire.md) |
+| B11 | **StatsTab** : calcul en jours (pas en semaines) + taux de présence pris en compte | M | `StatsTab.jsx`, `utils.js` |
+| B1 | **Force-affectation** : gestionnaire peut passer outre les blocages (avertissement + confirmation) | M | `AssignModal.jsx`, `server/index.js` |
+| B5 | **TeamTab** : archivage à date future (`date_depart`) + date d'arrivée (`date_arrivee`) | L | `TeamTab.jsx`, `db_schema.js`, `server/index.js` |
+
+### 🔵 À spécifier avant d'implémenter
+
+| # | Tâche | Effort | Note |
+|---|---|---|---|
+| B10 | **Édition simultanée** : versioning optimiste ou documentation du comportement last-write-wins | L | Étudier `updated_at` + rejet si conflit |
+| B8 | **Patterns présence irréguliers** : cycles (1 vendredi/2, 2 sem/3…) | XL | Choix architecture requis (règle cyclique vs. overrides) |
 
 ---
 
-## ❄️ Backburner — faible priorité, différé
+## ❄️ Backburner — faible priorité
 
-| # | Titre | Effort | WSJF | Note |
-|---|---|---|---|---|
-| ~~DT4~~ | ~~Multi-comptes secrétariat~~ | — | — | ✅ Résolu — sprint auth 2026-06-05 |
-| ~~P9~~  | ~~MonthView : Mode Rotation + D&D + click-to-assign~~ | — | — | ✅ Livré 2026-06-03 |
-| DT9 | CSS modularisé | L | 0.7 | Cosmétique |
+| # | Titre | Effort | Note |
+|---|---|---|---|
+| DT9 | CSS modularisé | L | Cosmétique, aucune urgence |
 
 ---
 
-## Notes métier
+## ❌ Abandonnés
 
-**P28** — Hypothèse de définition : semaine où un PH est affecté à un service différent de son service habituel (défini dans `sched` TeamTab). Clarification obligatoire le 9 juin avant toute implémentation.
+| # | Titre | Date |
+|---|---|---|
+| P28 | "Semaines d'instabilité" — définition métier + tracking StatsTab | 2026-06-08 |
+| P33 | Icône de notifications gestionnaire (cloche) | 2026-06-08 |
+| P30 V2 | Recueil souhaits praticiens (magic link V2) | 2026-06-08 |
+| P11/F6 | Bouton Refus demande ponctuelle + motif + mail retour | 2026-06-08 |
+| P11/F7 | Heatmap de tension congés | 2026-06-08 |

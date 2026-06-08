@@ -2,6 +2,8 @@
 
 | Date | # | Titre |
 |---|---|---|
+| 2026-06-08 | QA | P11 QA fix — CONGE_TYPES_MODAL : 3 types manquants (maladie, maternité, récup garde) ajoutés |
+| 2026-06-08 | QA | P11 QA fix — DRP : `.drp-day` héritait `cursor:pointer`, doublon accessibilité corrigé |
 | 2026-06-08 | P11/F5 | Nettoyage — suppression AbsencesTab.jsx, README mis à jour (routes P11) |
 | 2026-06-08 | P11/F4 | Demandes ponctuelles gestionnaire — GET/accept/refuse + composant DemandesPonctuelles filtrable |
 | 2026-06-08 | P11/F3 | Migration campagne congés — CampaignModal/CampaignStatusModal déplacés vers CongesTab, nettoyage TeamTab |
@@ -13,6 +15,15 @@
 | 2026-06-07 | UX-FIX | styles.css : `justify-content:center` sur `.btn-primary` — bouton Enregistrer/Créer centré |
 | 2026-06-07 | UX-FIX | Escape global : ferme CampaignStatusModal, CampaignModal, BarPopover (AbsencesTab), SidePanel (StatsTab) |
 | 2026-06-07 | UX-FIX | AstreintesTab EPill : chips praticiens alignés sur look Planning/semaine + suppression pdots |
+| 2026-06-06 | P31 | Onglet Paramètres — Identifiants / Gestionnaires / Historique (sidebar 3 onglets, edit inline, pagination) |
+| 2026-06-06 | P31 | Backend Paramètres — 6 routes (change-password, gestionnaires CRUD, audit-log) + 22 tests |
+| 2026-06-06 | P32 | Fix ultrareview — edit-token invalide l'ancien token, audit_log complet, dead code supprimé |
+| 2026-06-06 | P32 | UI — boutons Valider tout / Modifier dans CampaignStatusModal |
+| 2026-06-06 | P32 | Backend confirm/edit-token + PATCH /api/absences/:id/confirm + 10 tests |
+| 2026-06-06 | P32 | Schema — absences.source_token + absences.confirmed |
+| 2026-06-06 | P32 | UI — CampaignStatusModal + bouton Suivi dans TeamTab |
+| 2026-06-06 | P32 | Backend — routes suivi campagne + fix requireGestionnaire + 12 tests |
+| 2026-06-06 | P32 | Schema DB — table conge_campaigns + colonnes used_at/campaign_id |
 | 2026-06-05 | AUTH | Sprint auth — deux rôles (médecin lecture / gestionnaire écriture), LoginPage, suppression LockButton |
 | 2026-06-05 | DT4 | Multi-comptes gestionnaires — table `users`, `setup-admin.js`, JWT `{ role, userId }` |
 | 2026-06-05 | DT2 | JWT_SECRET persistant sur Railway (variable d'environnement configurée) |

@@ -46,7 +46,9 @@
       "Bash(railway *)",
       "Skill(land-and-deploy)",
       "Bash(curl -s https://api.github.com/repos/lharries/whatsapp-mcp)",
-      "mcp__whatsapp__search_contacts"
+      "mcp__whatsapp__search_contacts",
+      "mcp__claude_ai_Gmail__create_draft",
+      "Bash(git *)"
     ]
   }
 }
