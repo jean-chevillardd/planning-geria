@@ -2,6 +2,17 @@
 
 | Date | # | Titre |
 |---|---|---|
+| 2026-06-08 | P11/F5 | Nettoyage — suppression AbsencesTab.jsx, README mis à jour (routes P11) |
+| 2026-06-08 | P11/F4 | Demandes ponctuelles gestionnaire — GET/accept/refuse + composant DemandesPonctuelles filtrable |
+| 2026-06-08 | P11/F3 | Migration campagne congés — CampaignModal/CampaignStatusModal déplacés vers CongesTab, nettoyage TeamTab |
+| 2026-06-08 | P11/F2 | Formulaire médecin self-service — CongeModal, DRP deux mois, soumission POST /api/conge-requests |
+| 2026-06-08 | P11/F1 | Nouveau CongesTab — vue médecin (liste congés futurs) + vue gestionnaire (campagne) |
+| 2026-06-07 | SPEC | P11 — Spec UX onglet Congés terminée : 5 features F1–F5, mockup HTML généré, bugs P32 identifiés |
+| 2026-06-07 | UX-FIX | Campagne congés : médecins d'astreinte exclus de la ligne "Externes" (CampaignModal) |
+| 2026-06-07 | UX-FIX | TeamTab : email non bloquant pour médecins d'astreinte (envoi `null` au lieu de `""`, fix Zod) |
+| 2026-06-07 | UX-FIX | styles.css : `justify-content:center` sur `.btn-primary` — bouton Enregistrer/Créer centré |
+| 2026-06-07 | UX-FIX | Escape global : ferme CampaignStatusModal, CampaignModal, BarPopover (AbsencesTab), SidePanel (StatsTab) |
+| 2026-06-07 | UX-FIX | AstreintesTab EPill : chips praticiens alignés sur look Planning/semaine + suppression pdots |
 | 2026-06-05 | AUTH | Sprint auth — deux rôles (médecin lecture / gestionnaire écriture), LoginPage, suppression LockButton |
 | 2026-06-05 | DT4 | Multi-comptes gestionnaires — table `users`, `setup-admin.js`, JWT `{ role, userId }` |
 | 2026-06-05 | DT2 | JWT_SECRET persistant sur Railway (variable d'environnement configurée) |

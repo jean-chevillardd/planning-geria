@@ -32,7 +32,7 @@ planning-geriatrie/
 │   │       ├── WeekNav.jsx             ← Navigation semaine
 │   │       ├── AssignModal.jsx         ← Modale d'affectation
 │   │       ├── TeamTab.jsx             ← Onglet équipe + praticiens extérieurs (gestionnaire only)
-│   │       ├── AbsencesTab.jsx         ← Onglet absences
+│   │       ├── CongesTab.jsx           ← Onglet congés (self-service médecin + campagne/ponctuels gestionnaire)
 │   │       ├── StatsTab.jsx            ← Onglet statistiques
 │   │       ├── AstreintesTab.jsx       ← Onglet astreintes (calendrier mensuel)
 │   │       ├── MonthView.jsx           ← Vue mensuelle
@@ -121,6 +121,7 @@ Les routes `/api/conge/*` sont publiques. Le lien envoyé par email contient un 
 | POST | `/api/auth/gestionnaire` | Email + mot de passe → JWT gestionnaire (8h) |
 | GET | `/api/conge/token/:token` | Validation magic link |
 | POST | `/api/conge/submit` | Soumission absences self-service |
+| POST | `/api/conge-requests` | Soumettre une demande ponctuelle de congé (médecin, sans compte) |
 
 ### Routes lecture (JWT médecin ou gestionnaire)
 
@@ -164,6 +165,10 @@ Les routes `/api/conge/*` sont publiques. Le lien envoyé par email contient un 
 | POST | `/api/conge/campaign/confirm/:medId` | Valider toutes les absences soumises par un praticien |
 | POST | `/api/conge/campaign/edit-token/:medId` | Générer un nouveau lien pour qu'un praticien modifie ses congés |
 | PATCH | `/api/absences/:id/confirm` | Valider une absence individuelle |
+| PATCH | `/api/absences/:id/unconfirm` | Remettre une absence en attente |
+| GET | `/api/conge-requests` | Lister les demandes ponctuelles (`?statut=pending\|accepted\|refused`) |
+| PATCH | `/api/conge-requests/:id/accept` | Accepter une demande ponctuelle (confirme l'absence liée) |
+| PATCH | `/api/conge-requests/:id/refuse` | Refuser une demande ponctuelle (supprime l'absence liée) |
 
 ---
 
