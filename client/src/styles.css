@@ -35,6 +35,7 @@ button, input, select { font-family:inherit; }
 .tab { padding:9px 16px; font-size:11px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; background:transparent; border:none; border-bottom:2px solid transparent; cursor:pointer; color:var(--text2); margin-bottom:-1px; transition:all .12s; display:flex; align-items:center; gap:6px; }
 .tab:hover { color:var(--text); }
 .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
+.tab.tab-disabled, .tab:disabled { opacity:.38; cursor:not-allowed; pointer-events:none; }
 
 /* Week nav */
 .wn { display:flex; align-items:center; gap:8px; margin-bottom:.9rem; flex-wrap:wrap; }
@@ -130,15 +131,15 @@ button, input, select { font-family:inherit; }
 .mwarn { font-size:11px; color:var(--warn); }
 
 /* Small action buttons inside modal */
-.btn-xs { font-size:11px; padding:2px 8px; border-radius:4px; cursor:pointer; border:1px solid; white-space:nowrap; }
+.btn-xs { font-size:11px; padding:3px 10px; border-radius:20px; cursor:pointer; border:1.5px solid var(--border2); background:var(--surface); color:var(--text2); white-space:nowrap; display:inline-flex; align-items:center; gap:3px; font-family:inherit; font-weight:500; transition:background .1s, color .1s; }
+.btn-xs:hover:not(:disabled) { background:var(--surface2); color:var(--text); }
 .btn-xs.btn-ok      { background:var(--ok-bg);     color:var(--ok);     border-color:var(--ok-bd); }
 .btn-xs.btn-warn    { background:var(--warn-bg);   color:var(--warn);   border-color:var(--warn-bd); }
 .btn-xs.btn-danger  { background:var(--danger-bg); color:var(--danger); border-color:var(--danger-bd,#fda4af); }
 .btn-xs.btn-renfort  { background:#f3e8ff; color:#7c3aed; border-color:#c4b5fd; }
 .btn-xs.btn-renfort:hover { background:#ede9fe; }
-.btn-xs.btn-primary { background:var(--accent); color:#fff; border-color:var(--accent);
-  text-transform:none; letter-spacing:normal; font-weight:600; padding:3px 9px; font-size:11px; }
-.btn-xs.btn-primary:hover { background:var(--accent2); border-color:var(--accent2); }
+.btn-xs.btn-primary { background:var(--accent-light); color:var(--accent); border-color:var(--accent-mid); font-weight:600; }
+.btn-xs.btn-primary:hover { background:#dbeafe; }
 .btn-xs:disabled    { opacity:.38; cursor:not-allowed; pointer-events:none; }
 
 /* Team tab */
@@ -156,7 +157,7 @@ button, input, select { font-family:inherit; }
 .sg-cell { display:flex; align-items:center; justify-content:center; }
 .sg-cell input[type=checkbox] { width:13px; height:13px; cursor:pointer; accent-color:var(--accent); }
 .mc-actions { display:flex; gap:6px; margin-top:8px; }
-.btn-sm { font-size:11px; padding:4px 9px; border-radius:var(--r); border:1px solid var(--border2); background:var(--surface); cursor:pointer; color:var(--text2); }
+.btn-sm { font-size:11px; padding:4px 10px; border-radius:var(--r); border:1.5px solid var(--border2); background:var(--surface); cursor:pointer; color:var(--text2); font-family:inherit; display:inline-flex; align-items:center; gap:4px; }
 .btn-sm:hover { background:var(--surface2); }
 .btn-sm.danger { border-color:#fda4af; color:var(--danger); }
 .btn-sm.danger:hover { background:var(--danger-bg); }
@@ -165,10 +166,22 @@ button, input, select { font-family:inherit; }
 .cgform { display:flex; gap:7px; flex-wrap:wrap; align-items:flex-end; padding:1rem; background:var(--surface); border:1px solid var(--border); border-radius:var(--rl); margin-bottom:1rem; box-shadow:var(--sh); }
 .cgf label { display:block; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text2); margin-bottom:3px; }
 .cgf select, .cgf input[type=date], .cgf input[type=text] { border:1px solid var(--border2); border-radius:var(--r); padding:5px 8px; font-size:13px; background:var(--surface); color:var(--text); }
-.btn-primary { background:var(--accent); color:#fff; border:none; border-radius:var(--r); padding:7px 15px; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; cursor:pointer; }
-.btn-primary:hover { background:var(--accent2); }
-.btn-primary:disabled { opacity:.5; cursor:not-allowed; }
-.btn-cancel { background:transparent; border:1px solid var(--border2); border-radius:var(--r); padding:7px 13px; font-size:12px; cursor:pointer; color:var(--text2); }
+/* ── Boutons harmonisés ──────────────────────────────────────────────────────── */
+/* Primaire (bleu) — action principale neutre (envoyer, sauvegarder) */
+.btn-primary { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:7px 16px; background:transparent; color:var(--accent); border:1.5px solid var(--accent-mid); border-radius:20px; font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; transition:background .12s, color .12s, border-color .12s; }
+.btn-primary:hover:not(:disabled) { background:var(--accent); color:#fff; border-color:var(--accent); }
+.btn-primary:disabled { opacity:.4; cursor:not-allowed; }
+/* OK / Valider (vert) */
+.btn-ok { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:7px 16px; background:var(--ok-bg); color:var(--ok); border:1.5px solid var(--ok-bd); border-radius:var(--rl); font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; transition:background .12s; }
+.btn-ok:hover:not(:disabled) { background:#d1fae5; }
+.btn-ok:disabled { opacity:.4; cursor:not-allowed; }
+/* Danger / Refuser (rouge) */
+.btn-danger { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:7px 16px; background:var(--danger-bg); color:var(--danger); border:1.5px solid #fda4af; border-radius:var(--rl); font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; transition:background .12s; }
+.btn-danger:hover:not(:disabled) { background:#ffe4e6; }
+.btn-danger:disabled { opacity:.4; cursor:not-allowed; }
+/* Annuler / neutre */
+.btn-cancel { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:7px 16px; background:var(--surface); color:var(--text2); border:1.5px solid var(--border2); border-radius:var(--rl); font-family:inherit; font-size:12px; cursor:pointer; transition:background .12s; }
+.btn-cancel:hover { background:var(--surface2); }
 .cg-list { display:flex; flex-direction:column; gap:5px; }
 .cgi { background:var(--warn-bg); border:1px solid var(--warn-bd); border-radius:var(--r); padding:7px 10px; font-size:12px; display:flex; align-items:center; justify-content:space-between; }
 .cg-nm { font-weight:700; color:var(--warn); }
@@ -297,12 +310,13 @@ button, input, select { font-family:inherit; }
   to   { transform: translateX(0);    opacity: 1; }
 }
 
-/* Bouton secondaire */
+/* Bouton secondaire (neutre, même famille que btn-cancel mais légèrement plus visible) */
 .btn-secondary {
-  padding: 7px 13px; font-size: 13px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 16px; font-size: 12px; font-weight: 500; font-family: inherit;
   background: var(--surface); color: var(--text2);
-  border: 1px solid var(--border2); border-radius: var(--r);
-  cursor: pointer; transition: all .13s;
+  border: 1.5px solid var(--border2); border-radius: var(--rl);
+  cursor: pointer; transition: background .12s, border-color .12s;
 }
 .btn-secondary:hover { background: var(--surface2); color: var(--text); border-color: var(--accent-mid); }
 
@@ -407,24 +421,27 @@ th.rotation-poste-lbl {
    P31 — Onglet Paramètres
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Layout principal (sidebar fixe + zone contenu) */
+/* Layout principal (sidebar flottante + zone contenu) */
 .settings-layout {
   display: flex;
-  gap: 0;
-  min-height: 500px;
+  gap: 20px;
+  align-items: flex-start;
   background: var(--bg);
 }
 
-/* Sidebar navigation */
+/* Sidebar navigation — panneau flottant */
 .settings-nav {
   width: 200px;
   flex-shrink: 0;
+  align-self: flex-start;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 8px;
-  border-right: 1px solid var(--border);
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--rl);
   background: var(--surface);
+  box-shadow: var(--sh);
 }
 
 .settings-nav-item {
@@ -518,7 +535,7 @@ th.rotation-poste-lbl {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--r);
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text);
   font-family: inherit;
   font-size: 13px;
@@ -564,25 +581,7 @@ th.rotation-poste-lbl {
   margin-top: 6px;
 }
 
-/* Bouton principal */
-.btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 16px;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: var(--r);
-  font-family: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity .12s;
-}
-.btn-primary:hover:not(:disabled) { opacity: .87; }
-.btn-primary:disabled { opacity: .4; cursor: default; }
+/* btn-primary défini plus haut (section boutons pill) */
 
 /* Séparateur section (utilisé dans Gestionnaires) */
 .sec-s-row {
@@ -630,36 +629,19 @@ th.rotation-poste-lbl {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: flex-end;
 }
 .inline-edit-bar .fld { flex: 1; min-width: 160px; }
 
 /* Actions colonne */
-.row-actions     { text-align: right; white-space: nowrap; }
-.row-actions-hdr { text-align: right; }
+.row-actions                  { white-space: nowrap; display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+.data-table th.row-actions-hdr { text-align: right; }
 
-/* Petits boutons */
-.btn-xs {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  background: var(--surface);
-  color: var(--text);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background .1s;
-}
-.btn-xs:hover:not(:disabled) { background: var(--bg); }
-.btn-xs:disabled { opacity: .4; cursor: default; }
-.bsec   { border-color: var(--accent); color: var(--accent); }
-.bsec:hover:not(:disabled) { background: var(--accent-light); }
-.bdanger { border-color: #ef4444; color: #dc2626; }
-.bdanger:hover:not(:disabled) { background: #fee2e2; }
+/* btn-xs défini plus haut — modificateurs sémantiques Settings */
+.bsec   { border-color: var(--accent-mid); color: var(--accent); background: var(--accent-light); }
+.bsec:hover:not(:disabled) { background: #dbeafe; }
+.bdanger { border-color: #fda4af; color: var(--danger); background: var(--danger-bg); }
+.bdanger:hover:not(:disabled) { background: #ffe4e6; }
 .bconfirm { background: #fef2f2 !important; animation: pulse-btn 0.6s infinite alternate; }
 
 @keyframes pulse-btn {
@@ -672,7 +654,7 @@ th.rotation-poste-lbl {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: flex-end;
   background: var(--accent-light);
   border: 1px solid var(--border);
   border-radius: var(--r);
@@ -732,8 +714,7 @@ th.rotation-poste-lbl {
     width: 100%;
     flex-direction: row;
     overflow-x: auto;
-    border-right: none;
-    border-bottom: 1px solid var(--border);
+    border-radius: var(--r);
     padding: 6px 8px;
   }
   .settings-nav-item { white-space: nowrap; }

@@ -1,6 +1,6 @@
 // components/AssignModal.jsx
 import { useMemo, useState, useEffect } from 'react';
-import { TYPE_LBL, worksDay, worksWeekAny, isAbsent, toIso, weekDays, getDisponiblesPH } from '../utils';
+import { TYPE_LBL, TYPE_RANK, worksDay, worksWeekAny, isAbsent, toIso, weekDays, getDisponiblesPH } from '../utils';
 
 export default function AssignModal({ poste, dayIso, monday, planningData, medecins, absences, onClose, onAction }) {
   const [search,    setSearch]    = useState('');
@@ -24,7 +24,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   const assigned = [
     ...(byPoste[poste?.id]?.medecins  || []).map(m => ({ ...m, _posteId: poste?.id })),
     ...(combineWith ? (byPoste[combineWith]?.medecins || []).map(m => ({ ...m, _posteId: combineWith })) : []),
-  ];
+  ].sort((a, b) => (TYPE_RANK[a.type] ?? 99) - (TYPE_RANK[b.type] ?? 99));
 
   // Cible correcte pour les affectations : internes → combineWith, autres → poste principal
   function targetPosteId(m) {
@@ -160,50 +160,65 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
     return { ok:true, autoExcludeDays };
   }
 
+
   return (
     <div className="mbg open" onClick={e => e.target.classList.contains('mbg') && onClose()}>
-      <div className="mbox">
+      <div className="mbox" style={{ width:440, maxHeight:'88vh' }}>
 
         {/* ── En-tête ── */}
-        <div className="mhead">
-          <div className="mttl">{poste.lbl}</div>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
+          <div>
+            <div style={{ fontSize:15, fontWeight:700 }}>
+              Affecter → <span style={{ color: poste.c }}>{poste.lbl}</span>
+            </div>
+            <div style={{ fontSize:11, color:'var(--text2)', marginTop:3 }}>{dayLabel}</div>
+          </div>
           <button className="mclose" onClick={onClose}>×</button>
-        </div>
-        <div className="msub">
-          <strong>{dayLabel}</strong>
         </div>
 
         {/* ── Affectés cette semaine ── */}
         {assigned.length > 0 && (
-          <>
-            <div className="msep">Affectés cette semaine</div>
+          <div style={{ marginBottom:16 }}>
+            <div style={{
+              fontSize:10, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase',
+              color:'var(--text2)', paddingBottom:6, marginBottom:6,
+              borderBottom:'1px solid var(--border)',
+            }}>
+              Affectés cette semaine
+            </div>
             {assigned.map(m => {
               const excl   = isExcluded(m);
               const works  = worksDay(m, dayIso, absences);
               const absent = isAbsent(m.id, dayIso, absences);
               return (
-                <div key={m.id + m._posteId} className="mitem" style={{ cursor:'default' }}>
-                  <span style={{ fontSize:12 }}>{m.nom}
-                    {m._posteId === combineWith && (
-                      <span className="mtag" style={{ marginLeft:4 }}>interne</span>
-                    )}
+                <div key={m.id + m._posteId} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 0' }}>
+                  <span style={{
+                    flex:1, fontSize:12,
+                    fontWeight: m.type === 'ph' ? 700 : 400,
+                    fontStyle:  m.type === 'ph' ? 'normal' : 'italic',
+                  }}>
+                    {m.nom}
+                    {m._posteId === combineWith
+                      ? <em style={{ fontSize:10, opacity:.65, fontStyle:'italic', marginLeft:5 }}>interne</em>
+                      : TYPE_LBL[m.type] && <em style={{ fontSize:10, opacity:.65, fontStyle:'italic', marginLeft:5 }}>{TYPE_LBL[m.type]}</em>
+                    }
                   </span>
-                  <span style={{ display:'flex', gap:6, alignItems:'center' }}>
+                  <span style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
                     {excl                          && <span className="minfo">Retiré ce jour</span>}
                     {absent && !excl               && <span className="minfo">Absent (congé)</span>}
-                    {works  && !excl               && <span className="mok">✓ présent</span>}
+                    {works  && !excl               && <span style={{ fontSize:11, color:'#16a34a', fontWeight:600, whiteSpace:'nowrap' }}>✓ présent</span>}
                     {!works && !excl && !absent    && <span className="minfo">Jour non travaillé</span>}
                     {excl
-                      ? <button className="btn-xs btn-ok"
+                      ? <button style={pillBtn('var(--ok)', 'var(--ok-bg)')}
                           onClick={() => onAction('del_exclusion', { week_key:weekKey, poste_id:m._posteId, med_id:m.id, jour:dayIso })}>
                           Restaurer
                         </button>
-                      : works && <button className="btn-xs btn-warn"
+                      : works && <button style={pillBtn('var(--warn)', 'var(--warn-bg)')}
                           onClick={() => onAction('add_exclusion', { week_key:weekKey, poste_id:m._posteId, med_id:m.id, jour:dayIso })}>
                           Retirer ce jour
                         </button>
                     }
-                    <button className="btn-xs btn-danger"
+                    <button style={pillBtn('var(--danger)', 'var(--danger-bg)')}
                       onClick={() => onAction('del_affectation', { week_key:weekKey, poste_id:m._posteId, med_id:m.id })}>
                       Retirer sem.
                     </button>
@@ -211,7 +226,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                 </div>
               );
             })}
-          </>
+          </div>
         )}
 
         {/* ── Bandeau praticien retiré ce jour ── */}
@@ -228,95 +243,109 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
 
         {/* ── Remplaçants déjà ajoutés ce jour ── */}
         {extrasToday.length > 0 && (
-          <>
-            <div className="msep">Remplaçants ce jour</div>
+          <div style={{ marginBottom:12 }}>
+            <div style={{
+              fontSize:10, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase',
+              color:'var(--text2)', paddingBottom:6, marginBottom:6,
+              borderBottom:'1px solid var(--border)',
+            }}>Remplaçants ce jour</div>
             {extrasToday.map(e => (
-              <div key={e.med_id} className="mitem" style={{ cursor:'default' }}>
-                <span style={{ fontSize:12 }}>{e.nom} <span className="mtag">remplac.</span></span>
-                <button className="btn-xs btn-danger"
+              <div key={e.med_id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 0' }}>
+                <span style={{ flex:1, fontSize:12 }}>{e.nom}
+                  <em style={{ fontSize:10, opacity:.65, fontStyle:'italic', marginLeft:5 }}>remplac.</em>
+                </span>
+                <button style={pillBtn('var(--danger)', 'var(--danger-bg)')}
                   onClick={() => onAction('del_extra', { week_key:weekKey, poste_id:poste.id, med_id:e.med_id, jour:dayIso })}>
                   Retirer
                 </button>
               </div>
             ))}
-          </>
+          </div>
         )}
 
         {/* ── Renforts déjà ajoutés ce jour ── */}
         {renfortsToday.length > 0 && (
-          <>
-            <div className="msep" style={{ color:'#d97706' }}>Renforts ce jour</div>
+          <div style={{ marginBottom:12 }}>
+            <div style={{
+              fontSize:10, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase',
+              color:'#b45309', paddingBottom:6, marginBottom:6,
+              borderBottom:'1px solid #d9770644',
+            }}>Renforts ce jour</div>
             {renfortsToday.map(r => (
-              <div key={r.med_id} className="mitem" style={{ cursor:'default' }}>
-                <span style={{ fontSize:12 }}>
+              <div key={r.med_id} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 0' }}>
+                <span style={{ flex:1, fontSize:12 }}>
                   {r.nom}
-                  <span style={{
-                    marginLeft:5, fontSize:9, borderRadius:3, padding:'1px 5px',
-                    background:'#d9770618', border:'1px solid #d9770655', color:'#b45309', fontWeight:700,
-                  }}>renfort</span>
+                  <em style={{ fontSize:10, opacity:.65, fontStyle:'italic', marginLeft:5 }}>renfort</em>
                 </span>
-                <button className="btn-xs btn-danger"
+                <button style={pillBtn('var(--danger)', 'var(--danger-bg)')}
                   onClick={() => onAction('del_renfort', { week_key:weekKey, poste_id:poste.id, med_id:r.med_id, jour:dayIso })}>
                   Retirer
                 </button>
               </div>
             ))}
-          </>
+          </div>
         )}
 
-        {/* ── Barre de recherche ── */}
-        <div style={{ padding:'8px 0 4px', position:'relative' }}>
-          <input
-            type="text"
-            className="team-search"
-            placeholder="Rechercher un praticien…"
-            value={search}
-            onChange={e => { setSearch(e.target.value); setActiveIdx(-1); }}
-            autoFocus
-            onKeyDown={e => {
-              if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, searchResults.length - 1)); }
-              else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, -1)); }
-              else if (e.key === 'Enter' && searchResults.length > 0) {
-                e.preventDefault();
-                const m = searchResults[activeIdx >= 0 ? activeIdx : 0];
-                const wa = weekAvail(m);
-                const da = dayAvail(m);
-                if (wa.ok) onAction('add_affectation', { week_key: weekKey, poste_id: targetPosteId(m), med_id: m.id, ...(wa.autoExcludeDays?.length ? { auto_exclude_days: wa.autoExcludeDays } : {}) });
-                else if (da.ok) onAction('add_extra', { week_key: weekKey, poste_id: targetPosteId(m), med_id: m.id, jour: dayIso });
-              }
-            }}
-          />
-          {search && (
-            <button onClick={() => setSearch('')} style={{
-              position:'absolute', right:8, top:'50%', transform:'translateY(-50%)',
-              background:'none', border:'none', cursor:'pointer',
-              color:'var(--text3)', fontSize:14, lineHeight:1,
-            }}>×</button>
-          )}
-        </div>
-
-        {/* ── Résultats de recherche ── */}
-        {searching && (
-          <>
-            {searchResults.length === 0 ? (
-              <p style={{ fontSize:11, fontFamily:'sans-serif', color:'var(--text3)', padding:'4px 8px' }}>
-                Aucun résultat.
-              </p>
-            ) : (
-              searchResults.map((m, idx) => <CandidateRow key={m.id} m={m} subtitle={TYPE_LBL[m.type]}
-                dayAvail={dayAvail} weekAvail={weekAvail} renfortAvail={renfortAvail}
-                takenToday={takenToday} weekKey={weekKey} dayIso={dayIso}
-                targetPosteId={targetPosteId} onAction={onAction} highlighted={idx === activeIdx} />)
+        {/* ── Zone ajout / recherche ── */}
+        <div style={{ borderTop:'1px solid var(--border)', paddingTop:14 }}>
+          <div style={{
+            fontSize:10, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase',
+            color:'var(--text2)', marginBottom:8,
+          }}>
+            Ajouter un praticien
+          </div>
+          <div style={{ position:'relative' }}>
+            <input
+              type="text"
+              className="team-search"
+              placeholder="Nom, ou type : ph · interne · padhue · ipa…"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setActiveIdx(-1); }}
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === 'ArrowDown') { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, searchResults.length - 1)); }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, -1)); }
+                else if (e.key === 'Enter' && searchResults.length > 0) {
+                  e.preventDefault();
+                  const m = searchResults[activeIdx >= 0 ? activeIdx : 0];
+                  const wa = weekAvail(m);
+                  const da = dayAvail(m);
+                  if (wa.ok) onAction('add_affectation', { week_key: weekKey, poste_id: targetPosteId(m), med_id: m.id, ...(wa.autoExcludeDays?.length ? { auto_exclude_days: wa.autoExcludeDays } : {}) });
+                  else if (da.ok) onAction('add_extra', { week_key: weekKey, poste_id: targetPosteId(m), med_id: m.id, jour: dayIso });
+                }
+              }}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} style={{
+                position:'absolute', right:8, top:'50%', transform:'translateY(-50%)',
+                background:'none', border:'none', cursor:'pointer',
+                color:'var(--text3)', fontSize:14, lineHeight:1,
+              }}>×</button>
             )}
-          </>
-        )}
+          </div>
 
-        {/* ── PH disponibles (liste par défaut quand pas de recherche) ── */}
-        {!searching && (
-          <>
-            {disponibles.full.length > 0 && (
-              <>
-                <div className="msep">PH disponibles — présents toute la semaine</div>
+          {/* ── Résultats de recherche ── */}
+          {searching && (
+            <>
+              {searchResults.length === 0 ? (
+                <p style={{ fontSize:11, fontFamily:'sans-serif', color:'var(--text3)', padding:'4px 8px' }}>
+                  Aucun résultat.
+                </p>
+              ) : (
+                searchResults.map((m, idx) => <CandidateRow key={m.id} m={m} subtitle={TYPE_LBL[m.type]}
+                  dayAvail={dayAvail} weekAvail={weekAvail} renfortAvail={renfortAvail}
+                  takenToday={takenToday} weekKey={weekKey} dayIso={dayIso}
+                  targetPosteId={targetPosteId} onAction={onAction} highlighted={idx === activeIdx} />)
+              )}
+            </>
+          )}
+
+          {/* ── PH disponibles (liste par défaut quand pas de recherche) ── */}
+          {!searching && (
+            <>
+              {disponibles.full.length > 0 && (
+                <>
+                  <div className="msep">PH disponibles — présents toute la semaine</div>
                 {disponibles.full.map(m => <CandidateRow key={m.id} m={m} subtitle={m.schedNote || TYPE_LBL[m.type]}
                   dayAvail={dayAvail} weekAvail={weekAvail} renfortAvail={renfortAvail}
                   takenToday={takenToday} weekKey={weekKey} dayIso={dayIso}
@@ -339,6 +368,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
             )}
           </>
         )}
+        </div>{/* /Zone ajout */}
 
       </div>
     </div>
@@ -349,6 +379,15 @@ function fmtExcludeDays(dayIsos) {
   return dayIsos
     .map(d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { weekday:'short', day:'numeric' }))
     .join(', ');
+}
+
+function pillBtn(color, bg) {
+  return {
+    fontSize:11, padding:'3px 10px', borderRadius:20,
+    border:`1.5px solid ${color}`, cursor:'pointer',
+    fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap',
+    background: bg ?? 'transparent', color, transition:'background .1s, color .1s',
+  };
 }
 
 // ── Ligne candidat (search + liste disponibles) ──────────────
@@ -366,7 +405,8 @@ function CandidateRow({ m, subtitle, dayAvail, weekAvail, renfortAvail, takenTod
       <span style={{ display:'flex', gap:5, alignItems:'center', flexShrink:0 }}>
         {(ra.ok || takenToday.has(m.id)) && (
           <button
-            className="btn-xs btn-renfort"
+            className="btn-xs"
+            style={pillBtn('#7c3aed', '#f3e8ff')}
             disabled={!ra.ok}
             title={ra.ok ? 'Ajouter en double tâche (déjà en poste ailleurs ce jour)' : ra.reason}
             onClick={ra.ok ? () => onAction('add_renfort', { week_key:weekKey, poste_id:targetPosteId(m), med_id:m.id, jour:dayIso }) : undefined}
@@ -375,7 +415,8 @@ function CandidateRow({ m, subtitle, dayAvail, weekAvail, renfortAvail, takenTod
           </button>
         )}
         <button
-          className="btn-xs btn-primary"
+          className="btn-xs"
+          style={pillBtn('var(--accent)', 'var(--accent-light)')}
           disabled={!da.ok}
           title={da.ok ? 'Remplacement ponctuel ce jour' : da.reason}
           onClick={da.ok ? () => onAction('add_extra', { week_key:weekKey, poste_id:targetPosteId(m), med_id:m.id, jour:dayIso }) : undefined}
@@ -383,7 +424,8 @@ function CandidateRow({ m, subtitle, dayAvail, weekAvail, renfortAvail, takenTod
           Ce jour
         </button>
         <button
-          className="btn-xs btn-primary"
+          className="btn-xs"
+          style={pillBtn('var(--accent)', 'var(--accent-light)')}
           disabled={!wa.ok}
           title={wa.ok
             ? (hasAutoExclude

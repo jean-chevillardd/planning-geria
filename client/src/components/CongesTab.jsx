@@ -169,7 +169,7 @@ function CongeModal({ medecin, onClose, onSent }) {
             <div style={{ width:48, height:48, borderRadius:'50%', background:'#dcfce7', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 12px', fontSize:22, color:'#16a34a' }}>✓</div>
             <div style={{ fontWeight:700, fontSize:14, marginBottom:8 }}>Demande envoyée</div>
             <div style={{ fontSize:12, color:'var(--text2)', marginBottom:20 }}>Les gestionnaires ont été notifiés par mail.</div>
-            <button className="btn-primary" onClick={onClose}>Fermer</button>
+            <button className="btn-cancel" onClick={onClose}>Fermer</button>
           </div>
         ) : (
           <>
@@ -347,8 +347,8 @@ function EditModal({ member, onClose, onSave }) {
                   {s === 'ok' ? 'Validé' : s === 'refused' ? 'Refusé' : 'En attente'}
                 </span>
                 <div style={{ display:'flex', gap:4 }}>
-                  {s !== 'ok'      && <button className="btn-xs bsec"   onClick={() => setRowLocal(r.id, 'ok')}>Valider</button>}
-                  {s !== 'refused' && <button className="btn-xs bdanger" onClick={() => setRowLocal(r.id, 'refused')}>Refuser</button>}
+                  {s !== 'ok'      && <button className="btn-xs btn-ok"     onClick={() => setRowLocal(r.id, 'ok')}>Valider</button>}
+                  {s !== 'refused' && <button className="btn-xs btn-danger" onClick={() => setRowLocal(r.id, 'refused')}>Refuser</button>}
                   {s !== 'pending' && <button className="btn-xs"         onClick={() => setRowLocal(r.id, null)}>Remettre</button>}
                 </div>
               </div>
@@ -374,7 +374,7 @@ function EditModal({ member, onClose, onSave }) {
           </span>
           <div style={{ display:'flex', gap:8 }}>
             <button className="btn-cancel" onClick={onClose}>Annuler</button>
-            <button className="btn-primary" style={{ height:30 }} disabled={saving} onClick={handleSave}>
+            <button className="btn-ok" disabled={saving} onClick={handleSave}>
               {saving ? '…' : 'Enregistrer'}
             </button>
           </div>
@@ -443,7 +443,7 @@ function NewCampModal({ medecins, onClose, onLaunched }) {
             <div style={{ fontSize:12, color:'var(--text2)', marginBottom:24 }}>
               {result?.sent ?? 0} praticien{(result?.sent ?? 0) > 1 ? 's' : ''} notifié{(result?.sent ?? 0) > 1 ? 's' : ''} par mail.
             </div>
-            <button className="btn-primary" onClick={onClose}>Fermer</button>
+            <button className="btn-cancel" onClick={onClose}>Fermer</button>
           </div>
         ) : (
           <>
@@ -478,7 +478,7 @@ function NewCampModal({ medecins, onClose, onLaunched }) {
             </div>
             <div style={{ padding:'10px 16px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'flex-end', gap:8 }}>
               <button className="btn-cancel" onClick={onClose}>Annuler</button>
-              <button className="btn-primary" style={{ height:30 }} disabled={!canLaunch} onClick={handleLaunch}>
+              <button className="btn-primary" disabled={!canLaunch} onClick={handleLaunch}>
                 {phase === 'sending' ? '…' : 'Lancer la campagne'}
               </button>
             </div>
@@ -550,10 +550,10 @@ function DemandesPonctuelles({ onToast }) {
                   </div>
                 </div>
                 <div className="ponctuel-actions">
-                  <button className="btn-xs bsec" disabled={acting === r.id} onClick={() => act(r.id, 'accept')}>
+                  <button className="btn-xs btn-ok" disabled={acting === r.id} onClick={() => act(r.id, 'accept')}>
                     {acting === r.id ? '…' : 'Valider'}
                   </button>
-                  <button className="btn-xs bdanger" disabled={acting === r.id} onClick={() => act(r.id, 'refuse')}>
+                  <button className="btn-xs btn-danger" disabled={acting === r.id} onClick={() => act(r.id, 'refuse')}>
                     {acting === r.id ? '…' : 'Refuser'}
                   </button>
                 </div>
@@ -609,7 +609,7 @@ function GestCampView({ medecins, onToast }) {
     <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--rl)', boxShadow:'var(--sh)', overflow:'hidden' }}>
       <div style={{ padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)' }}>
         <span style={{ fontWeight:700, fontSize:13 }}>Campagne congés</span>
-        <button className="btn-primary" style={{ height:30, fontSize:12 }} onClick={() => setShowNew(true)}>
+        <button className="btn-primary" onClick={() => setShowNew(true)}>
           ＋ Nouvelle campagne
         </button>
       </div>
@@ -661,7 +661,7 @@ function GestCampView({ medecins, onToast }) {
                       <td style={{ padding:'8px 12px' }}>
                         <div style={{ display:'flex', gap:5 }}>
                           <button
-                            className="btn-xs bsec"
+                            className="btn-xs btn-ok"
                             disabled={stat === 'tout_valide' || tot === 0 || acting === m.med_id}
                             onClick={() => handleConfirmAll(m.med_id)}
                           >
@@ -761,7 +761,7 @@ export default function CongesTab({ medecins, isGestionnaire }) {
 
               <button
                 className="btn-primary"
-                style={{ width:'100%', justifyContent:'center', height:32 }}
+                style={{ width:'100%', justifyContent:'center' }}
                 onClick={() => setShowModal(true)}
               >
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">

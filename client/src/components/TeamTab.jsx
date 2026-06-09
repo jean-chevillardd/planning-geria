@@ -393,7 +393,7 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
 
       {/* Pied — enregistrer */}
       <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-        <button className="btn-primary" onClick={handleSave} style={{ width: '100%', padding: '10px' }}>
+        <button className="btn-primary" onClick={handleSave} style={{ width: '100%' }}>
           {isNew ? 'Créer le membre' : 'Enregistrer'}
         </button>
       </div>
