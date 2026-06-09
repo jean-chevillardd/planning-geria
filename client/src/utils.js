@@ -18,18 +18,22 @@ export const POSTES = [
   { id:'hdj',    lbl:'HDJ programmé',               short:'HDJ',      c:'#ea580c', min:1, grp:'Hôpital de jour',     intern:false },
   { id:'hdjnp',  lbl:'HDJ non programmé',           short:'HDJ NP',   c:'#b91c1c', min:1, grp:'Hôpital de jour',     intern:false },
   { id:'ehpad',  lbl:'EHPAD / SLD',                 short:'EHPAD',    c:'#d97706', min:1, grp:'EHPAD',               intern:false },
+  // ── Indispensable hors semaine (fermé lun/mar/mer) ──────────
+  { id:'emcc',   lbl:'EMCC',                        short:'EMCC',     c:'#db2777', min:0, grp:'UCC / EMCC',             intern:false, closedDays:[1,2,3] },
   // ── Dispensables ────────────────────────────────────────────
   { id:'emg',    lbl:'EMG (équipe mobile)',          short:'EMG',      c:'#6366f1', min:1, grp:'Activités dispensables', intern:false, dispensable:true },
-  { id:'emcc',   lbl:'EMCC',                        short:'EMCC',     c:'#db2777', min:0, grp:'Activités dispensables', intern:false, dispensable:true },
   { id:'tnc',    lbl:'Temps non clinique',           short:'TNC',      c:'#9333ea', min:0, grp:'Activités dispensables', intern:false, dispensable:true },
   { id:'hdjog',  lbl:'HDJ oncoGéria',               short:'HDJ OG',   c:'#f97316', min:0, grp:'Activités dispensables', intern:false, dispensable:true },
   { id:'ehpadl', lbl:'EHPAD Luçon',                 short:'EHPAD L',  c:'#92400e', min:0, grp:'Activités dispensables', intern:false, dispensable:true },
   { id:'cstmem', lbl:'CST Mémoire',                 short:'Mémoire',  c:'#7c3aed', min:0, grp:'Activités dispensables', intern:false, dispensable:true },
+  { id:'ortho',  lbl:'Orthopédie',                  short:'Ortho',    c:'#be185d', min:0, grp:'Activités dispensables', intern:false, dispensable:true },
 ];
 
 export const TYPE_LBL = {
-  ph:'Praticien hosp.', ipa:'IPA', interne:'Interne', externe:'Externe', padhue:'PADHUE'
+  ph:'Praticien hosp.', ipa:'IPA', interne:'Interne', externe:'Externe', padhue:'PADHUE',
 };
+
+export const TYPE_RANK = { ph:0, padhue:1, interne:2, externe:3, ipa:4 };
 
 export const DAYS_FR = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven'];
 

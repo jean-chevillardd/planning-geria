@@ -16,8 +16,8 @@ import {
 // ════════════════════════════════════════════════════════════════════════════
 
 describe('CONSTANTES', () => {
-  test('POSTES contient 18 entrées', () => {
-    expect(POSTES).toHaveLength(18);
+  test('POSTES contient 19 entrées', () => {
+    expect(POSTES).toHaveLength(19);
   });
 
   test('Chaque poste a id, lbl, c, min, grp, intern', () => {
@@ -468,6 +468,22 @@ describe('Cohérence métier planning gériatrique', () => {
     cs.forEach(p => expect(ssrIds.has(p.id)).toBe(false));
   });
 
+  test('emcc est dans UCC/EMCC, non dispensable, et a closedDays=[1,2,3]', () => {
+    const emcc = POSTES.find(p => p.id === 'emcc');
+    expect(emcc).toBeDefined();
+    expect(emcc.dispensable).toBeUndefined();
+    expect(emcc.closedDays).toEqual([1, 2, 3]);
+    expect(emcc.grp).toBe('UCC / EMCC');
+  });
+
+  test('ortho est dispensable dans Activités dispensables', () => {
+    const ortho = POSTES.find(p => p.id === 'ortho');
+    expect(ortho).toBeDefined();
+    expect(ortho.dispensable).toBe(true);
+    expect(ortho.grp).toBe('Activités dispensables');
+    expect(ortho.intern).toBe(false);
+  });
+
   test('Les postes internes sont séparés des postes seniors', () => {
     const internPostes = POSTES.filter(p => p.intern);
     const seniorPostes = POSTES.filter(p => !p.intern);
@@ -556,12 +572,12 @@ describe('getDisponiblesPH()', () => {
     expect(partial).toHaveLength(0);
   });
 
-  test('PH avec sched partiel va dans partial avec joursPresents', () => {
+  test('PH avec sched partiel (80%) va dans full avec schedNote (pas partial)', () => {
+    // Depuis P22 : un PH à planning réduit sans absence posée → full + schedNote
     const { full, partial } = getDisponiblesPH([phPartial], [], days);
-    expect(full).toHaveLength(0);
-    expect(partial).toHaveLength(1);
-    expect(partial[0].joursPresents).not.toContain('Mar');
-    expect(partial[0].joursPresents).toContain('Lun');
+    expect(full).toHaveLength(1);
+    expect(partial).toHaveLength(0);
+    expect(full[0].schedNote).toBeTruthy();
   });
 
   test('PH absent toute la semaine est exclu des deux groupes', () => {
