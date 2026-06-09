@@ -1,4 +1,7 @@
 {
-  "gmail_user": "planning.geriatrie@gmail.com",
-  "gmail_pass": "xxxx xxxx xxxx xxxx"
+  "smtp_host": "smtp.gmail.com",
+  "smtp_port": 587,
+  "smtp_user": "planning.geriatrie@gmail.com",
+  "smtp_pass": "xxxx xxxx xxxx xxxx",
+  "from_email": "planning.geriatrie@gmail.com"
 }

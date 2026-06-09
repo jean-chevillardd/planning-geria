@@ -69,7 +69,7 @@ function MonthPickerPopover({ current, onSelect, onClose }) {
   );
 }
 
-const TYPE_RANK  = { ph:0, padhue:1, interne:2, externe:2, ipa:3 };
+const TYPE_RANK  = { ph:0, padhue:1, interne:2, externe:3, ipa:4 };
 
 const ABS_COLORS = {
   'Congé annuel (CA)':     '#2563eb',
@@ -119,7 +119,7 @@ const POSTES_DISPLAY = POSTES.reduce((acc, p) => {
 
 const TYPE_LBL = { interne:'Interne', padhue:'PADHUE', ipa:'IPA' };
 
-export default function MonthView({ medecins, absences, isSecretary = false, rotationMode = false, reloadKey = 0, onMonthAssign, onMonthRemove, onMonthModify, onNavigateWeek }) {
+export default function MonthView({ medecins, absences, isSecretary = false, rotationMode = false, reloadKey = 0, fermetures = [], onMonthAssign, onMonthRemove, onMonthModify, onNavigateWeek }) {
   const [monthDate,    setMonthDate]    = useState(new Date());
   const [weekData,     setWeekData]     = useState({});
   const [astrData,     setAstrData]     = useState([]);
@@ -191,7 +191,7 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
   const activeFilter  = FILTERS.find(f => f.id === filter) ?? null;
   const visiblePostes = activeFilter
     ? POSTES.filter(p => activeFilter.grps.includes(p.grp) && (!subFilter || p.short === subFilter))
-    : POSTES;
+    : POSTES.filter(p => !p.dispensable);
 
   // ── Postes + groupes pour la vue Rotation ──
   const rotationPostes = activeFilter
@@ -680,10 +680,13 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                           const assigned   = byPoste[p.id]?.medecins || [];
                           const grpRank    = GRP_ORDER[p.grp] ?? 99;
                           const posteOrder = stableOrderByPoste[p.id] ?? {};
-                          assigned.forEach(m => {
+                          const posteIsFerme = fermetures.some(f => f.poste_id === p.id && f.date_debut <= di && f.date_fin >= di);
+                        if (posteIsFerme && !doctorFilter) return;
+                        assigned.forEach(m => {
                             if (!worksDay(m, di, absences)) return;
                             if (excls.includes(m.id)) return;
                             if (doctorFilter && m.id !== doctorFilter) return;
+                            if (!activeFilter && !doctorFilter && m.type !== 'ph') return;
                             chips.push({ nom: m.nom, short: p.short, c: p.c, key: p.id + m.id,
                                          type: m.type, grpRank, posteIdx: pi,
                                          assignIdx: posteOrder[m.id] ?? 9999, isExtra: false,
@@ -952,7 +955,8 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
           .flatMap(pid =>
             (weekData[weekKey]?.affectations?.[pid]?.medecins || []).map(m => ({ ...m, _pid: pid }))
           )
-          .filter(m => { if (seenIds.has(m.id)) return false; seenIds.add(m.id); return true; });
+          .filter(m => { if (seenIds.has(m.id)) return false; seenIds.add(m.id); return true; })
+          .sort((a, b) => (TYPE_RANK[a.type] ?? 99) - (TYPE_RANK[b.type] ?? 99));
 
         function closeDialog() {
           setPendingAssign(null); setAssignMed(null); setAssignSearch('');
@@ -1043,7 +1047,7 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                             fontSize:11, padding:'3px 10px', borderRadius:20,
                             border:'1.5px solid var(--accent)', cursor:'pointer',
                             fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap',
-                            background: modifyingMed === m.id ? 'var(--accent)' : 'transparent',
+                            background: modifyingMed === m.id ? 'var(--accent)' : 'var(--accent-light)',
                             color:      modifyingMed === m.id ? '#fff' : 'var(--accent)',
                             transition:'background .1s, color .1s',
                           }}
@@ -1061,7 +1065,7 @@ export default function MonthView({ medecins, absences, isSecretary = false, rot
                             fontSize:11, padding:'3px 10px', borderRadius:20,
                             border:'1.5px solid var(--danger)', cursor:'pointer',
                             fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap',
-                            background: removingMed === m.id ? 'var(--danger)' : 'transparent',
+                            background: removingMed === m.id ? 'var(--danger)' : 'var(--danger-bg)',
                             color:      removingMed === m.id ? '#fff' : 'var(--danger)',
                             transition:'background .1s, color .1s',
                           }}

@@ -102,7 +102,7 @@ const FILTERS = [
 
 // ── Composant principal ────────────────────────────────────
 
-export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick, doctorFilter = '', onOpenAstreintes, onMove, onAssign, showAvailablePanel = false }) {
+export default function PlanningGrid({ monday, planningData, absences, medecins = [], isSecretary, onCellClick, doctorFilter = '', onOpenAstreintes, onMove, onAssign, showAvailablePanel = false, fermetures = [] }) {
   const [filter,             setFilterState]       = useState(null);
   const [subFilter,          setSubFilter]         = useState(null);
   const [dragInfo,           setDragInfo]          = useState(null);   // chip en cours de drag (déplacement)
@@ -240,7 +240,10 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       const di = toIso(d);
       if (holidays.has(di)) return;
       POSTES_DISPLAY.filter(p => p.min > 0 || p.minPH > 0).forEach(p => {
-        if (p.id === 'hdj' && new Date(di + 'T12:00:00').getDay() === 3) return;
+        const dowAlert = new Date(di + 'T12:00:00').getDay();
+        if (p.id === 'hdj' && dowAlert === 3) return;
+        if (p.closedDays?.includes(dowAlert)) return;
+        if (fermetures.some(f => f.poste_id === p.id && f.date_debut <= di && f.date_fin >= di)) return;
         const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
         const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
         const excl     = exclusions.filter(e => allIds.includes(e.poste_id) && e.jour === di).map(e => e.med_id);
@@ -657,6 +660,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
                         onCellDrop={handleCellDrop}
                         panelDragMed={panelDragMed}
                         onPanelCellDrop={handlePanelCellDrop}
+                        fermetures={fermetures}
                       />
                     );
                   })}
@@ -963,7 +967,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
 
 // ── Ligne de poste ──────────────────────────────────────────
 
-function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts, absences, doctorFilter, holidays, alertSet, isSecretary, onCellClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop, panelDragMed, onPanelCellDrop }) {
+function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts, absences, doctorFilter, holidays, alertSet, isSecretary, onCellClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop, panelDragMed, onPanelCellDrop, fermetures = [] }) {
   const daysPresent = {};
   assigned.forEach(m => {
     daysPresent[m.id] = days.filter(d => worksDay(m, toIso(d), absences)).length;
@@ -984,7 +988,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts
     <div className="grow">
       <div className="pname">
         <span style={{ color: poste.c }}>{poste.lbl}</span>
-        {isSecretary && (poste.min > 0 || poste.minPH > 0) && (() => {
+        {isSecretary && !poste.dispensable && (poste.min > 0 || poste.minPH > 0) && (() => {
           const hasAlert = alertSet && days.some(d => alertSet.has(`${poste.id}:${toIso(d)}`));
           const seuil = poste.minPH ?? poste.min;
           return (
@@ -1014,6 +1018,7 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts
             onCellDrop={onCellDrop}
             panelDragMed={panelDragMed}
             onPanelCellDrop={onPanelCellDrop}
+            fermetures={fermetures}
           />
         );
       })}
@@ -1023,18 +1028,26 @@ function GridRow({ poste, days, todayIso, assigned, exclusions, extras, renforts
 
 // ── Cellule ────────────────────────────────────────────────
 
-function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, extras, renforts, absences, doctorFilter, isHoliday, isSecretary, onClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop, panelDragMed, onPanelCellDrop }) {
+function Cell({ poste, dayIso, isToday, assigned, stableOrder = {}, exclusions, extras, renforts, absences, doctorFilter, isHoliday, isSecretary, onClick, dragInfo, onChipDragStart, onChipDragEnd, onCellDrop, panelDragMed, onPanelCellDrop, fermetures = [] }) {
   const [isOver,  setIsOver]  = useState(false);
   const dragCounter           = useRef(0);
 
-  const isHdjWednesday = poste.id === 'hdj' && new Date(dayIso).getDay() === 3;
+  const dow = new Date(dayIso + 'T12:00:00').getDay();
+  const isHdjWednesday = poste.id === 'hdj' && dow === 3;
+  const isClosedDay    = poste.closedDays?.includes(dow);
+  const fermetureMatch = fermetures.find(f => f.poste_id === poste.id && f.date_debut <= dayIso && f.date_fin >= dayIso);
 
-  if (isHoliday || isHdjWednesday) {
+  const closedReason = isHdjWednesday ? 'HDJ fermé le mercredi'
+    : isClosedDay    ? `${poste.short} fermé ce jour`
+    : fermetureMatch ? (fermetureMatch.label ?? `${poste.short} — service fermé`)
+    : undefined;
+
+  if (isHoliday || isHdjWednesday || isClosedDay || fermetureMatch) {
     return (
       <div
         className={`cell${isToday ? ' today' : ''}`}
-        style={!isToday ? { background:'var(--holiday-stripe)', cursor: isHdjWednesday ? 'not-allowed' : undefined } : undefined}
-        title={isHdjWednesday ? 'HDJ fermé le mercredi' : undefined}
+        style={!isToday ? { background:'var(--holiday-stripe)', cursor: closedReason ? 'not-allowed' : undefined } : undefined}
+        title={closedReason}
       />
     );
   }

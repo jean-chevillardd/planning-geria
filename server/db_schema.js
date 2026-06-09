@@ -137,6 +137,16 @@ function applySchema(db) {
       value TEXT NOT NULL
     )
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS fermetures (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      poste_id   TEXT NOT NULL,
+      date_debut TEXT NOT NULL,
+      date_fin   TEXT NOT NULL,
+      label      TEXT DEFAULT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
 }
 
 const SEED_MEDECINS = [

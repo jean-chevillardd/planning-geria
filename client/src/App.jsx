@@ -75,7 +75,7 @@ const TABS = [
   { id:'equipe',     label:'Équipe',      gestionnaireOnly: true  },
   { id:'absences',   label:'Congés',      gestionnaireOnly: false },
   { id:'stats',      label:'Synthèse',    gestionnaireOnly: false },
-  { id:'astreintes', label:'Astreintes',  gestionnaireOnly: false },
+  { id:'astreintes', label:'Astreintes',  gestionnaireOnly: false, disabled: true },
   { id:'parametres', label:'Paramètres',  gestionnaireOnly: true  },
 ];
 
@@ -111,6 +111,12 @@ export default function App({ role, onLogout }) {
   const { medecins, absences, loading: baseLoading, error: baseError, reload: reloadBase } = useBaseData();
   const { data: planningData, setData: setPlanningData, loading: planLoading, reload: reloadPlan } = usePlanning(weekKey);
   const reload = useCallback(() => { reloadBase(); reloadPlan(); }, [reloadBase, reloadPlan]);
+
+  const [fermetures, setFermetures] = useState([]);
+  const reloadFermetures = useCallback(async () => {
+    try { setFermetures(await api.getFermetures()); } catch(e) { console.error('getFermetures:', e); }
+  }, []);
+  useEffect(() => { reloadFermetures(); }, [reloadFermetures]);
 
   function showToast(msg, type = 'ok') {
     const id = ++toastId.current;
@@ -468,7 +474,13 @@ export default function App({ role, onLogout }) {
         {/* ── Tabs ── */}
         <div className="tabs" style={{ alignItems:'center' }}>
           {TABS.filter(t => !t.gestionnaireOnly || isGestionnaire).map(t => (
-            <button key={t.id} className={`tab${tab===t.id?' active':''}`} onClick={() => setTab(t.id)}>
+            <button
+              key={t.id}
+              className={`tab${tab===t.id?' active':''}${t.disabled?' tab-disabled':''}`}
+              onClick={() => !t.disabled && setTab(t.id)}
+              title={t.disabled ? 'Module en cours de développement — contacter Sylvain Lejeune' : undefined}
+              disabled={t.disabled}
+            >
               {TAB_ICONS[t.id](tab === t.id)}
               {t.label}
             </button>
@@ -515,10 +527,13 @@ export default function App({ role, onLogout }) {
                   <div style={{ opacity: planLoading ? 0.55 : 1, transition:'opacity .15s', pointerEvents: planLoading ? 'none' : undefined }}>
                     <PlanningGrid monday={monday} planningData={planningData} absences={absences}
                       medecins={medecins} isSecretary={isGestionnaire} doctorFilter={doctorFilter}
+                      fermetures={fermetures}
                       onCellClick={(poste, dayIso) => {
                         if (!isGestionnaire) return;
                         // HDJ programmé fermé systématiquement le mercredi
                         if (poste.id === 'hdj' && new Date(dayIso).getDay() === 3) return;
+                        // Fermeture configurée pour ce service ce jour
+                        if (fermetures.some(f => f.poste_id === poste.id && f.date_debut <= dayIso && f.date_fin >= dayIso)) return;
                         setModal({ poste, dayIso });
                       }}
                       onOpenAstreintes={handleOpenAstreintes}
@@ -535,6 +550,7 @@ export default function App({ role, onLogout }) {
               <MonthView medecins={medecins} absences={absences} isSecretary={isGestionnaire}
                 rotationMode={planningView === 'rotation'}
                 reloadKey={monthReloadKey}
+                fermetures={fermetures}
                 onMonthAssign={handleMonthAssign}
                 onMonthRemove={handleMonthRemove}
                 onMonthModify={handleMonthModify}
@@ -559,7 +575,7 @@ export default function App({ role, onLogout }) {
         )}
 
         {tab === 'parametres' && isGestionnaire && (
-          <SettingsTab showToast={showToast} />
+          <SettingsTab showToast={showToast} onFermeturesChange={reloadFermetures} />
         )}
 
         <div className="foot">Pôle Gériatrie — Planning interne · Base de données SQLite</div>

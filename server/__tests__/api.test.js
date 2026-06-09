@@ -1507,3 +1507,64 @@ describe('GET /api/audit-log', () => {
     expect(res.status).toBe(401);
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// FERMETURES DE SERVICE
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('Fermetures de service', () => {
+  test('GET /api/fermetures — 401 sans token', async () => {
+    const res = await request(app).get('/api/fermetures');
+    expect(res.status).toBe(401);
+  });
+
+  test('GET /api/fermetures — 200 avec token médecin (lecture seule)', async () => {
+    const res = await request(app).get('/api/fermetures')
+      .set('Authorization', `Bearer ${app._makeToken('medecin')}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  test('POST /api/fermetures — 403 avec token médecin', async () => {
+    const res = await request(app).post('/api/fermetures')
+      .set('Authorization', `Bearer ${app._makeToken('medecin')}`)
+      .send({ poste_id: 'hdj', date_debut: '2026-07-15', date_fin: '2026-08-15', label: 'Test' });
+    expect(res.status).toBe(403);
+  });
+
+  test('POST /api/fermetures — 400 si date non-ISO', async () => {
+    const res = await authReq(app).post('/api/fermetures')
+      .send({ poste_id: 'hdj', date_debut: 'pas-une-date', date_fin: '2026-08-15' });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST /api/fermetures — 400 si date_fin avant date_debut', async () => {
+    const res = await authReq(app).post('/api/fermetures')
+      .send({ poste_id: 'hdj', date_debut: '2026-08-15', date_fin: '2026-07-01' });
+    expect(res.status).toBe(400);
+  });
+
+  test('POST + GET + DELETE fermeture — cycle complet', async () => {
+    const createRes = await authReq(app).post('/api/fermetures')
+      .send({ poste_id: 'hdj', date_debut: '2026-07-15', date_fin: '2026-08-15', label: 'Fermeture estivale' });
+    expect(createRes.status).toBe(200);
+    const id = createRes.body.id;
+    expect(id).toBeGreaterThan(0);
+
+    const listRes = await request(app).get('/api/fermetures')
+      .set('Authorization', `Bearer ${app._makeToken()}`);
+    expect(listRes.body.some(f => f.id === id)).toBe(true);
+
+    const delRes = await authReq(app).delete(`/api/fermetures/${id}`);
+    expect(delRes.status).toBe(200);
+
+    const afterDel = await request(app).get('/api/fermetures')
+      .set('Authorization', `Bearer ${app._makeToken()}`);
+    expect(afterDel.body.some(f => f.id === id)).toBe(false);
+  });
+
+  test('DELETE /api/fermetures/:id — 404 si ID inexistant', async () => {
+    const res = await authReq(app).delete('/api/fermetures/99999');
+    expect(res.status).toBe(404);
+  });
+});

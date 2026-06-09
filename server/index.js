@@ -171,18 +171,20 @@ function createApp(dbLib) {
     );
     logAudit(null, 'CREATE', 'conge_requests', reqResult.lastInsertRowid, null, { medecin_id, date_debut, date_fin, type });
 
-    if (emailConfig?.gmail_user && emailConfig?.gmail_pass && nodemailer) {
+    if (emailConfig?.smtp_user && emailConfig?.smtp_pass && nodemailer) {
       const gests = dbLib.queryAll('SELECT nom, email FROM users WHERE email IS NOT NULL AND TRIM(email) != \'\'');
       if (gests.length > 0) {
         const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: { user: emailConfig.gmail_user, pass: emailConfig.gmail_pass },
+          host: emailConfig.smtp_host,
+          port: emailConfig.smtp_port,
+          secure: false,
+          auth: { user: emailConfig.smtp_user, pass: emailConfig.smtp_pass },
         });
         const fmtDate = (d) => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' });
         for (const g of gests) {
           try {
             await transporter.sendMail({
-              from: `"Planning Gériatrie" <${emailConfig.gmail_user}>`,
+              from: `"Planning Gériatrie" <${emailConfig.from_email}>`,
               to:   g.email,
               subject: `Nouvelle demande de congé — ${med.nom}`,
               html: `
@@ -573,7 +575,7 @@ function createApp(dbLib) {
     if (!Array.isArray(types) && !Array.isArray(med_ids))
       return res.status(400).json({ error: 'types ou med_ids requis' });
 
-    if (!emailConfig || !emailConfig.gmail_user || !emailConfig.gmail_pass)
+    if (!emailConfig || !emailConfig.smtp_user || !emailConfig.smtp_pass)
       return res.status(503).json({ error: 'Configuration email manquante — créez server/email.config.json (voir email.config.json.example)' });
     if (!nodemailer)
       return res.status(503).json({ error: 'nodemailer non installé' });
@@ -596,8 +598,10 @@ function createApp(dbLib) {
       return res.status(400).json({ error: 'Aucun praticien avec adresse email dans les catégories sélectionnées' });
 
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: emailConfig.gmail_user, pass: emailConfig.gmail_pass },
+      host: emailConfig.smtp_host,
+      port: emailConfig.smtp_port,
+      secure: false,
+      auth: { user: emailConfig.smtp_user, pass: emailConfig.smtp_pass },
     });
 
     const appUrl    = (base_url || 'http://localhost:5173').replace(/\/$/, '');
@@ -627,7 +631,7 @@ function createApp(dbLib) {
 
       try {
         await transporter.sendMail({
-          from: `"Planning Gériatrie" <${emailConfig.gmail_user}>`,
+          from: `"Planning Gériatrie" <${emailConfig.from_email}>`,
           to:   med.email,
           subject: 'Saisissez vos congés — Planning Pôle Gériatrie',
           html: `
@@ -765,7 +769,7 @@ function createApp(dbLib) {
   });
 
   app.post('/api/conge/campaign/resend/:medId', requireGestionnaire, async (req, res) => {
-    if (!emailConfig || !emailConfig.gmail_user || !emailConfig.gmail_pass)
+    if (!emailConfig || !emailConfig.smtp_user || !emailConfig.smtp_pass)
       return res.status(503).json({ error: 'Configuration email manquante' });
     if (!nodemailer)
       return res.status(503).json({ error: 'nodemailer non installé' });
@@ -802,13 +806,15 @@ function createApp(dbLib) {
     const firstName = med.nom.split(' ')[0];
 
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: { user: emailConfig.gmail_user, pass: emailConfig.gmail_pass },
+      host: emailConfig.smtp_host,
+      port: emailConfig.smtp_port,
+      secure: false,
+      auth: { user: emailConfig.smtp_user, pass: emailConfig.smtp_pass },
     });
 
     try {
       await transporter.sendMail({
-        from:    `"Planning Gériatrie" <${emailConfig.gmail_user}>`,
+        from:    `"Planning Gériatrie" <${emailConfig.from_email}>`,
         to:      med.email,
         subject: 'Nouveau lien — Saisissez vos congés',
         html: `
@@ -1221,6 +1227,63 @@ function createApp(dbLib) {
       [...params, AUDIT_PAGE_SIZE, offset]
     );
     res.json({ total, page, totalPages: Math.max(1, Math.ceil(total / AUDIT_PAGE_SIZE)), rows });
+  });
+
+  // ═══════════════════════════════════════════════════════
+  // FERMETURES DE SERVICE
+  // ═══════════════════════════════════════════════════════
+
+  app.get('/api/fermetures', requireAuth, (req, res) => {
+    const rows = dbLib.queryAll('SELECT * FROM fermetures ORDER BY date_debut');
+    res.json(rows);
+  });
+
+  const VALID_POSTE_IDS = new Set(['csg1a','csg1i1','csg2a','csg2i1','ssr3','ssr4','ssr5','eops','ucc','hdj','hdjnp','ehpad','emcc','emg','tnc','hdjog','ehpadl','cstmem','ortho']);
+
+  app.post('/api/fermetures', requireGestionnaire, (req, res) => {
+    const { poste_id, date_debut, date_fin, label } = req.body;
+    if (!poste_id || !VALID_POSTE_IDS.has(poste_id))
+      return res.status(400).json({ error: 'poste_id invalide' });
+    if (!isIsoDate(date_debut) || !isIsoDate(date_fin))
+      return res.status(400).json({ error: 'Dates invalides (YYYY-MM-DD attendu)' });
+    if (date_fin < date_debut)
+      return res.status(400).json({ error: 'date_fin antérieure à date_debut' });
+    const result = dbLib.run(
+      'INSERT INTO fermetures (poste_id, date_debut, date_fin, label) VALUES (?,?,?,?)',
+      [poste_id, date_debut, date_fin, label ? String(label).slice(0, 120) : null]
+    );
+    logAudit(req.authUser.userId, 'CREATE', 'fermetures', result.lastInsertRowid, null, { poste_id, date_debut, date_fin, label });
+    res.json({ id: result.lastInsertRowid });
+  });
+
+  app.put('/api/fermetures/:id', requireGestionnaire, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'ID invalide' });
+    const existing = dbLib.queryOne('SELECT * FROM fermetures WHERE id=?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Fermeture introuvable' });
+    const { poste_id, date_debut, date_fin, label } = req.body;
+    if (!poste_id || !VALID_POSTE_IDS.has(poste_id))
+      return res.status(400).json({ error: 'poste_id invalide' });
+    if (!isIsoDate(date_debut) || !isIsoDate(date_fin))
+      return res.status(400).json({ error: 'Dates invalides' });
+    if (date_fin < date_debut)
+      return res.status(400).json({ error: 'date_fin antérieure à date_debut' });
+    dbLib.run(
+      'UPDATE fermetures SET poste_id=?, date_debut=?, date_fin=?, label=? WHERE id=?',
+      [poste_id, date_debut, date_fin, label ? String(label).slice(0, 120) : null, id]
+    );
+    logAudit(req.authUser.userId, 'UPDATE', 'fermetures', id, existing, { poste_id, date_debut, date_fin, label });
+    res.json({ ok: true });
+  });
+
+  app.delete('/api/fermetures/:id', requireGestionnaire, (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'ID invalide' });
+    const existing = dbLib.queryOne('SELECT * FROM fermetures WHERE id=?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Fermeture introuvable' });
+    dbLib.run('DELETE FROM fermetures WHERE id=?', [id]);
+    logAudit(req.authUser.userId, 'DELETE', 'fermetures', id, existing, null);
+    res.json({ ok: true });
   });
 
   // ═══════════════════════════════════════════════════════

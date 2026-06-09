@@ -135,3 +135,10 @@ export const sendCampaignByIds      = (med_ids, base_url)   => req('POST',  '/co
 export const getCongeRequests       = (statut) => req('GET', `/conge-requests${statut ? '?statut=' + statut : ''}`);
 export const acceptCongeRequest     = (id)     => req('PATCH', `/conge-requests/${id}/accept`);
 export const refuseCongeRequest     = (id)     => req('PATCH', `/conge-requests/${id}/refuse`);
+
+// ── Fermetures de service ─────────────────────────────────
+export const getFermetures    = ()         => req('GET',    '/fermetures');
+export const createFermeture  = (data)     => req('POST',   '/fermetures', data);
+export const updateFermeture  = (id, data) => req('PUT',    `/fermetures/${id}`, data);
+export const deleteFermeture  = (id)       => req('DELETE', `/fermetures/${id}`);
+

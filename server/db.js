@@ -27,6 +27,7 @@ async function init() {
   try { db.exec(`ALTER TABLE conge_tokens ADD COLUMN campaign_id INTEGER DEFAULT NULL`); } catch(_) {}
   try { db.exec(`ALTER TABLE absences ADD COLUMN source_token TEXT DEFAULT NULL`); } catch(_) {}
   try { db.exec(`ALTER TABLE absences ADD COLUMN confirmed INTEGER NOT NULL DEFAULT 0`); } catch(_) {}
+  try { db.exec(`CREATE TABLE IF NOT EXISTS fermetures (id INTEGER PRIMARY KEY AUTOINCREMENT, poste_id TEXT NOT NULL, date_debut TEXT NOT NULL, date_fin TEXT NOT NULL, label TEXT DEFAULT NULL, created_at TEXT NOT NULL DEFAULT (datetime('now')))`); } catch(_) {}
 
   applySeed(db);
   const count = db.prepare('SELECT COUNT(*) as n FROM medecins').get().n;
