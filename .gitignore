@@ -29,3 +29,6 @@ server/email.config.json
 *.log
 npm-debug.log*
 .gstack/
+
+# ── Formation Product Management (exercices perso, hors projet) ──
+formation-produit/

@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.3.0] — 2026-06-09
+
+### Ajouté
+- **Fermetures de service** (B7) : les gestionnaires peuvent configurer des fermetures ponctuelles ou saisonnières pour chaque service (ex. : HDJ fermé mi-juillet à mi-août). Les cellules correspondantes sont grisées automatiquement dans la vue Semaine et la vue Mois. Accès via Paramètres > Fermetures de service.
+- **DateRangePicker** inline dans Paramètres : sélection d'une plage de dates en un seul calendrier (début → fin), avec numéros de semaine ISO, navigation par mois et aperçu de la plage au survol.
+- **Archives fermetures** : les fermetures passées (`date_fin < aujourd'hui`) sont regroupées derrière un bandeau « Archives » collapsible.
+- **Service Orthopédie** (B12) : nouveau service dispensable ajouté dans la grille planning.
+- **CRUD API** `/api/fermetures` : 4 routes (GET, POST, PUT, DELETE) protégées par JWT, avec validation des dates ISO et whitelist `poste_id`.
+- **Table `fermetures`** en base de données avec migration idempotente.
+
+### Modifié
+- **EMCC** (B3) : déplacé dans le groupe « UCC / EMCC », passé obligatoire, fermé automatiquement les lundis, mardis et mercredis (`closedDays:[1,2,3]`). Cellules grisées + alertes ignorées ces jours.
+- **Vue Mois** (B2) : n'affiche par défaut que les services obligatoires (`!dispensable`) et les chips de type PH.
+- **Boutons** harmonisés en style pill (`border-radius: 20px`) sur toute l'application. `.btn-primary` hover en fond bleu plein. `.btn-xs` neutre avec hover `surface2`.
+- **Formulaires Paramètres** : champs alignés sur leur base (`align-items: flex-end`), fond blanc sur tous les inputs.
+- **En-tête "Actions"** dans les tableaux : correctement alignée à droite (spécificité CSS corrigée).
+- **Config email** : `gmail_user`/`gmail_pass` → `smtp_host`/`smtp_port`/`smtp_user`/`smtp_pass`/`from_email` pour support SMTP générique.
+
+### Sécurité
+- **poste_id whitelist** sur POST/PUT `/api/fermetures` : seuls les 19 postes connus sont acceptés, prévenant les insertions arbitraires.
+
+### Tests
+- 147 tests serveur (+ 7 nouveaux : routes fermetures, auth guards, validation, cycle CRUD complet)
+- 85 tests client (+ 2 nouveaux : EMCC, Orthopédie ; 1 mis à jour suite à refacto P22)
+
+---
+
 ## [1.2.0] — 2026-06-07
 
 ### Ajouté — P32 Suivi de campagne congés

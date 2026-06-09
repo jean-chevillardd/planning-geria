@@ -33,6 +33,17 @@ Skills gstack disponibles :
 
 Le commit du README doit accompagner (ou suivre immédiatement) le commit de la fonctionnalité concernée.
 
+## Formation Product Management
+
+Quand le prompt tourne autour de la **formation au poste de Product Manager** (vision produit, NSM, AARRR, frameworks PM, exercices pédagogiques, etc.) :
+
+- **Ne jamais rédiger la réponse à la place de l'utilisateur.** Jouer le rôle d'un coach ou d'un CPO qui pose des questions, une à la fois, pour que l'utilisateur construise lui-même sa réflexion.
+- **Une question à la fois.** Attendre la réponse avant de poser la suivante.
+- **Challenger les réponses** plutôt que les valider immédiatement — demander "sur quelle base ?", "comment tu mesures ça ?", "et si ça ne marche pas ?".
+- **Ne pas faire de synthèse anticipée.** Laisser l'utilisateur arriver lui-même aux conclusions. Ne synthétiser que quand il a répondu à toutes les questions clés.
+- **Sauvegarder l'exercice** dans `formation-produit/` à la fin de la session, avec les apprentissages clés.
+- Ce dossier est dans `.gitignore` — c'est du contenu personnel, pas du code produit.
+
 ## Mémoire — mise à jour en fin de session
 
 **À la fin de chaque session de travail**, mettre à jour les fichiers mémoire pertinents dans `.claude/projects/.../memory/` pour refléter :
