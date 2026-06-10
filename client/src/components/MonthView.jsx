@@ -1,6 +1,6 @@
 // components/MonthView.jsx
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
-import { POSTES, toIso, getMonday, addDays, weekDays, worksDay, worksWeekAny, getSchedHalfDay, getFrenchHolidays, getISOWeek } from '../utils';
+import { POSTES, TYPE_RANK, toIso, getMonday, addDays, weekDays, worksDay, worksWeekAny, getSchedHalfDay, getFrenchHolidays, getISOWeek } from '../utils';
 import * as api from '../api';
 import DoctorSearch from './DoctorSearch';
 
@@ -69,7 +69,6 @@ function MonthPickerPopover({ current, onSelect, onClose }) {
   );
 }
 
-const TYPE_RANK  = { ph:0, padhue:1, interne:2, externe:3, ipa:4 };
 
 const ABS_COLORS = {
   'Congé annuel (CA)':     '#2563eb',

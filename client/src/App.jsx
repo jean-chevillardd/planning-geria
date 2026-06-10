@@ -559,7 +559,7 @@ export default function App({ role, onLogout }) {
           </>
         )}
         {tab === 'equipe'   && <TeamTab medecins={medecins} isSecretary={isGestionnaire} onReload={reloadBase} onToast={showToast} onPushUndo={pushUndo} />}
-        {tab === 'absences' && <CongesTab medecins={medecins} isGestionnaire={isGestionnaire} />}
+        {tab === 'absences' && <CongesTab medecins={medecins} isGestionnaire={isGestionnaire} onToast={showToast} />}
         {tab === 'stats'      && <StatsTab medecins={medecins} onGoToAbsences={(medId, monthKey) => {
           setAbsencesInitNav({ medId, monthDate: new Date(monthKey + '-15'), nonce: Date.now() });
           setTab('absences');

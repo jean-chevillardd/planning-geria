@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import * as api from '../api';
+import DoctorSearch from './DoctorSearch';
 
 const TC = {
   'Congé annuel (CA)':     { color:'#2563eb', bg:'#eff6ff' },
@@ -34,7 +35,211 @@ function fmtDateShort(iso) {
   return new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'short' });
 }
 
-// ── Sélecteur identité — <select> natif ─────────────────────
+// ── DateRangePicker (identique à SettingsTab) ────────────────
+
+const MONTHS_FR_SHORT = ['Janv.','Févr.','Mars','Avr.','Mai','Juin','Juil.','Août','Sept.','Oct.','Nov.','Déc.'];
+const DAYS_HDR        = ['L','M','M','J','V','S','D'];
+
+function isoDay(y, m, d) {
+  return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+function isoWeek(y, m, d) {
+  const date = new Date(y, m, d);
+  date.setDate(date.getDate() + 4 - (date.getDay() || 7));
+  const jan1 = new Date(date.getFullYear(), 0, 1);
+  return Math.ceil((((date - jan1) / 86400000) + 1) / 7);
+}
+
+function DateRangePicker({ debut, fin, onChange }) {
+  const [open,     setOpen]     = useState(false);
+  const [step,     setStep]     = useState('debut');
+  const [hover,    setHover]    = useState(null);
+  const [viewYear, setViewYear] = useState(() => debut ? parseInt(debut.split('-')[0], 10) : new Date().getFullYear());
+  const [viewMo,   setViewMo]   = useState(() => debut ? parseInt(debut.split('-')[1], 10) - 1 : new Date().getMonth());
+  const [popPos,   setPopPos]   = useState({ top:0, left:0 });
+  const triggerRef = useRef(null);
+  const popoverRef = useRef(null);
+
+  function updatePos() {
+    if (!triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    setPopPos({ top: r.bottom + 6, left: r.left });
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function h(e) {
+      if (triggerRef.current && !triggerRef.current.contains(e.target) &&
+          popoverRef.current  && !popoverRef.current.contains(e.target))
+        { setOpen(false); setHover(null); }
+    }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function h(e) { if (e.key === 'Escape') { setOpen(false); setHover(null); } }
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => { window.removeEventListener('scroll', updatePos, true); window.removeEventListener('resize', updatePos); };
+  }, [open]);
+
+  function prevMo() { if (viewMo === 0) { setViewYear(y => y-1); setViewMo(11); } else setViewMo(m => m-1); }
+  function nextMo() { if (viewMo === 11) { setViewYear(y => y+1); setViewMo(0); } else setViewMo(m => m+1); }
+
+  function handleDayClick(iso) {
+    if (step === 'debut') {
+      onChange({ debut: iso, fin: null });
+      setStep('fin');
+    } else {
+      if (iso >= debut) { onChange({ debut, fin: iso }); }
+      else              { onChange({ debut: iso, fin: debut }); }
+      setStep('debut'); setOpen(false); setHover(null);
+    }
+  }
+
+  const rangeStart = debut;
+  const rangeEnd   = step === 'fin' ? (hover ?? fin) : fin;
+  const [lo, hi]   = rangeStart && rangeEnd
+    ? (rangeStart <= rangeEnd ? [rangeStart, rangeEnd] : [rangeEnd, rangeStart])
+    : [null, null];
+
+  function displayLabel() {
+    const fmt = iso => new Date(iso + 'T12:00:00').toLocaleDateString('fr-FR', { day:'numeric', month:'short', year:'numeric' });
+    if (!debut) return 'Sélectionner une période…';
+    if (debut && !fin) return `Du ${fmt(debut)} → …`;
+    return `Du ${fmt(debut)} au ${fmt(fin)}`;
+  }
+
+  const daysInMo = new Date(viewYear, viewMo + 1, 0).getDate();
+  const firstDow = (new Date(viewYear, viewMo, 1).getDay() + 6) % 7;
+  const flatCells = [];
+  for (let i = 0; i < firstDow; i++) flatCells.push(null);
+  for (let d = 1; d <= daysInMo; d++) flatCells.push(d);
+  while (flatCells.length % 7 !== 0) flatCells.push(null);
+  const calRows = [];
+  for (let i = 0; i < flatCells.length; i += 7) calRows.push(flatCells.slice(i, i+7));
+  const todayIso = isoDay(new Date().getFullYear(), new Date().getMonth(), new Date().getDate());
+
+  return (
+    <div style={{ position:'relative' }}>
+      <button
+        ref={triggerRef} type="button"
+        onClick={() => {
+          const opening = !open;
+          if (opening) updatePos();
+          setOpen(opening);
+          if (opening) {
+            setStep(debut && fin ? 'debut' : debut ? 'fin' : 'debut');
+            if (debut) { setViewYear(parseInt(debut.split('-')[0],10)); setViewMo(parseInt(debut.split('-')[1],10)-1); }
+          } else { setHover(null); }
+        }}
+        style={{
+          width:'100%', textAlign:'left', padding:'7px 10px',
+          border:`1px solid ${open ? 'var(--accent)' : 'var(--border2)'}`,
+          borderRadius:'var(--r)', background:'var(--surface)',
+          color: debut ? 'var(--text)' : 'var(--text3)', cursor:'pointer',
+          fontSize:12, fontFamily:'inherit',
+          boxShadow: open ? '0 0 0 2px var(--accent-light)' : 'none',
+          transition:'border-color .1s, box-shadow .1s',
+          display:'flex', alignItems:'center', gap:8,
+        }}
+      >
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+          strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, opacity:.5 }}>
+          <rect x="1" y="2" width="12" height="11" rx="1.5"/>
+          <path d="M1 5.5h12M4.5 1v3M9.5 1v3"/>
+        </svg>
+        <span style={{ flex:1 }}>{displayLabel()}</span>
+      </button>
+
+      {open && (
+        <div ref={popoverRef} style={{
+          position:'fixed', top:popPos.top, left:popPos.left, zIndex:1200,
+          background:'var(--surface)', border:'1px solid var(--border2)',
+          borderRadius:'var(--rl)', boxShadow:'0 8px 28px rgba(0,0,0,.18)',
+          padding:'12px 14px', minWidth:272, userSelect:'none',
+        }}>
+          <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:10 }}>
+            <button className="wn-btn" type="button" onClick={prevMo}>‹</button>
+            <span style={{ flex:1, textAlign:'center', fontSize:12, fontWeight:700 }}>
+              {MONTHS_FR_SHORT[viewMo]} {viewYear}
+            </span>
+            <button className="wn-btn" type="button" onClick={nextMo}>›</button>
+          </div>
+          <div style={{ fontSize:10, color:'var(--text3)', marginBottom:8, textAlign:'center', fontStyle:'italic' }}>
+            {step === 'fin' && debut
+              ? `Début : ${new Date(debut+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} — cliquez la date de fin`
+              : 'Cliquez la date de début'}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'20px repeat(7,1fr)', gap:2, marginBottom:3 }}>
+            <div style={{ textAlign:'center', fontSize:9, fontWeight:700, color:'var(--text3)', opacity:.4 }}>S</div>
+            {DAYS_HDR.map((d,i) => (
+              <div key={i} style={{ textAlign:'center', fontSize:9, fontWeight:700, color:'var(--text3)' }}>{d}</div>
+            ))}
+          </div>
+          {calRows.map((row, ri) => {
+            const firstDay = row.find(d => d !== null);
+            const weekNum  = firstDay != null ? isoWeek(viewYear, viewMo, firstDay) : null;
+            return (
+              <div key={ri} style={{ display:'grid', gridTemplateColumns:'20px repeat(7,1fr)', gap:2, marginBottom:1 }}>
+                <div style={{ textAlign:'center', fontSize:9, color:'var(--text3)', opacity:.45, fontWeight:600, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  {weekNum ?? ''}
+                </div>
+                {row.map((d, ci) => {
+                  if (!d) return <div key={ci} />;
+                  const iso     = isoDay(viewYear, viewMo, d);
+                  const isStart = iso === debut;
+                  const isEnd   = iso === (step === 'fin' ? (hover ?? fin) : fin);
+                  const inRange = lo && hi && iso > lo && iso < hi;
+                  const isToday = iso === todayIso;
+                  const isHover = iso === hover && step === 'fin';
+                  const sel     = isStart || isEnd;
+                  return (
+                    <div key={ci}
+                      onClick={() => handleDayClick(iso)}
+                      onMouseEnter={() => step === 'fin' && setHover(iso)}
+                      onMouseLeave={() => step === 'fin' && setHover(null)}
+                      style={{
+                        textAlign:'center', fontSize:11, padding:'4px 2px',
+                        borderRadius:4, cursor:'pointer',
+                        fontWeight: sel ? 700 : isToday ? 600 : 400,
+                        background: sel ? 'var(--accent)' : isHover ? 'var(--accent-mid)' : inRange ? 'var(--accent-light)' : 'transparent',
+                        color: sel ? '#fff' : (isHover||inRange) ? 'var(--accent)' : isToday ? 'var(--accent)' : 'var(--text)',
+                        border: isToday && !sel ? '1px solid var(--accent-mid)' : '1px solid transparent',
+                        transition:'background .06s',
+                      }}
+                    >{d}</div>
+                  );
+                })}
+              </div>
+            );
+          })}
+          {(debut || fin) && (
+            <button type="button"
+              onClick={() => { onChange({ debut:null, fin:null }); setStep('debut'); setHover(null); }}
+              style={{
+                marginTop:10, width:'100%', fontSize:10, padding:'4px',
+                border:'1px solid var(--border2)', borderRadius:'var(--r)',
+                background:'transparent', cursor:'pointer',
+                color:'var(--text3)', fontFamily:'inherit',
+              }}
+            >Réinitialiser la période</button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sélecteur identité — recherche avec clavier ─────────────
 
 function IdentitySelect({ medecins, value, onChange }) {
   return (
@@ -45,22 +250,13 @@ function IdentitySelect({ medecins, value, onChange }) {
     }}>
       <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
         <span style={{ fontSize:12, fontWeight:700, color:'var(--text2)', whiteSpace:'nowrap' }}>Je suis :</span>
-        <select
-          value={value ?? ''}
-          onChange={e => onChange(e.target.value ? Number(e.target.value) : null)}
-          style={{
-            flex:1, minWidth:140, height:30, padding:'0 28px 0 10px',
-            border:'1px solid var(--border2)', borderRadius:'var(--r)',
-            background:'var(--surface)',
-            fontSize:12, fontFamily:'inherit', color:'var(--text)',
-            cursor:'pointer', outline:'none', appearance:'none',
-            backgroundImage:`url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236a6860' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
-            backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center',
-          }}
-        >
-          <option value="">— Sélectionnez votre nom —</option>
-          {medecins.map(m => <option key={m.id} value={m.id}>{m.nom}</option>)}
-        </select>
+        <div style={{ flex:1, minWidth:180 }}>
+          <DoctorSearch
+            medecins={medecins}
+            value={value ?? ''}
+            onChange={id => onChange(id || null)}
+          />
+        </div>
       </div>
       <div style={{ fontSize:10, color:'var(--text3)', marginTop:4, fontStyle:'italic' }}>
         Votre sélection n'est pas mémorisée — rechoisissez à chaque visite.
@@ -110,16 +306,15 @@ const CONGE_TYPES_MODAL = [
 ];
 
 function CongeModal({ medecin, onClose, onSent }) {
-  const today = new Date().toISOString().slice(0, 10);
-  const [dateDebut, setDateDebut] = useState('');
-  const [dateFin,   setDateFin]   = useState('');
-  const [type,      setType]      = useState('Congé annuel (CA)');
-  const [note,      setNote]      = useState('');
-  const [sending,   setSending]   = useState(false);
-  const [done,      setDone]      = useState(false);
-  const [err,       setErr]       = useState(null);
+  const [periode,  setPeriode]  = useState({ debut: null, fin: null });
+  const [type,     setType]     = useState('Congé annuel (CA)');
+  const [note,     setNote]     = useState('');
+  const [sending,  setSending]  = useState(false);
+  const [done,     setDone]     = useState(false);
+  const [err,      setErr]      = useState(null);
 
-  const isValid = !!dateDebut && !!dateFin && dateFin >= dateDebut;
+  const { debut: dateDebut, fin: dateFin } = periode;
+  const isValid = !!dateDebut && !!dateFin;
   const days    = isValid ? countWorkingDays(dateDebut, dateFin) : 0;
 
   useEffect(() => {
@@ -177,22 +372,20 @@ function CongeModal({ medecin, onClose, onSent }) {
               Nouvelle demande de congé
             </div>
 
+            {/* Pour qui */}
+            <div style={{ marginBottom:14, padding:'8px 12px', background:'var(--surface2)', borderRadius:'var(--r)', border:'1px solid var(--border)', fontSize:12 }}>
+              <span style={{ color:'var(--text2)', fontWeight:600 }}>Pour : </span>
+              <span style={{ color:'var(--text)', fontWeight:700 }}>{medecin.nom}</span>
+            </div>
+
             {/* Période */}
             <div style={{ marginBottom:12 }}>
               <label style={labelStyle}>Période</label>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr auto 1fr', gap:6, alignItems:'center' }}>
-                <input
-                  type="date" min={today} value={dateDebut}
-                  onChange={e => { setDateDebut(e.target.value); if (dateFin && e.target.value > dateFin) setDateFin(''); }}
-                  style={inputStyle}
-                />
-                <span style={{ fontSize:14, color:'var(--text3)', textAlign:'center' }}>→</span>
-                <input
-                  type="date" min={dateDebut || today} value={dateFin}
-                  onChange={e => setDateFin(e.target.value)}
-                  style={inputStyle}
-                />
-              </div>
+              <DateRangePicker
+                debut={dateDebut}
+                fin={dateFin}
+                onChange={setPeriode}
+              />
               {isValid && (
                 <div style={{ marginTop:5, fontSize:11, color:'var(--text2)' }}>
                   {days} j. ouvré{days > 1 ? 's' : ''}
@@ -386,37 +579,7 @@ function EditModal({ member, onClose, onSave }) {
 
 // ── NewCampModal ─────────────────────────────────────────────
 
-function NewCampModal({ medecins, onClose, onLaunched }) {
-  const [selectedIds, setSelectedIds] = useState(() =>
-    medecins.filter(m => ['ph','ipa','padhue'].includes(m.type) && m.email).map(m => m.id)
-  );
-  const [phase,  setPhase]  = useState('form');
-  const [result, setResult] = useState(null);
-
-  useEffect(() => {
-    function h(e) { if (e.key === 'Escape') onClose(); }
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, [onClose]);
-
-  function toggleId(id) {
-    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  }
-
-  const canLaunch = selectedIds.length > 0 && phase === 'form';
-
-  async function handleLaunch() {
-    setPhase('sending');
-    try {
-      const data = await api.sendCampaignByIds(selectedIds, window.location.origin);
-      setResult(data);
-      setPhase('done');
-      onLaunched();
-    } catch(e) {
-      setPhase('form');
-    }
-  }
-
+function NewCampModal({ medecins, onClose, onLaunched, onToast }) {
   const MED_TYPE_LABELS = { ph:'PH', padhue:'PADHUE', ipa:'IPA', interne:'Internes', externe:'Externes' };
   const TYPE_ORDER = ['ph','padhue','ipa','interne','externe'];
   const byType = TYPE_ORDER.reduce((acc, t) => {
@@ -425,65 +588,101 @@ function NewCampModal({ medecins, onClose, onLaunched }) {
     return acc;
   }, []);
 
+  const [selectedTypes, setSelectedTypes] = useState(
+    () => new Set(byType.filter(({ type }) => ['ph','ipa','padhue'].includes(type)).map(({ type }) => type))
+  );
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    function h(e) { if (e.key === 'Escape') onClose(); }
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [onClose]);
+
+  function toggleType(type) {
+    setSelectedTypes(prev => {
+      const next = new Set(prev);
+      next.has(type) ? next.delete(type) : next.add(type);
+      return next;
+    });
+  }
+
+  const selectedMeds  = byType.flatMap(({ type, meds }) => selectedTypes.has(type) ? meds : []);
+  const emailCount    = selectedMeds.filter(m => m.email).length;
+  const canLaunch     = emailCount > 0 && !sending;
+
+  async function handleLaunch() {
+    setSending(true);
+    try {
+      const ids  = selectedMeds.map(m => m.id);
+      const data = await api.sendCampaignByIds(ids, window.location.origin);
+      onToast(`Campagne lancée — ${data.sent ?? 0} email${(data.sent ?? 0) > 1 ? 's' : ''} envoyé${(data.sent ?? 0) > 1 ? 's' : ''}`);
+      onLaunched();
+    } catch(e) {
+      onToast(e.message || 'Erreur serveur', 'err');
+      setSending(false);
+    }
+  }
+
   return (
     <div
       style={{ position:'fixed', inset:0, zIndex:1000, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center' }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div style={{ background:'var(--surface)', borderRadius:'var(--rl)', boxShadow:'0 16px 48px rgba(0,0,0,.22)', width:460, maxWidth:'96vw', maxHeight:'90vh', display:'flex', flexDirection:'column' }}>
+      <div style={{ background:'var(--surface)', borderRadius:'var(--rl)', boxShadow:'0 16px 48px rgba(0,0,0,.22)', width:380, maxWidth:'96vw', display:'flex', flexDirection:'column' }}>
         <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
           <span style={{ fontWeight:700, fontSize:13 }}>Nouvelle campagne congés</span>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, color:'var(--text3)' }}>×</button>
         </div>
 
-        {phase === 'done' ? (
-          <div style={{ padding:'40px 24px', textAlign:'center' }}>
-            <div style={{ width:52, height:52, borderRadius:'50%', background:'#dcfce7', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 14px', fontSize:24, color:'#16a34a' }}>✓</div>
-            <div style={{ fontWeight:700, fontSize:15, marginBottom:8 }}>Campagne créée</div>
-            <div style={{ fontSize:12, color:'var(--text2)', marginBottom:24 }}>
-              {result?.sent ?? 0} praticien{(result?.sent ?? 0) > 1 ? 's' : ''} notifié{(result?.sent ?? 0) > 1 ? 's' : ''} par mail.
-            </div>
-            <button className="btn-cancel" onClick={onClose}>Fermer</button>
-          </div>
-        ) : (
-          <>
-            <div style={{ overflowY:'auto', flex:1, padding:'14px 16px' }}>
-              <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'.07em', color:'var(--text2)', marginBottom:10 }}>
-                Praticiens inclus ({selectedIds.length} sélectionné{selectedIds.length > 1 ? 's' : ''})
+        <>
+            <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:6 }}>
+              <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'.07em', color:'var(--text2)', marginBottom:4 }}>
+                Catégories incluses
               </div>
-              {byType.map(({ type, meds }) => (
-                <div key={type} style={{ marginBottom:10 }}>
-                  <div style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', color:'var(--text3)', marginBottom:4 }}>
-                    {MED_TYPE_LABELS[type] || type.toUpperCase()}
-                  </div>
-                  <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-                    {meds.map(m => {
-                      const checked = selectedIds.includes(m.id);
-                      return (
-                        <label key={m.id} style={{
-                          display:'flex', alignItems:'center', gap:8, padding:'5px 8px',
-                          borderRadius:'var(--r)', cursor:'pointer',
-                          background: checked ? 'var(--accent-light)' : 'transparent',
-                          border: `1px solid ${checked ? 'var(--accent-mid)' : 'transparent'}`,
-                        }}>
-                          <input type="checkbox" checked={checked} onChange={() => toggleId(m.id)} style={{ accentColor:'var(--accent)' }} />
-                          <span style={{ fontSize:12, fontWeight: checked ? 600 : 400 }}>{m.nom}</span>
-                          {!m.email && <span style={{ fontSize:10, color:'var(--text3)', marginLeft:'auto' }}>sans email</span>}
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+              {byType.map(({ type, meds }) => {
+                const checked  = selectedTypes.has(type);
+                const withEmail = meds.filter(m => m.email).length;
+                return (
+                  <label key={type} style={{
+                    display:'flex', alignItems:'center', gap:10, padding:'8px 10px',
+                    borderRadius:'var(--r)', cursor:'pointer',
+                    background: checked ? 'var(--accent-light)' : 'var(--surface2)',
+                    border: `1px solid ${checked ? 'var(--accent-mid)' : 'var(--border)'}`,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleType(type)}
+                      style={{ accentColor:'var(--accent)', flexShrink:0 }}
+                    />
+                    <span style={{ flex:1, fontSize:13, fontWeight: checked ? 600 : 400 }}>
+                      {meds.length} {MED_TYPE_LABELS[type] || type.toUpperCase()}
+                    </span>
+                    {withEmail < meds.length && (
+                      <span style={{ fontSize:10, color:'var(--text3)' }}>
+                        {withEmail} email{withEmail > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
             </div>
+
+            <div style={{ margin:'0 16px 14px', padding:'8px 12px', background:'var(--surface2)', borderRadius:'var(--r)', border:'1px solid var(--border)', fontSize:12, color: emailCount > 0 ? 'var(--text)' : 'var(--text3)' }}>
+              {emailCount > 0
+                ? <><strong style={{ color:'var(--accent)' }}>{emailCount}</strong> email{emailCount > 1 ? 's' : ''} seront envoyés</>
+                : 'Aucun email à envoyer — aucune catégorie sélectionnée ou aucun praticien avec email'
+              }
+            </div>
+
             <div style={{ padding:'10px 16px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'flex-end', gap:8 }}>
               <button className="btn-cancel" onClick={onClose}>Annuler</button>
               <button className="btn-primary" disabled={!canLaunch} onClick={handleLaunch}>
-                {phase === 'sending' ? '…' : 'Lancer la campagne'}
+                {sending ? '…' : 'Lancer la campagne'}
               </button>
             </div>
-          </>
-        )}
+        </>
       </div>
     </div>
   );
@@ -691,6 +890,7 @@ function GestCampView({ medecins, onToast }) {
           medecins={medecins}
           onClose={() => setShowNew(false)}
           onLaunched={() => { setShowNew(false); reload(); }}
+          onToast={onToast}
         />
       )}
     </div>
@@ -699,7 +899,7 @@ function GestCampView({ medecins, onToast }) {
 
 // ── CongesTab ────────────────────────────────────────────────
 
-export default function CongesTab({ medecins, isGestionnaire }) {
+export default function CongesTab({ medecins, isGestionnaire, onToast = () => {} }) {
   const [selectedMedId, setSelectedMedId] = useState(null);
   const [conges,        setConges]        = useState([]);
   const [loading,       setLoading]       = useState(false);
@@ -729,7 +929,7 @@ export default function CongesTab({ medecins, isGestionnaire }) {
 
       {/* ── Vue médecin (masquée pour les gestionnaires) ── */}
       {!isGestionnaire && (
-        <>
+        <div style={{ maxWidth:480 }}>
           <IdentitySelect medecins={medecins} value={selectedMedId} onChange={setSelectedMedId} />
 
           {!selectedMedId ? (
@@ -771,14 +971,14 @@ export default function CongesTab({ medecins, isGestionnaire }) {
               </button>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* ── Vue gestionnaire ── */}
       {isGestionnaire && (
         <>
-          <GestCampView medecins={medecins} onToast={() => {}} />
-          <DemandesPonctuelles onToast={() => {}} />
+          <GestCampView medecins={medecins} onToast={onToast} />
+          <DemandesPonctuelles onToast={onToast} />
         </>
       )}
 

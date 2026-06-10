@@ -1,6 +1,3 @@
-// utils.js — PATCHED: refreshed service position colors
-// Only POSTES colors changed; all other logic is unchanged.
-
 // dispensable:true = service ouvert uniquement si >12 PH (ou >11 le mercredi)
 // → ces postes n'entrent PAS dans le compteur PH/jour
 // Ordre : CSG 1 → CSG 2 → SSR → EOPS → UCC → HDJ → HDJ NP → EHPAD → dispensables
@@ -82,6 +79,13 @@ export function fmtDayLong(d) {
 // ── Schedule helpers ──────────────────────────────────────
 export function schedIdx(dow) { return (dow - 1) * 2; }
 
+// Vérifie le sched du médecin sans tenir compte des absences ni du week-end
+function schedWorksOn(med, iso) {
+  const dow = new Date(iso + 'T12:00:00').getDay();
+  const idx = schedIdx(dow);
+  return !!(med.sched[idx] || med.sched[idx + 1]);
+}
+
 export function isAbsent(medId, dayIso, absences = []) {
   return absences.some(a => a.med_id === medId && a.date_debut <= dayIso && a.date_fin >= dayIso);
 }
@@ -90,8 +94,7 @@ export function worksDay(med, dayIso, absences = []) {
   if (isAbsent(med.id, dayIso, absences)) return false;
   const dow = new Date(dayIso + 'T12:00:00').getDay();
   if (dow === 0 || dow === 6) return false;
-  const i = schedIdx(dow);
-  return !!(med.sched[i] || med.sched[i + 1]);
+  return schedWorksOn(med, dayIso);
 }
 
 /**
@@ -164,32 +167,22 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
     if (!medPosteMap.has(m.id)) {
       // Non assigné : distinguer absence posée vs planning de travail
       // Jours normalement travaillés cette semaine où une absence est posée
-      const absentWorkDays = dayIsos.filter(iso => {
-        if (!isAbsent(m.id, iso, absences)) return false;
-        const dow = new Date(iso + 'T12:00:00').getDay();
-        const idx = schedIdx(dow);
-        return !!(m.sched[idx] || m.sched[idx + 1]);
-      });
+      const absentWorkDays = dayIsos.filter(iso =>
+        isAbsent(m.id, iso, absences) && schedWorksOn(m, iso)
+      );
 
       if (absentWorkDays.length > 0) {
         // A posé un congé/absence → "Présents partiellement" si encore présent ≥1 jour
-        const encorePresent = dayIsos.some(iso => {
-          if (isAbsent(m.id, iso, absences)) return false;
-          const dow = new Date(iso + 'T12:00:00').getDay();
-          const idx = schedIdx(dow);
-          return !!(m.sched[idx] || m.sched[idx + 1]);
-        });
+        const encorePresent = dayIsos.some(iso =>
+          !isAbsent(m.id, iso, absences) && schedWorksOn(m, iso)
+        );
         if (encorePresent) {
           const absentSet = new Set(absentWorkDays);
           const firstIso  = absentWorkDays[0];
           const lastIso   = absentWorkDays[absentWorkDays.length - 1];
-          // Tous les jours travaillés entre le premier et le dernier jour absent
-          const workDaysBetween = dayIsos.filter(iso => {
-            if (iso < firstIso || iso > lastIso) return false;
-            const dow = new Date(iso + 'T12:00:00').getDay();
-            const idx = schedIdx(dow);
-            return !!(m.sched[idx] || m.sched[idx + 1]);
-          });
+          const workDaysBetween = dayIsos.filter(iso =>
+            iso >= firstIso && iso <= lastIso && schedWorksOn(m, iso)
+          );
           const isContiguous = workDaysBetween.every(d => absentSet.has(d));
           const nums = absentWorkDays.map(d => parseInt(d.split('-')[2], 10));
           let label;
@@ -204,11 +197,7 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
         }
       } else {
         // Aucun congé posé → full si travaille tous les jours, partial sinon
-        const joursActifs = dayIsos.filter(iso => {
-          const dow = new Date(iso + 'T12:00:00').getDay();
-          const idx = schedIdx(dow);
-          return !!(m.sched[idx] || m.sched[idx + 1]);
-        });
+        const joursActifs = dayIsos.filter(iso => schedWorksOn(m, iso));
         if (joursActifs.length === 0) continue;
         // Sched partiel (ex : 80%) = présent selon son planning, pas une absence → full
         full.push({ ...m, schedNote: buildSchedNote(m) });
@@ -277,21 +266,19 @@ export function getFrenchBridgeDays(year) {
 
 export function getFrenchHolidays(year) {
   if (_holCache[year]) return _holCache[year];
-  const add = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
-  const fmt = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const easter = easterSunday(year);
   const map = new Map([
-    [fmt(new Date(year, 0,  1)),  "Jour de l'An"],
-    [fmt(add(easter, 1)),          'Lundi de Pâques'],
-    [fmt(new Date(year, 4,  1)),  'Fête du Travail'],
-    [fmt(new Date(year, 4,  8)),  'Victoire 1945'],
-    [fmt(add(easter, 39)),         'Ascension'],
-    [fmt(add(easter, 50)),         'Lundi de Pentecôte'],
-    [fmt(new Date(year, 6, 14)),  'Fête Nationale'],
-    [fmt(new Date(year, 7, 15)),  'Assomption'],
-    [fmt(new Date(year, 10,  1)), 'Toussaint'],
-    [fmt(new Date(year, 10, 11)), 'Armistice'],
-    [fmt(new Date(year, 11, 25)), 'Noël'],
+    [toIso(new Date(year, 0,  1)),  "Jour de l'An"],
+    [toIso(addDays(easter, 1)),      'Lundi de Pâques'],
+    [toIso(new Date(year, 4,  1)),  'Fête du Travail'],
+    [toIso(new Date(year, 4,  8)),  'Victoire 1945'],
+    [toIso(addDays(easter, 39)),     'Ascension'],
+    [toIso(addDays(easter, 50)),     'Lundi de Pentecôte'],
+    [toIso(new Date(year, 6, 14)),  'Fête Nationale'],
+    [toIso(new Date(year, 7, 15)),  'Assomption'],
+    [toIso(new Date(year, 10,  1)), 'Toussaint'],
+    [toIso(new Date(year, 10, 11)), 'Armistice'],
+    [toIso(new Date(year, 11, 25)), 'Noël'],
   ]);
   _holCache[year] = map;
   return map;

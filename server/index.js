@@ -612,7 +612,7 @@ function createApp(dbLib) {
     const createdById = req.authUser?.userId ?? null;
     const campaignRow = dbLib.run(
       'INSERT INTO conge_campaigns (created_at, created_by, types) VALUES (?,?,?)',
-      [createdAt, createdById, JSON.stringify(types)]
+      [createdAt, createdById, JSON.stringify(types ?? [])]
     );
     const campaignId = campaignRow.lastInsertRowid;
 
