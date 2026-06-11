@@ -1,5 +1,9 @@
 # Guidelines du projet — Planning Gériatrie
 
+## Style de réponse
+
+**Invoquer le skill `/caveman` pour les prompts simples** (questions factuelles, explications courtes, lookups, one-liners). Ne pas utiliser pour les tâches de réflexion profonde : architecture, debug complexe, décisions produit, planification.
+
 ## Contraintes environnement
 
 ### computer-use : ne pas utiliser

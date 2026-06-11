@@ -33,7 +33,7 @@ planning-geriatrie/
 │   │       ├── AssignModal.jsx         ← Modale d'affectation
 │   │       ├── TeamTab.jsx             ← Onglet équipe + praticiens extérieurs (gestionnaire only)
 │   │       ├── CongesTab.jsx           ← Onglet congés (self-service médecin + campagne/ponctuels gestionnaire)
-│   │       ├── StatsTab.jsx            ← Onglet statistiques
+│   │       ├── StatsTab.jsx            ← Onglet statistiques (volumes en jours, pondérés par le taux de présence)
 │   │       ├── AstreintesTab.jsx       ← Onglet astreintes (calendrier mensuel)
 │   │       ├── MonthView.jsx           ← Vue mensuelle
 │   │       ├── DoctorSearch.jsx        ← Recherche praticien
@@ -127,7 +127,7 @@ Les routes `/api/conge/*` sont publiques. Le lien envoyé par email contient un 
 
 | Méthode | Route | Description |
 |---------|-------|-------------|
-| GET | `/api/medecins` | Liste tous les praticiens actifs |
+| GET | `/api/medecins` | Liste les praticiens actifs à la date du jour (filtre `date_arrivee`/`date_depart`) |
 | GET | `/api/absences` | Liste toutes les absences |
 | GET | `/api/planning/:weekKey` | Planning complet d'une semaine |
 | GET | `/api/astreintes` | Astreintes d'un mois (`?month=YYYY-MM`) |
@@ -139,11 +139,11 @@ Les routes `/api/conge/*` sont publiques. Le lien envoyé par email contient un 
 | Méthode | Route | Description |
 |---------|-------|-------------|
 | POST | `/api/medecins` | Ajouter un praticien |
-| PUT | `/api/medecins/:id` | Modifier (nom, type, service, tel, sched) |
+| PUT | `/api/medecins/:id` | Modifier (nom, type, service, tel, sched, `date_arrivee`, `date_depart`) |
 | DELETE | `/api/medecins/:id` | Supprimer |
 | POST | `/api/absences` | Ajouter une absence |
 | DELETE | `/api/absences/:id` | Supprimer |
-| POST | `/api/affectations` | Affecter un praticien à un poste |
+| POST | `/api/affectations` | Affecter un praticien à un poste (`force:true` → gestionnaire passe outre le blocage « déjà affecté ailleurs ») |
 | DELETE | `/api/affectations` | Retirer d'un poste |
 | POST | `/api/exclusions` | Exclure un praticien d'un jour précis |
 | DELETE | `/api/exclusions` | Annuler une exclusion |

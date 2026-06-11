@@ -2,6 +2,13 @@
 
 | Date | # | Titre |
 |---|---|---|
+| 2026-06-11 | B11 | StatsTab en jours (au lieu de semaines) + taux de présence dérivé du `sched` — helpers `schedToJoursParSemaine`/`schedToTauxPresence`, card détail affiche Jours/Présence/Absences |
+| 2026-06-11 | B1 | Force-affectation gestionnaire — bouton « À la semaine » forçable (confirm) malgré blocage, flag `force` côté serveur (remplace l'affectation existante + audit `FORCE_AFFECTATION`) |
+| 2026-06-11 | B5 | TeamTab dates `date_arrivee`/`date_depart` — colonnes medecins, masquage planning à la date (fragment SQL `ACTIF_NOW`), archivage programmé via `/archiver` avec date future |
+| 2026-06-11 | B9 | Bandeau vacances scolaires Zone B (académie Nantes) au-dessus de l'alerte couverture — fetch API data.education.gouv.fr + cache localStorage 30j (`loadVacancesScolaires`/`matchVacancesScolaires`) |
+| 2026-06-11 | B4 | Renforts inclus : search bar (doctorFilter), compteur PH/jour, alertes couverture par poste, panel disponibles (`PlanningGrid.jsx`, `getDisponiblesPH`) |
+| 2026-06-11 | B2 | Vue mensuelle PH + services indispensables (vérifié déjà implémenté lors d'un sprint antérieur) |
+| 2026-06-11 | B7 | Fermeture estivale HDJ — couverte par le CRUD fermetures de service génériques (ff6b8e0), pas de règle dédiée |
 | 2026-06-08 | QA | P11 QA fix — CONGE_TYPES_MODAL : 3 types manquants (maladie, maternité, récup garde) ajoutés |
 | 2026-06-08 | QA | P11 QA fix — DRP : `.drp-day` héritait `cursor:pointer`, doublon accessibilité corrigé |
 | 2026-06-08 | P11/F5 | Nettoyage — suppression AbsencesTab.jsx, README mis à jour (routes P11) |
