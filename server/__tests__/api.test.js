@@ -205,6 +205,54 @@ describe('PATCH /api/medecins/:id/desarchiver', () => {
   });
 });
 
+describe('B5 — dates arrivée / départ (masquage planning)', () => {
+  const futureDate = '2099-01-01';
+  const pastDate   = '2000-01-01';
+
+  test('date_arrivee future → absent de GET /api/medecins', async () => {
+    const cr = await authReq(app).post('/api/medecins').send({ nom: 'Dr Futur', type: 'ph', date_arrivee: futureDate });
+    expect(cr.status).toBe(200);
+    const id = cr.body.id;
+    const list = await request(app).get('/api/medecins');
+    expect(list.body.some(m => m.id === id)).toBe(false);
+  });
+
+  test('date_depart passée → absent de GET /api/medecins et présent dans archives', async () => {
+    const cr = await authReq(app).post('/api/medecins').send({ nom: 'Dr Parti', type: 'ph', date_depart: pastDate });
+    const id = cr.body.id;
+    const list = await request(app).get('/api/medecins');
+    expect(list.body.some(m => m.id === id)).toBe(false);
+    const arch = await request(app).get('/api/medecins/archives');
+    expect(arch.body.some(m => m.id === id)).toBe(true);
+  });
+
+  test('date_depart future → encore présent (actif jusqu\'à la date)', async () => {
+    const cr = await authReq(app).post('/api/medecins').send({ nom: 'Dr PartiPlusTard', type: 'ph', date_depart: futureDate });
+    const id = cr.body.id;
+    const list = await request(app).get('/api/medecins');
+    expect(list.body.some(m => m.id === id)).toBe(true);
+  });
+
+  test('archiver avec date_depart future → archivage programmé sans désactiver', async () => {
+    const cr = await authReq(app).post('/api/medecins').send({ nom: 'Dr Programme', type: 'ph' });
+    const id = cr.body.id;
+    const arch = await authReq(app).patch(`/api/medecins/${id}/archiver`).send({ date_depart: futureDate });
+    expect(arch.status).toBe(200);
+    const list = await request(app).get('/api/medecins');
+    expect(list.body.some(m => m.id === id)).toBe(true); // encore actif aujourd'hui
+  });
+
+  test('désarchiver efface date_depart', async () => {
+    const cr = await authReq(app).post('/api/medecins').send({ nom: 'Dr Revient', type: 'ph', date_depart: pastDate });
+    const id = cr.body.id;
+    await authReq(app).patch(`/api/medecins/${id}/desarchiver`);
+    const list = await request(app).get('/api/medecins');
+    const found = list.body.find(m => m.id === id);
+    expect(found).toBeDefined();
+    expect(found.date_depart).toBeNull();
+  });
+});
+
 describe('PUT /api/medecins/:id — champs email, service, tel', () => {
   let medId;
 
@@ -628,6 +676,21 @@ describe('Règles métier planning gériatrique', () => {
     const res2 = await authReq(app).post('/api/affectations').send({ week_key: '2025-07-07', poste_id: 'csg2a', med_id: id });
     // Le serveur rejette la double affectation sur un poste différent
     expect(res2.status).toBe(409);
+  });
+
+  test('Force-affectation (B1) : gestionnaire passe outre le blocage 409', async () => {
+    const r = await authReq(app).post('/api/medecins').send({ nom: 'Dr Force', type: 'ph' });
+    const id = r.body.id;
+    await authReq(app).post('/api/affectations').send({ week_key: '2025-08-04', poste_id: 'csg1a', med_id: id });
+    // Sans force → 409
+    const blocked = await authReq(app).post('/api/affectations').send({ week_key: '2025-08-04', poste_id: 'csg2a', med_id: id });
+    expect(blocked.status).toBe(409);
+    // Avec force → 200, l'ancienne affectation est remplacée
+    const forced = await authReq(app).post('/api/affectations').send({ week_key: '2025-08-04', poste_id: 'csg2a', med_id: id, force: true });
+    expect(forced.status).toBe(200);
+    const plan = await request(app).get('/api/planning/2025-08-04');
+    expect((plan.body.affectations['csg1a']?.medecins || []).some(m => m.id === id)).toBe(false);
+    expect((plan.body.affectations['csg2a']?.medecins || []).some(m => m.id === id)).toBe(true);
   });
 
   test('Un médecin peut être ré-affecté au même poste (idempotent)', async () => {

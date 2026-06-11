@@ -7,6 +7,7 @@ import { describe, test, expect } from 'vitest';
 import {
   getMonday, toIso, addDays, weekDays, fmtDay, fmtDayLong,
   schedIdx, worksDay, isAbsent, countDemiJournees, worksWeekAny,
+  schedToJoursParSemaine, schedToTauxPresence,
   getDisponiblesPH,
   POSTES, TYPE_LBL, DAYS_FR
 } from '../utils.js';
@@ -599,5 +600,32 @@ describe('getDisponiblesPH()', () => {
     const { full } = getDisponiblesPH([phZ, phA], [], days);
     expect(full[0].nom).toBe('Arnaud');
     expect(full[1].nom).toBe('Zorba');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// B11 — conversion sched → jours / taux de présence
+// ════════════════════════════════════════════════════════════════════════════
+
+describe('schedToJoursParSemaine()', () => {
+  test('plein temps (10 demi-journées) → 5 jours', () => {
+    expect(schedToJoursParSemaine('1111111111')).toBe(5);
+    expect(schedToJoursParSemaine([1,1,1,1,1,1,1,1,1,1])).toBe(5);
+  });
+  test('mi-temps (5 demi-journées) → 2.5 jours', () => {
+    expect(schedToJoursParSemaine('1100110010')).toBe(2.5);
+  });
+  test('sched vide/absent → 0', () => {
+    expect(schedToJoursParSemaine('')).toBe(0);
+    expect(schedToJoursParSemaine(null)).toBe(0);
+  });
+});
+
+describe('schedToTauxPresence()', () => {
+  test('plein temps → 1', () => {
+    expect(schedToTauxPresence('1111111111')).toBe(1);
+  });
+  test('80% (8 demi-journées) → 0.8', () => {
+    expect(schedToTauxPresence('1111111100')).toBeCloseTo(0.8);
   });
 });
