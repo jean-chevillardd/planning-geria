@@ -1,5 +1,5 @@
 // CongePublicPage.jsx — Page auto-service saisie de congés (accessible sans connexion via magic link)
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { validateCongeToken, submitCongeAbsences } from '../api';
 
 const ABS_TYPES = [
@@ -12,19 +12,204 @@ const ABS_TYPES = [
   'Activité hors site',
 ];
 
-function EmptyRow(onAdd) {
+function EmptyRow() {
   return { date_debut: '', date_fin: '', type_abs: 'Congé annuel (CA)' };
 }
 
-// ── Icône calendrier ─────────────────────────────────────────
-function CalIcon() {
+// ── DateRangePicker autonome (inline styles, pas de CSS vars) ─
+const MONTHS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
+const DAYS_HDR  = ['L','M','M','J','V','S','D'];
+const ACCENT    = '#2563eb';
+const ACCENT_LT = '#eff6ff';
+const ACCENT_MD = '#bfdbfe';
+
+function isoDay(y, m, d) {
+  return `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+}
+
+function DateRangePicker({ debut, fin, onChange }) {
+  const [open,     setOpen]     = useState(false);
+  const [step,     setStep]     = useState('debut');
+  const [hover,    setHover]    = useState(null);
+  const [viewYear, setViewYear] = useState(() => debut ? parseInt(debut.split('-')[0],10) : new Date().getFullYear());
+  const [viewMo,   setViewMo]   = useState(() => debut ? parseInt(debut.split('-')[1],10)-1 : new Date().getMonth());
+  const [popPos,   setPopPos]   = useState({ top:0, left:0 });
+  const triggerRef = useRef(null);
+  const popoverRef = useRef(null);
+
+  function updatePos() {
+    if (!triggerRef.current) return;
+    const r = triggerRef.current.getBoundingClientRect();
+    setPopPos({ top: r.bottom + 6, left: r.left });
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    function h(e) {
+      if (triggerRef.current && !triggerRef.current.contains(e.target) &&
+          popoverRef.current  && !popoverRef.current.contains(e.target))
+        { setOpen(false); setHover(null); }
+    }
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function h(e) { if (e.key === 'Escape') { setOpen(false); setHover(null); } }
+    document.addEventListener('keydown', h);
+    return () => document.removeEventListener('keydown', h);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener('scroll', updatePos, true);
+    window.addEventListener('resize', updatePos);
+    return () => { window.removeEventListener('scroll', updatePos, true); window.removeEventListener('resize', updatePos); };
+  }, [open]);
+
+  function prevMo() { if (viewMo===0) { setViewYear(y=>y-1); setViewMo(11); } else setViewMo(m=>m-1); }
+  function nextMo() { if (viewMo===11){ setViewYear(y=>y+1); setViewMo(0);  } else setViewMo(m=>m+1); }
+
+  function handleDayClick(iso) {
+    if (step === 'debut') {
+      onChange({ debut: iso, fin: null });
+      setStep('fin');
+    } else {
+      if (iso >= debut) onChange({ debut, fin: iso });
+      else              onChange({ debut: iso, fin: debut });
+      setStep('debut'); setOpen(false); setHover(null);
+    }
+  }
+
+  const rangeEnd = step === 'fin' ? (hover ?? fin) : fin;
+  const [lo, hi] = debut && rangeEnd
+    ? (debut <= rangeEnd ? [debut, rangeEnd] : [rangeEnd, debut])
+    : [null, null];
+
+  function displayLabel() {
+    const fmt = iso => new Date(iso+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short',year:'numeric'});
+    if (!debut) return 'Sélectionner une période…';
+    if (debut && !fin) return `Du ${fmt(debut)} → …`;
+    return `Du ${fmt(debut)} au ${fmt(fin)}`;
+  }
+
+  const daysInMo = new Date(viewYear, viewMo+1, 0).getDate();
+  const firstDow = (new Date(viewYear, viewMo, 1).getDay()+6)%7;
+  const flatCells = [];
+  for (let i=0; i<firstDow; i++) flatCells.push(null);
+  for (let d=1; d<=daysInMo; d++) flatCells.push(d);
+  while (flatCells.length%7!==0) flatCells.push(null);
+  const calRows = [];
+  for (let i=0; i<flatCells.length; i+=7) calRows.push(flatCells.slice(i,i+7));
+  const todayIso = new Date().toISOString().slice(0,10);
+
+  const navBtnStyle = {
+    background:'none', border:'1px solid #e5e7eb', borderRadius:6,
+    cursor:'pointer', fontSize:14, padding:'2px 7px', color:'#555',
+    lineHeight:1.4,
+  };
+
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
-      stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1.5" y="3" width="15" height="13.5" rx="2"/>
-      <path d="M1.5 7.5h15"/>
-      <path d="M6 1.5v3M12 1.5v3"/>
-    </svg>
+    <div style={{ position:'relative' }}>
+      <button
+        ref={triggerRef} type="button"
+        onClick={() => {
+          const opening = !open;
+          if (opening) updatePos();
+          setOpen(opening);
+          if (opening) {
+            setStep(debut && fin ? 'debut' : debut ? 'fin' : 'debut');
+            if (debut) { setViewYear(parseInt(debut.split('-')[0],10)); setViewMo(parseInt(debut.split('-')[1],10)-1); }
+          } else { setHover(null); }
+        }}
+        style={{
+          width:'100%', textAlign:'left', padding:'10px 12px',
+          border:`1.5px solid ${open ? ACCENT : '#ddd'}`,
+          borderRadius:8, background:'#fff',
+          color: debut ? '#1a1a1a' : '#aaa',
+          cursor:'pointer', fontSize:13, fontFamily:'inherit',
+          boxShadow: open ? `0 0 0 3px ${ACCENT_LT}` : 'none',
+          transition:'border-color .1s, box-shadow .1s',
+          display:'flex', alignItems:'center', gap:8,
+        }}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor"
+          strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink:0, opacity:.4 }}>
+          <rect x="1" y="2" width="12" height="11" rx="1.5"/>
+          <path d="M1 5.5h12M4.5 1v3M9.5 1v3"/>
+        </svg>
+        <span style={{ flex:1 }}>{displayLabel()}</span>
+      </button>
+
+      {open && (
+        <div ref={popoverRef} style={{
+          position:'fixed', top:popPos.top, left:popPos.left, zIndex:9999,
+          background:'#fff', border:'1px solid #e5e7eb',
+          borderRadius:12, boxShadow:'0 8px 28px rgba(0,0,0,.18)',
+          padding:'14px 16px', minWidth:290, userSelect:'none',
+        }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
+            <button type="button" style={navBtnStyle} onClick={prevMo}>‹</button>
+            <span style={{ flex:1, textAlign:'center', fontSize:13, fontWeight:700, color:'#1a1a1a' }}>
+              {MONTHS_FR[viewMo]} {viewYear}
+            </span>
+            <button type="button" style={navBtnStyle} onClick={nextMo}>›</button>
+          </div>
+          <div style={{ fontSize:10, color:'#aaa', marginBottom:8, textAlign:'center', fontStyle:'italic' }}>
+            {step==='fin' && debut
+              ? `Début : ${new Date(debut+'T12:00:00').toLocaleDateString('fr-FR',{day:'numeric',month:'short'})} — cliquez la fin`
+              : 'Cliquez la date de début'}
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2, marginBottom:4 }}>
+            {DAYS_HDR.map((d,i) => (
+              <div key={i} style={{ textAlign:'center', fontSize:9, fontWeight:700, color:'#bbb' }}>{d}</div>
+            ))}
+          </div>
+          {calRows.map((row, ri) => (
+            <div key={ri} style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:2, marginBottom:1 }}>
+              {row.map((d, ci) => {
+                if (!d) return <div key={ci}/>;
+                const iso     = isoDay(viewYear, viewMo, d);
+                const isStart = iso === debut;
+                const isEnd   = iso === (step==='fin' ? (hover??fin) : fin);
+                const inRange = lo && hi && iso>lo && iso<hi;
+                const isToday = iso === todayIso;
+                const isHov   = iso === hover && step==='fin';
+                const sel     = isStart || isEnd;
+                return (
+                  <div key={ci}
+                    onClick={() => handleDayClick(iso)}
+                    onMouseEnter={() => step==='fin' && setHover(iso)}
+                    onMouseLeave={() => step==='fin' && setHover(null)}
+                    style={{
+                      textAlign:'center', fontSize:12, padding:'5px 2px',
+                      borderRadius:5, cursor:'pointer',
+                      fontWeight: sel ? 700 : isToday ? 600 : 400,
+                      background: sel ? ACCENT : isHov ? ACCENT_MD : inRange ? ACCENT_LT : 'transparent',
+                      color: sel ? '#fff' : (isHov||inRange) ? ACCENT : isToday ? ACCENT : '#1a1a1a',
+                      border: isToday && !sel ? `1px solid ${ACCENT_MD}` : '1px solid transparent',
+                      transition:'background .06s',
+                    }}
+                  >{d}</div>
+                );
+              })}
+            </div>
+          ))}
+          {(debut || fin) && (
+            <button type="button"
+              onClick={() => { onChange({ debut:null, fin:null }); setStep('debut'); setHover(null); }}
+              style={{
+                marginTop:10, width:'100%', fontSize:10, padding:'5px',
+                border:'1px solid #e5e7eb', borderRadius:7,
+                background:'transparent', cursor:'pointer',
+                color:'#aaa', fontFamily:'inherit',
+              }}
+            >Réinitialiser la période</button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -95,7 +280,7 @@ function Header() {
         background: 'rgba(255,255,255,.18)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: 14, fontWeight: 900, color: '#fff', letterSpacing: '-.5px',
-      }}>CHU</div>
+      }}>CHD</div>
       <div>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
           Planning Pôle Gériatrie
@@ -186,27 +371,17 @@ function AbsenceRow({ abs, index, onUpdate, onRemove, isLast }) {
         </select>
       </div>
 
-      {/* Dates */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <div>
-          <label style={labelStyle}>Du</label>
-          <input
-            type="date"
-            value={abs.date_debut}
-            onChange={e => onUpdate(index, 'date_debut', e.target.value)}
-            style={inputStyle}
-          />
-        </div>
-        <div>
-          <label style={labelStyle}>Au (inclus)</label>
-          <input
-            type="date"
-            value={abs.date_fin}
-            min={abs.date_debut || undefined}
-            onChange={e => onUpdate(index, 'date_fin', e.target.value)}
-            style={inputStyle}
-          />
-        </div>
+      {/* Dates — sélecteur de période */}
+      <div>
+        <label style={labelStyle}>Période</label>
+        <DateRangePicker
+          debut={abs.date_debut || null}
+          fin={abs.date_fin || null}
+          onChange={({ debut, fin }) => {
+            onUpdate(index, 'date_debut', debut || '');
+            onUpdate(index, 'date_fin',   fin   || '');
+          }}
+        />
       </div>
     </div>
   );

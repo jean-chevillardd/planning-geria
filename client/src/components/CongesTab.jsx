@@ -502,6 +502,8 @@ function EditModal({ member, onClose, onSave }) {
         if (cur === 'pending' && was === 'ok')   await api.unconfirmAbsence(r.id);
         if (cur === 'refused')                   await api.deleteAbsence(r.id);
       }
+      // Notifier le praticien par email (non bloquant)
+      api.notifyCampaignMember(member.med_id).catch(() => {});
       onSave();
     } finally {
       setSaving(false);
@@ -540,8 +542,8 @@ function EditModal({ member, onClose, onSave }) {
                   {s === 'ok' ? 'Validé' : s === 'refused' ? 'Refusé' : 'En attente'}
                 </span>
                 <div style={{ display:'flex', gap:4 }}>
-                  {s !== 'ok'      && <button className="btn-xs btn-ok"     onClick={() => setRowLocal(r.id, 'ok')}>Valider</button>}
-                  {s !== 'refused' && <button className="btn-xs btn-danger" onClick={() => setRowLocal(r.id, 'refused')}>Refuser</button>}
+                  {s !== 'ok'      && <button className="btn-xs btn-ok"  onClick={() => setRowLocal(r.id, 'ok')}>Valider</button>}
+                  {s !== 'refused' && <button className="btn-xs bdanger" onClick={() => setRowLocal(r.id, 'refused')}>Refuser</button>}
                   {s !== 'pending' && <button className="btn-xs"         onClick={() => setRowLocal(r.id, null)}>Remettre</button>}
                 </div>
               </div>
@@ -719,58 +721,78 @@ function DemandesPonctuelles({ onToast }) {
   const nbPend  = pending.length;
 
   return (
-    <div className="ponctuel-section">
-      <div className="ponctuel-hdr">
-        <span style={{ fontWeight:700, fontSize:13, color:'#7c3aed' }}>Demandes ponctuelles</span>
+    <div className="sec-body">
+      <div className="sec-s-row">
+        <div>
+          <h2 className="sec-title" style={{ margin:0 }}>Demandes ponctuelles</h2>
+          <p className="sec-desc" style={{ margin:0 }}>Demandes de congé soumises individuellement par les praticiens.</p>
+        </div>
         {nbPend > 0 && (
           <span className="ponctuel-badge">{nbPend} en attente</span>
         )}
       </div>
 
       {reqs === null && (
-        <div style={{ padding:'14px', fontSize:12, color:'var(--text3)' }}>Chargement…</div>
+        <p style={{ fontSize:13, color:'var(--text3)', padding:'12px 0' }}>Chargement…</p>
       )}
       {reqs !== null && reqs.length === 0 && (
-        <div style={{ padding:'20px 14px', fontSize:12, color:'var(--text3)', textAlign:'center' }}>Aucune demande.</div>
+        <p style={{ fontSize:13, color:'var(--text3)', padding:'12px 0' }}>Aucune demande.</p>
       )}
 
       {reqs !== null && reqs.length > 0 && (
-        <div className="ponctuel-list">
-          {pending.map(r => {
-            const days = countWorkingDays(r.date_debut, r.date_fin);
-            return (
-              <div key={r.id} className="ponctuel-row">
-                <div className="ponctuel-dot" />
-                <div className="ponctuel-info">
-                  <div><strong>{r.medecin_nom}</strong> — {r.type}</div>
-                  <div className="ponctuel-meta">
-                    {fmtDateShort(r.date_debut)}{r.date_fin !== r.date_debut ? ` → ${fmtDateShort(r.date_fin)}` : ''} · {days} j. ouvré{days > 1 ? 's' : ''}
-                    {r.note && <> · <em>{r.note}</em></>}
-                  </div>
-                </div>
-                <div className="ponctuel-actions">
-                  <button className="btn-xs btn-ok" disabled={acting === r.id} onClick={() => act(r.id, 'accept')}>
-                    {acting === r.id ? '…' : 'Valider'}
-                  </button>
-                  <button className="btn-xs btn-danger" disabled={acting === r.id} onClick={() => act(r.id, 'refuse')}>
-                    {acting === r.id ? '…' : 'Refuser'}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-
-          {others.map(r => {
-            const isOk = r.statut === 'accepted';
-            return (
-              <div key={r.id} className="ponctuel-row" style={{ opacity:.65 }}>
-                <div className="ponctuel-dot" style={{ background: isOk ? 'var(--ok)' : 'var(--danger)' }} />
-                <div className="ponctuel-info" style={{ color:'var(--text3)' }}>
-                  {r.medecin_nom} — {r.type} · {fmtDateShort(r.date_debut)}{r.date_fin !== r.date_debut ? ` → ${fmtDateShort(r.date_fin)}` : ''} · {isOk ? 'validée' : 'refusée'}
-                </div>
-              </div>
-            );
-          })}
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                {['Praticien','Type','Période','Note','Actions'].map(h => (
+                  <th key={h} style={{ textAlign:'center' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {pending.map(r => (
+                  <tr key={r.id}>
+                    <td style={{ fontWeight:500 }}>{r.medecin_nom}</td>
+                    <td>{r.type}</td>
+                    <td style={{ whiteSpace:'nowrap' }}>
+                      {fmtDateShort(r.date_debut)}{r.date_fin !== r.date_debut ? ` → ${fmtDateShort(r.date_fin)}` : ''}
+                    </td>
+                    <td style={{ color:'var(--text3)', fontStyle: r.note ? 'italic' : 'normal' }}>{r.note || '—'}</td>
+                    <td>
+                      <div style={{ display:'flex', gap:5, justifyContent:'flex-end' }}>
+                        <button className="btn-xs btn-ok" disabled={acting === r.id} onClick={() => act(r.id, 'accept')}>
+                          {acting === r.id ? '…' : 'Valider'}
+                        </button>
+                        <button className="btn-xs bdanger" disabled={acting === r.id} onClick={() => act(r.id, 'refuse')}>
+                          {acting === r.id ? '…' : 'Refuser'}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+              ))}
+              {others.map(r => {
+                const isOk = r.statut === 'accepted';
+                return (
+                  <tr key={r.id} style={{ opacity:.6 }}>
+                    <td style={{ fontWeight:500 }}>{r.medecin_nom}</td>
+                    <td>{r.type}</td>
+                    <td style={{ whiteSpace:'nowrap' }}>
+                      {fmtDateShort(r.date_debut)}{r.date_fin !== r.date_debut ? ` → ${fmtDateShort(r.date_fin)}` : ''}
+                    </td>
+                    <td />
+                    <td>
+                      <span style={{ display:'inline-flex', alignItems:'center', height:20, padding:'0 8px', borderRadius:100, fontSize:10, fontWeight:700,
+                        background: isOk ? '#dcfce7' : '#fee2e2',
+                        color:      isOk ? '#15803d' : '#dc2626',
+                      }}>
+                        {isOk ? 'Validée' : 'Refusée'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -805,69 +827,95 @@ function GestCampView({ medecins, onToast }) {
   }
 
   return (
-    <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:'var(--rl)', boxShadow:'var(--sh)', overflow:'hidden' }}>
-      <div style={{ padding:'12px 16px', display:'flex', alignItems:'center', justifyContent:'space-between', borderBottom:'1px solid var(--border)' }}>
-        <span style={{ fontWeight:700, fontSize:13 }}>Campagne congés</span>
+    <div className="sec-body">
+      <div className="sec-s-row">
+        <div>
+          <h2 className="sec-title" style={{ margin:0 }}>Campagne congés</h2>
+          <p className="sec-desc" style={{ margin:0 }}>Envoyez une campagne par email et validez les absences soumises.</p>
+        </div>
         <button className="btn-primary" onClick={() => setShowNew(true)}>
-          ＋ Nouvelle campagne
+          + Nouvelle campagne
         </button>
       </div>
 
       {campaign === undefined && (
-        <div style={{ padding:24, textAlign:'center', color:'var(--text3)', fontSize:12 }}>Chargement…</div>
+        <p style={{ fontSize:13, color:'var(--text3)', padding:'12px 0' }}>Chargement…</p>
       )}
       {campaign === null && (
-        <div style={{ padding:24, textAlign:'center', color:'var(--text3)', fontSize:12 }}>Aucune campagne en cours.</div>
+        <p style={{ fontSize:13, color:'var(--text3)', padding:'12px 0' }}>Aucune campagne en cours.</p>
       )}
 
       {campaign && (
         <>
-          <div style={{ padding:'8px 16px', background:'var(--surface2)', borderBottom:'1px solid var(--border)', fontSize:11, color:'var(--text2)' }}>
+          <p style={{ fontSize:11, color:'var(--text2)', margin:'0 0 6px' }}>
             Envoyée le {new Date(campaign.created_at).toLocaleDateString('fr-FR', { day:'numeric', month:'long', year:'numeric' })}
-          </div>
-          <div style={{ overflowX:'auto' }}>
-            <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+          </p>
+          <div className="table-wrap">
+            <table className="data-table">
               <thead>
-                <tr style={{ background:'var(--surface2)' }}>
+                <tr>
                   {['Praticien','Absences soumises','Validées','Statut','Actions'].map(h => (
-                    <th key={h} style={{ padding:'7px 12px', textAlign:'left', fontWeight:600, color:'var(--text2)', fontSize:11, borderBottom:'1px solid var(--border2)', whiteSpace:'nowrap' }}>{h}</th>
+                    <th key={h} style={{ textAlign:'center' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {campaign.members.filter(m => m.status === 'responded').map(m => {
+                {campaign.members.map(m => {
+                  const responded = m.status === 'responded';
                   const abs  = m.absences || [];
                   const tot  = abs.length;
                   const v    = abs.filter(a => a.confirmed === 1).length;
-                  const stat = memberGlobalStatus(abs);
-                  const { bg, color, label } = STATUS_STYLE[stat];
+                  const stat = responded ? memberGlobalStatus(abs) : m.status === 'expired' ? 'expired' : 'waiting';
+                  const statusBadge = responded
+                    ? STATUS_STYLE[stat] ?? { bg:'#f3f4f6', color:'#6b7280', label: stat }
+                    : m.status === 'expired'
+                      ? { bg:'#fee2e2', color:'#dc2626', label:'Expiré' }
+                      : { bg:'#fef9c3', color:'#a16207', label:'En attente' };
                   return (
-                    <tr key={m.med_id} style={{ borderBottom:'1px solid var(--border)' }}>
-                      <td style={{ padding:'8px 12px', fontWeight:500 }}>{m.nom}</td>
-                      <td style={{ padding:'8px 12px' }}>
-                        <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>
-                          {abs.map(a => <AbsPill key={a.id} abs={a} />)}
-                          {tot === 0 && <span style={{ fontSize:11, color:'var(--text3)' }}>—</span>}
-                        </div>
+                    <tr key={m.med_id} style={{ opacity: responded ? 1 : 0.75 }}>
+                      <td style={{ fontWeight:500 }}>{m.nom}</td>
+                      <td>
+                        {responded ? (
+                          tot === 0
+                            ? <span style={{ fontSize:11, color:'var(--text3)' }}>—</span>
+                            : <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
+                                {abs.map(a => {
+                                  const { color, bg } = tc(a.type_abs);
+                                  return (
+                                    <span key={a.id} className="ab-pill" style={{ color, background: bg }}>
+                                      {fmtRange(a.date_debut, a.date_fin)} · {a.type_abs}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                        ) : (
+                          <span style={{ fontSize:11, color:'var(--text3)' }}>—</span>
+                        )}
                       </td>
-                      <td style={{ padding:'8px 12px', textAlign:'center' }}>
-                        <span style={{ fontWeight: v === tot && tot > 0 ? 700 : 400, color: v === tot && tot > 0 ? '#15803d' : 'var(--text)' }}>{v}</span>
-                        <span style={{ color:'var(--text3)' }}>/{tot}</span>
+                      <td style={{ textAlign:'center' }}>
+                        {responded ? (
+                          <>
+                            <span style={{ fontWeight: v === tot && tot > 0 ? 700 : 400, color: v === tot && tot > 0 ? '#15803d' : 'var(--text)' }}>{v}</span>
+                            <span style={{ color:'var(--text3)' }}>/{tot}</span>
+                          </>
+                        ) : <span style={{ color:'var(--text3)' }}>—</span>}
                       </td>
-                      <td style={{ padding:'8px 12px', textAlign:'center' }}>
-                        <span style={{ display:'inline-flex', alignItems:'center', height:20, padding:'0 8px', borderRadius:100, fontSize:10, fontWeight:700, background:bg, color }}>{label}</span>
+                      <td style={{ textAlign:'center' }}>
+                        <span style={{ display:'inline-flex', alignItems:'center', height:20, padding:'0 8px', borderRadius:100, fontSize:10, fontWeight:700, background:statusBadge.bg, color:statusBadge.color }}>{statusBadge.label}</span>
                       </td>
-                      <td style={{ padding:'8px 12px' }}>
-                        <div style={{ display:'flex', gap:5 }}>
-                          <button
-                            className="btn-xs btn-ok"
-                            disabled={stat === 'tout_valide' || tot === 0 || acting === m.med_id}
-                            onClick={() => handleConfirmAll(m.med_id)}
-                          >
-                            {acting === m.med_id ? '…' : 'Valider tout'}
-                          </button>
-                          <button className="btn-xs" onClick={() => setEditMember(m)}>Modifier</button>
-                        </div>
+                      <td>
+                        {responded && (
+                          <div style={{ display:'flex', gap:5, justifyContent:'flex-end' }}>
+                            <button
+                              className="btn-xs btn-ok"
+                              disabled={stat === 'tout_valide' || tot === 0 || acting === m.med_id}
+                              onClick={() => handleConfirmAll(m.med_id)}
+                            >
+                              {acting === m.med_id ? '…' : 'Valider tout'}
+                            </button>
+                            <button className="btn-xs" onClick={() => setEditMember(m)}>Modifier</button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   );
@@ -897,13 +945,39 @@ function GestCampView({ medecins, onToast }) {
   );
 }
 
+// ── Icônes nav gest ──────────────────────────────────────────
+
+function IcoMail() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+      <polyline points="22,6 12,13 2,6"/>
+    </svg>
+  );
+}
+
+function IcoClock() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+  );
+}
+
 // ── CongesTab ────────────────────────────────────────────────
+
+const GEST_NAV = [
+  { id: 'campagne',    label: 'Campagne congés',      Icon: IcoMail  },
+  { id: 'ponctuelles', label: 'Demandes ponctuelles', Icon: IcoClock },
+];
 
 export default function CongesTab({ medecins, isGestionnaire, onToast = () => {} }) {
   const [selectedMedId, setSelectedMedId] = useState(null);
   const [conges,        setConges]        = useState([]);
   const [loading,       setLoading]       = useState(false);
   const [showModal,     setShowModal]     = useState(false);
+  const [gestSection,   setGestSection]   = useState('campagne');
 
   const selectedMed = useMemo(
     () => medecins.find(m => m.id === selectedMedId) ?? null,
@@ -925,7 +999,7 @@ export default function CongesTab({ medecins, isGestionnaire, onToast = () => {}
 
   return (
     <div>
-      <div className="sec-t" style={{ marginBottom:14 }}>Congés</div>
+      {!isGestionnaire && <div className="sec-t" style={{ marginBottom:14 }}>Congés</div>}
 
       {/* ── Vue médecin (masquée pour les gestionnaires) ── */}
       {!isGestionnaire && (
@@ -976,10 +1050,24 @@ export default function CongesTab({ medecins, isGestionnaire, onToast = () => {}
 
       {/* ── Vue gestionnaire ── */}
       {isGestionnaire && (
-        <>
-          <GestCampView medecins={medecins} onToast={onToast} />
-          <DemandesPonctuelles onToast={onToast} />
-        </>
+        <div className="settings-layout">
+          <nav className="settings-nav" aria-label="Navigation congés">
+            {GEST_NAV.map(({ id, label, Icon }) => (
+              <button
+                key={id}
+                className={`settings-nav-item${gestSection === id ? ' active' : ''}`}
+                onClick={() => setGestSection(id)}
+              >
+                <Icon />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+          <div className="settings-content">
+            {gestSection === 'campagne'    && <GestCampView medecins={medecins} onToast={onToast} />}
+            {gestSection === 'ponctuelles' && <DemandesPonctuelles onToast={onToast} />}
+          </div>
+        </div>
       )}
 
       {/* ── Modal demande de congé ── */}

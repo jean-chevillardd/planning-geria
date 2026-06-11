@@ -126,6 +126,7 @@ export const getCampaignLatest      = ()                    => req('GET',   '/co
 export const extendCampaignToken    = (medId, hours)        => req('PUT',   `/conge/campaign/extend/${medId}`, { hours });
 export const resendCampaignToken    = (medId, base_url)     => req('POST',  `/conge/campaign/resend/${medId}`, { base_url });
 export const confirmCampaignMember  = (medId)               => req('POST',  `/conge/campaign/confirm/${medId}`);
+export const notifyCampaignMember   = (medId)               => req('POST',  `/conge/campaign/notify/${medId}`);
 export const editCampaignToken      = (medId, base_url)     => req('POST',  `/conge/campaign/edit-token/${medId}`, { base_url });
 export const confirmAbsence         = (id)                  => req('PATCH', `/absences/${id}/confirm`);
 export const unconfirmAbsence       = (id)                  => req('PATCH', `/absences/${id}/unconfirm`);
