@@ -1,6 +1,6 @@
 // components/StatsTab.jsx — Synthèse: cards + heatmap with slide-in side panel
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { POSTES, TYPE_LBL } from '../utils';
+import { POSTES, TYPE_LBL, schedToJoursParSemaine, schedToTauxPresence } from '../utils';
 import * as api from '../api';
 import MonthPickerPopover from './MonthPicker';
 
@@ -64,16 +64,21 @@ function countWorkingDays(d1, d2, from, to) {
   return n;
 }
 
-function sumW(p) {
-  return Object.values(p.weeks).reduce((a, b) => a + b, 0);
+// Formate un nombre de jours : entier sans décimale, sinon une décimale (temps partiels).
+function fmtD(n) {
+  return Number.isInteger(n) ? n : Number(n.toFixed(1));
+}
+
+function sumD(p) {
+  return Object.values(p.days).reduce((a, b) => a + b, 0);
 }
 
 function segs(p) {
-  const total = sumW(p);
+  const total = sumD(p);
   if (!total) return [];
   return POSTES
-    .filter(po => (p.weeks[po.id] || 0) > 0)
-    .map(po => ({ ...po, n: p.weeks[po.id], pct: (p.weeks[po.id] / total) * 100 }));
+    .filter(po => (p.days[po.id] || 0) > 0)
+    .map(po => ({ ...po, n: p.days[po.id], pct: (p.days[po.id] / total) * 100 }));
 }
 
 function topSegs(p, n = 4) {
@@ -169,7 +174,7 @@ function SvcBar({ p, h = 8 }) {
     <div style={{ display:'flex', height:h, width:'100%', borderRadius:h, overflow:'hidden', gap:1 }}>
       {s.map(sg => (
         <div key={sg.id}
-          title={`${sg.lbl} : ${sg.n} sem.`}
+          title={`${sg.lbl} : ${fmtD(sg.n)} j`}
           style={{ flex:sg.pct, background:sg.c }}
         />
       ))}
@@ -180,7 +185,7 @@ function SvcBar({ p, h = 8 }) {
 /* ── MediumCard ───────────────────────────────────────── */
 function MediumCard({ p, selected, onSelect, from, to }) {
   const [hov, setHov] = useState(false);
-  const tw  = sumW(p);
+  const tw  = sumD(p);
   const top = topSegs(p, 4);
   const cat = CATS.find(c => c.id === p.type);
   const conges       = congesByType(p.absences, from, to);
@@ -214,10 +219,10 @@ function MediumCard({ p, selected, onSelect, from, to }) {
         </div>
         <div style={{ textAlign:'right', flexShrink:0, marginLeft:12 }}>
           <div style={{ fontSize:24, fontWeight:800, color: selected ? 'var(--accent)' : 'var(--text)', lineHeight:1, fontFamily:'inherit' }}>
-            {tw}
+            {fmtD(tw)}
           </div>
           <div style={{ fontSize:9, color:'var(--text2)', letterSpacing:'0.03em', fontFamily:'Trebuchet MS,sans-serif' }}>
-            semaines
+            jours
           </div>
         </div>
       </div>
@@ -230,7 +235,7 @@ function MediumCard({ p, selected, onSelect, from, to }) {
             <div key={s.id} style={{ display:'flex', alignItems:'center', gap:4 }}>
               <div style={{ width:8, height:8, borderRadius:2, background:s.c, flexShrink:0 }}/>
               <span style={{ fontSize:11, color:'var(--text2)', fontFamily:'inherit' }}>
-                {s.short} <b style={{ color:'var(--text)', fontWeight:600 }}>{s.n}</b>
+                {s.short} <b style={{ color:'var(--text)', fontWeight:600 }}>{fmtD(s.n)}</b>
               </span>
             </div>
           ))}
@@ -326,17 +331,17 @@ function CardsView({ practitioners, selectedId, onSelect, search, setSearch, fro
 /* ── MatrixView ───────────────────────────────────────── */
 function MatrixView({ practitioners, selectedId, onSelect }) {
   const activePostes = POSTES.filter(po =>
-    practitioners.some(p => (p.weeks[po.id] || 0) > 0)
+    practitioners.some(p => (p.days[po.id] || 0) > 0)
   );
   const maxV = Math.max(
-    ...practitioners.flatMap(p => activePostes.map(po => p.weeks[po.id] || 0)),
+    ...practitioners.flatMap(p => activePostes.map(po => p.days[po.id] || 0)),
     1
   );
 
   return (
     <div style={{ padding:'24px 0' }}>
       <div style={{ fontSize:11, color:'var(--text2)', marginBottom:16, fontFamily:'inherit' }}>
-        Intensité = volume de semaines · cliquer sur un nom pour ouvrir le détail
+        Intensité = volume de jours · cliquer sur un nom pour ouvrir le détail
       </div>
       <div style={{
         background:'var(--surface)', border:'1px solid var(--border)',
@@ -405,13 +410,13 @@ function MatrixView({ practitioners, selectedId, onSelect }) {
                     {p.nom}
                   </div>
                   {activePostes.map(po => {
-                    const v = p.weeks[po.id] || 0;
+                    const v = p.days[po.id] || 0;
                     const alpha = v > 0 ? Math.max(0.15, v / maxV) : 0;
                     const bg    = v > 0 ? hexA(po.c, alpha) : '#f0ede6';
                     const txtCol = alpha > 0.55 ? '#fff' : v > 0 ? po.c : 'transparent';
                     return (
                       <div key={po.id}
-                        title={v > 0 ? `${po.lbl} : ${v} sem.` : '—'}
+                        title={v > 0 ? `${po.lbl} : ${fmtD(v)} j` : '—'}
                         style={{
                           height:28, borderRadius:4, background:bg,
                           display:'flex', alignItems:'center', justifyContent:'center',
@@ -419,7 +424,7 @@ function MatrixView({ practitioners, selectedId, onSelect }) {
                           fontFamily:'inherit',
                         }}
                       >
-                        {v > 0 ? v : ''}
+                        {v > 0 ? fmtD(v) : ''}
                       </div>
                     );
                   })}
@@ -440,7 +445,7 @@ function MatrixView({ practitioners, selectedId, onSelect }) {
               <div key={o} style={{ width:22, height:11, borderRadius:2, background:hexA('#2563eb', o) }}/>
             ))}
           </div>
-          <span style={{ fontSize:10, color:'var(--text2)' }}>{maxV} sem.</span>
+          <span style={{ fontSize:10, color:'var(--text2)' }}>{fmtD(maxV)} j</span>
         </div>
       </div>
     </div>
@@ -460,8 +465,8 @@ function DetailContent({ p, from, to }) {
     <div style={{ display:'flex', flexDirection:'column', gap:22 }}>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8 }}>
         {[
-          ['Semaines', sumW(p)],
-          ['Services', s.length],
+          ['Jours', fmtD(sumD(p))],
+          ['Présence', Math.round(schedToTauxPresence(p.sched) * 100) + '%'],
           ['Absences', totalAbsDays + 'j'],
         ].map(([l, v]) => (
           <div key={l} style={{ background:'var(--bg)', borderRadius:8, padding:'12px 8px', textAlign:'center' }}>
@@ -490,7 +495,7 @@ function DetailContent({ p, from, to }) {
                 <div style={{ height:'100%', width:`${(sv.n / maxW) * 100}%`, background:sv.c, borderRadius:7, transition:'width .4s ease' }}/>
               </div>
               <div style={{ width:24, fontSize:12, fontWeight:700, color:'var(--text)', textAlign:'right', fontFamily:'inherit' }}>
-                {sv.n}
+                {fmtD(sv.n)}
               </div>
             </div>
           ))}
@@ -628,10 +633,10 @@ export default function StatsTab({ medecins }) {
     api.getAllStats(fromStr, toStr)
       .then(data => {
         const map = {};
-        data.forEach(({ med_id, affectations, absences }) => {
+        data.forEach(({ med_id, affectations, extras_jours, absences }) => {
           const weeks = {};
           affectations.forEach(({ poste_id, semaines }) => { weeks[poste_id] = Number(semaines); });
-          map[med_id] = { weeks, absences };
+          map[med_id] = { weeks, extrasJours: extras_jours || {}, absences };
         });
         setAllStats(map);
       })
@@ -642,11 +647,20 @@ export default function StatsTab({ medecins }) {
   const practitioners = useMemo(() => {
     const catOrder = Object.fromEntries(CATS.map((c, i) => [c.id, i]));
     return medecins
-      .map(m => ({
-        ...m,
-        weeks:    allStats?.[m.id]?.weeks    ?? {},
-        absences: allStats?.[m.id]?.absences ?? [],
-      }))
+      .map(m => {
+        // Conversion semaines → jours selon le temps de présence (sched) du médecin.
+        const jps        = schedToJoursParSemaine(m.sched);
+        const weeks      = allStats?.[m.id]?.weeks ?? {};
+        const extrasJours = allStats?.[m.id]?.extrasJours ?? {};
+        const days       = {};
+        for (const [poste, w] of Object.entries(weeks)) days[poste] = w * jps;
+        for (const [poste, j] of Object.entries(extrasJours)) days[poste] = (days[poste] || 0) + j;
+        return {
+          ...m,
+          days,
+          absences: allStats?.[m.id]?.absences ?? [],
+        };
+      })
       .sort((a, b) =>
         (catOrder[a.type] ?? 99) - (catOrder[b.type] ?? 99) ||
         a.nom.localeCompare(b.nom, 'fr')
@@ -680,7 +694,7 @@ export default function StatsTab({ medecins }) {
         <div>
           <div className="sec-t">Synthèse par praticien</div>
           <div style={{ fontSize:11, fontFamily:'inherit', color:'var(--text2)', marginTop:3 }}>
-            {periodLabel} · semaines passées &amp; planifiées
+            {periodLabel} · jours passés &amp; planifiés
           </div>
         </div>
 
