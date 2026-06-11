@@ -1,6 +1,6 @@
 // components/PlanningGrid.jsx
 import { useMemo, useState, useRef, useEffect } from 'react';
-import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getSchedHalfDay, getFrenchHolidays, getFrenchBridgeDays, getDisponiblesPH } from '../utils';
+import { POSTES, DAYS_FR, toIso, weekDays, worksDay, isAbsent, getSchedHalfDay, getFrenchHolidays, getFrenchBridgeDays, getDisponiblesPH, loadVacancesScolaires, matchVacancesScolaires } from '../utils';
 
 function fmtWeek(monday, days) {
   const opts = { day: 'numeric', month: 'long', year: 'numeric' };
@@ -110,7 +110,11 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
   const [panelDragMed,       setPanelDragMed]      = useState(null);   // PH glissé depuis le panneau dispo
   const [pendingPanelAssign, setPendingPanelAssign] = useState(null);  // affectation depuis panneau en attente
 
+  const [vacancesList, setVacancesList] = useState([]);
+
   function setFilter(id) { setFilterState(id); setSubFilter(null); }
+
+  useEffect(() => { loadVacancesScolaires().then(setVacancesList); }, []);
 
   const days     = weekDays(monday);
   const todayIso = toIso(new Date());
@@ -142,10 +146,18 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
   const renforts   = planningData?.renforts     || [];
 
   // ── Disponibles PH cette semaine (groupés 5j / partiels) ──
+  const mondayIso = useMemo(() => toIso(monday), [monday]);
+  const medecinsSemaine = useMemo(
+    () => medecins.filter(m =>
+      (!m.date_arrivee || m.date_arrivee <= mondayIso) &&
+      (!m.date_depart  || m.date_depart  >  mondayIso)
+    ),
+    [medecins, mondayIso],
+  );
   const disponibles = useMemo(() => {
     if (!showAvailablePanel) return { full: [], partial: [] };
-    return getDisponiblesPH(medecins, absences, days, byPoste, exclusions, extras);
-  }, [showAvailablePanel, medecins, absences, monday, byPoste, exclusions, extras]);
+    return getDisponiblesPH(medecinsSemaine, absences, days, byPoste, exclusions, extras, renforts);
+  }, [showAvailablePanel, medecinsSemaine, absences, monday, byPoste, exclusions, extras, renforts]);
 
   // ── PH en congés cette semaine (panel informatif, toujours affiché si mode édition) ──
   const TYPE_ABS_SHORT = {
@@ -159,7 +171,7 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
     const firstIso = dayIsos[0];
     const lastIso  = dayIsos[dayIsos.length - 1];
     const result   = [];
-    for (const m of medecins) {
+    for (const m of medecinsSemaine) {
       if (!m.actif || m.type !== 'ph') continue;
       const semAbs = absences.filter(a =>
         a.med_id === m.id && a.date_debut <= lastIso && a.date_fin >= firstIso
@@ -224,6 +236,9 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         extras
           .filter(e => allIds.includes(e.poste_id) && e.jour === di && e.type === 'ph')
           .forEach(e => addContrib(e.med_id, 1));
+        renforts
+          .filter(r => allIds.includes(r.poste_id) && r.jour === di && r.type === 'ph')
+          .forEach(r => addContrib(r.med_id, 1));
       });
       const total = [...phContrib.values()].reduce((a, b) => a + b, 0);
       // Arrondi au 0,5 le plus proche pour éviter les erreurs float
@@ -248,12 +263,14 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
         const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
         const excl     = exclusions.filter(e => allIds.includes(e.poste_id) && e.jour === di).map(e => e.med_id);
         const ext      = extras.filter(e => allIds.includes(e.poste_id) && e.jour === di);
+        const renf     = renforts.filter(r => allIds.includes(r.poste_id) && r.jour === di);
         if (p.minPH) {
           const phTotal =
             assigned
               .filter(m => m.type === 'ph' && worksDay(m, di, absences) && !excl.includes(m.id))
               .reduce((sum, m) => sum + (getSchedHalfDay(m, di) ? 0.5 : 1), 0)
-            + ext.filter(e => e.type === 'ph').length;
+            + ext.filter(e => e.type === 'ph').length
+            + renf.filter(r => r.type === 'ph').length;
           if (phTotal < p.minPH) {
             warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
             alertSet.add(`${p.id}:${di}`);
@@ -263,7 +280,8 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
             assigned
               .filter(m => worksDay(m, di, absences) && !excl.includes(m.id))
               .reduce((sum, m) => sum + (getSchedHalfDay(m, di) ? 0.5 : 1), 0)
-            + ext.length;
+            + ext.length
+            + renf.length;
           if (presentTotal < p.min) {
             warns.push(`${p.lbl} (${DAYS_FR[d.getDay() - 1]})`);
             alertSet.add(`${p.id}:${di}`);
@@ -289,12 +307,14 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       const allIds   = [p.id, ...(p.combineWith ? [p.combineWith] : [])];
       const assigned = allIds.flatMap(pid => byPoste[pid]?.medecins || []);
       if (assigned.some(m => m.id === doctorFilter)) { ids.add(p.id); return; }
-      if (allIds.some(pid => days.some(d =>
-        extras.some(e => e.poste_id === pid && e.jour === toIso(d) && e.med_id === doctorFilter)
-      ))) ids.add(p.id);
+      if (allIds.some(pid => days.some(d => {
+        const di = toIso(d);
+        return extras.some(e => e.poste_id === pid && e.jour === di && e.med_id === doctorFilter)
+          || renforts.some(r => r.poste_id === pid && r.jour === di && r.med_id === doctorFilter);
+      }))) ids.add(p.id);
     });
     return ids;
-  }, [doctorFilter, byPoste, extras, days]);
+  }, [doctorFilter, byPoste, extras, renforts, days]);
 
   // P16 — filtrage par groupe + sous-filtre
   let baseGroups = filter === null
@@ -425,6 +445,19 @@ export default function PlanningGrid({ monday, planningData, absences, medecins 
       <div className="print-only print-title">
         Planning — Semaine du {fmtWeek(monday, days)}
       </div>
+
+      {/* ── Bandeau vacances scolaires (Zone B — La Roche-sur-Yon) ── */}
+      {matchVacancesScolaires(days, vacancesList) && (
+        <div className="print-hide" style={{
+          marginBottom: 10, padding:'6px 12px', borderRadius:8,
+          display:'flex', alignItems:'center', gap:8,
+          background:'#eef2ff', border:'1px solid #c7d2fe',
+          fontFamily:'sans-serif', fontSize:12, fontWeight:600, color:'#4338ca',
+        }}>
+          <span style={{ fontSize:14 }}>🎒</span>
+          <span>{matchVacancesScolaires(days, vacancesList)} (Zone B)</span>
+        </div>
+      )}
 
       {/* ── Alerte couverture (gestionnaire uniquement) ── */}
       {isSecretary && <div className={`alert print-hide ${alerts.warns.length === 0 ? 'alert-ok' : 'alert-warn'}`} style={{ marginBottom: 10, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>

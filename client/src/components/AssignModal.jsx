@@ -103,11 +103,20 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   });
   extras.forEach(e => { if (!allPosteIds.includes(e.poste_id) && e.jour === dayIso) takenToday.add(e.med_id); });
 
+  // Filtre date : praticien présent à la date de la semaine visualisée
+  const medecinsPourCetteSemaine = useMemo(
+    () => medecins.filter(m =>
+      (!m.date_arrivee || m.date_arrivee <= dayIso) &&
+      (!m.date_depart  || m.date_depart  >  dayIso)
+    ),
+    [medecins, dayIso],
+  );
+
   // ── PH disponibles cette semaine (même source que le panneau latéral) ──
   const days = useMemo(() => weekDays(monday), [monday]);
   const disponibles = useMemo(
-    () => getDisponiblesPH(medecins, absences, days, byPoste, exclusions, extras),
-    [medecins, absences, days, byPoste, exclusions, extras],
+    () => getDisponiblesPH(medecinsPourCetteSemaine, absences, days, byPoste, exclusions, extras),
+    [medecinsPourCetteSemaine, absences, days, byPoste, exclusions, extras],
   );
 
   // ── Recherche ──────────────────────────────────────────────
@@ -117,7 +126,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   // Tous les praticiens actifs sont cherchables ; pour les postes combinés (csg1a+csg1i1)
   // toutes les catégories sont affichées — la fonction targetPosteId route au bon sous-poste.
   // Recherche sur le nom ET sur le type (ex : "interne", "externe", "padhue", "ph").
-  const candidates    = medecins.filter(m => m.type !== 'externe');
+  const candidates    = medecinsPourCetteSemaine.filter(m => m.type !== 'externe');
   const searchResults = searching ? candidates.filter(m =>
     m.nom.toLowerCase().includes(q) ||
     m.type.toLowerCase().includes(q) ||
@@ -125,8 +134,9 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   ) : [];
 
   // ── Disponibilité "Affecter ce jour" (remplacement ponctuel) ──
-  // Bloqué si : déjà présent ici aujourd'hui, en congé, ou en poste ailleurs ce jour
+  // Bloqué si : déjà présent ici aujourd'hui, en congé, en poste ailleurs, ou date_depart atteinte
   function dayAvail(m) {
+    if (m.date_depart && dayIso >= m.date_depart) return { ok:false, reason:'Praticien parti à cette date' };
     if (presentToday.has(m.id))           return { ok:false, reason:'Déjà présent à ce poste aujourd\'hui' };
     if (isAbsent(m.id, dayIso, absences)) return { ok:false, reason:'En congé ce jour' };
     if (takenToday.has(m.id))             return { ok:false, reason:'Déjà en poste ailleurs — utiliser Renfort' };
@@ -148,6 +158,7 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
   // déjà remplaçant ou renfort ICI (doublon sur le(s) jour(s) concerné(s)),
   // ou n'a aucun jour travaillé cette semaine.
   // Si remplaçant ponctuel ailleurs → autorisé avec auto-exclusion sur ces jours.
+  // Si date_depart dans la semaine → auto-exclusion des jours à partir du départ.
   function weekAvail(m) {
     if (assigned.find(a => a.id === m.id)) return { ok:false, reason:'Déjà affecté cette semaine' };
     if (takenThisWeek.has(m.id))           return { ok:false, reason:'Déjà affecté ailleurs cette semaine' };
@@ -155,8 +166,18 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
       return { ok:false, reason:'Déjà remplaçant ici ce(s) jour(s) — retirer le remplacement avant d\'affecter à la semaine' };
     if (renforts.some(r => allPosteIds.includes(r.poste_id) && r.med_id === m.id))
       return { ok:false, reason:'Déjà en renfort ici ce(s) jour(s) — retirer le renfort avant d\'affecter à la semaine' };
-    if (!worksWeekAny(m, monday, absences)) return { ok:false, reason:'Aucun jour disponible cette semaine' };
-    const autoExcludeDays = extraConflictsThisWeek.get(m.id) || [];
+    const autoExcludeDays = [...(extraConflictsThisWeek.get(m.id) || [])];
+    if (m.date_depart) {
+      days.forEach(d => {
+        const iso = toIso(d);
+        if (iso >= m.date_depart && !autoExcludeDays.includes(iso)) autoExcludeDays.push(iso);
+      });
+    }
+    const daysLeft = days.filter(d => {
+      const iso = toIso(d);
+      return !autoExcludeDays.includes(iso) && worksDay(m, iso, absences);
+    });
+    if (daysLeft.length === 0) return { ok:false, reason:'Aucun jour disponible cette semaine' };
     return { ok:true, autoExcludeDays };
   }
 
@@ -213,10 +234,16 @@ export default function AssignModal({ poste, dayIso, monday, planningData, medec
                           onClick={() => onAction('del_exclusion', { week_key:weekKey, poste_id:m._posteId, med_id:m.id, jour:dayIso })}>
                           Restaurer
                         </button>
-                      : works && <button style={pillBtn('var(--warn)', 'var(--warn-bg)')}
-                          onClick={() => onAction('add_exclusion', { week_key:weekKey, poste_id:m._posteId, med_id:m.id, jour:dayIso })}>
-                          Retirer ce jour
-                        </button>
+                      : works
+                        ? <button style={pillBtn('var(--warn)', 'var(--warn-bg)')}
+                            onClick={() => onAction('add_exclusion', { week_key:weekKey, poste_id:m._posteId, med_id:m.id, jour:dayIso })}>
+                            Retirer ce jour
+                          </button>
+                        : !absent && <button style={pillBtn('var(--accent)', 'var(--accent-light)')}
+                            title="Jour hors planning habituel — forcer la présence ce jour"
+                            onClick={() => onAction('add_extra', { week_key:weekKey, poste_id:m._posteId, med_id:m.id, jour:dayIso })}>
+                            Forcer ce jour
+                          </button>
                     }
                     <button style={pillBtn('var(--danger)', 'var(--danger-bg)')}
                       onClick={() => onAction('del_affectation', { week_key:weekKey, poste_id:m._posteId, med_id:m.id })}>

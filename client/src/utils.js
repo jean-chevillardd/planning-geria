@@ -117,6 +117,25 @@ export function countDemiJournees(med) {
   return med.sched.reduce((a, b) => a + b, 0);
 }
 
+// Nombre de demi-journées travaillées dans un sched (string '1111111111' ou array).
+function countOnes(sched) {
+  if (!sched) return 0;
+  let n = 0;
+  for (const c of sched) n += Number(c) ? 1 : 0;
+  return n;
+}
+
+// Jours travaillés par semaine dérivés du sched (10 demi-journées = 5 jours).
+// Ex: plein temps (10 « 1 ») → 5 ; mi-temps (5 « 1 ») → 2.5.
+export function schedToJoursParSemaine(sched) {
+  return countOnes(sched) / 2;
+}
+
+// Taux de présence dérivé du sched : nb de demi-journées travaillées / 10.
+export function schedToTauxPresence(sched) {
+  return countOnes(sched) / 10;
+}
+
 export function worksWeekAny(med, monday, absences = []) {
   return weekDays(monday).some(d => worksDay(med, toIso(d), absences));
 }
@@ -129,7 +148,7 @@ export function worksWeekAny(med, monday, absences = []) {
  * Ne retourne que les praticiens de type 'ph' (Praticien Hospitalier).
  * SQLite stocke actif comme INTEGER — utiliser !!m.actif, pas m.actif === true.
  */
-export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusions = [], extras = []) {
+export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusions = [], extras = [], renforts = []) {
   if (!medecins || !absences || !days?.length) return { full: [], partial: [] };
   const dayIsos = days.map(d => toIso(d));
 
@@ -199,8 +218,17 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
         // Aucun congé posé → full si travaille tous les jours, partial sinon
         const joursActifs = dayIsos.filter(iso => schedWorksOn(m, iso));
         if (joursActifs.length === 0) continue;
-        // Sched partiel (ex : 80%) = présent selon son planning, pas une absence → full
-        full.push({ ...m, schedNote: buildSchedNote(m) });
+
+        // date_depart dans la semaine → partiel avec mention "départ le X"
+        if (m.date_depart && dayIsos.some(iso => iso >= m.date_depart)) {
+          const joursAvantDepart = joursActifs.filter(iso => iso < m.date_depart);
+          if (joursAvantDepart.length === 0) continue;
+          const departDay = parseInt(m.date_depart.split('-')[2], 10);
+          partial.push({ ...m, joursPresents: [`(départ le ${departDay})`] });
+        } else {
+          // Sched partiel (ex : 80%) = présent selon son planning, pas une absence → full
+          full.push({ ...m, schedNote: buildSchedNote(m) });
+        }
       }
     } else {
       // Assigné : libre uniquement les jours où exclu de TOUS ses postes
@@ -212,8 +240,9 @@ export function getDisponiblesPH(medecins, absences, days, byPoste = {}, exclusi
             exclusions.some(e => e.med_id === m.id && e.poste_id === pid && e.jour === iso)
           );
           if (!excluDeTous) return null;
-          // Pas libre si déjà remplaçant (extra) dans un autre poste ce jour
+          // Pas libre si déjà remplaçant (extra) ou renfort dans un autre poste ce jour
           if (extras.some(e => e.med_id === m.id && e.jour === iso)) return null;
+          if (renforts.some(r => r.med_id === m.id && r.jour === iso)) return null;
           return DAYS_FR[i];
         })
         .filter(Boolean);
@@ -262,6 +291,75 @@ export function getFrenchBridgeDays(year) {
   }
   _bridgeCache[year] = bridges;
   return bridges;
+}
+
+// ── Vacances scolaires — Zone B / académie de Nantes (La Roche-sur-Yon) ──
+// Récupérées depuis l'API officielle data.education.gouv.fr (calendrier scolaire),
+// pas codées en dur : couvre automatiquement toutes les années disponibles.
+const VACANCES_API_URL =
+  'https://data.education.gouv.fr/api/explore/v2.1/catalog/datasets/fr-en-calendrier-scolaire/records'
+  + '?where=location%3D%22Nantes%22%20and%20zones%3D%22Zone%20B%22'
+  + '&select=description%2Cstart_date%2Cend_date&order_by=start_date&limit=100';
+const VACANCES_LS_KEY = 'vacances_zone_b_v1';
+const VACANCES_TTL_MS = 30 * 24 * 3600 * 1000; // 30 jours
+
+let _vacancesCache   = null;
+let _vacancesPromise = null;
+
+function normalizeVacances(records) {
+  // start_date/end_date sont des datetimes ISO ; on garde la date locale.
+  return records
+    .map(r => ({
+      label: r.description,
+      from:  toIso(new Date(r.start_date)),
+      to:    toIso(new Date(r.end_date)),
+    }))
+    .filter(v => v.label && v.from && v.to);
+}
+
+/**
+ * Charge (et met en cache) les périodes de vacances scolaires Zone B.
+ * Cache mémoire + localStorage (TTL 30 j). Retourne [] en cas d'échec réseau.
+ */
+export async function loadVacancesScolaires() {
+  if (_vacancesCache)   return _vacancesCache;
+  if (_vacancesPromise) return _vacancesPromise;
+
+  try {
+    const raw = localStorage.getItem(VACANCES_LS_KEY);
+    if (raw) {
+      const { ts, data } = JSON.parse(raw);
+      if (Date.now() - ts < VACANCES_TTL_MS && Array.isArray(data)) {
+        _vacancesCache = data;
+        return data;
+      }
+    }
+  } catch { /* localStorage indispo : on refetch */ }
+
+  _vacancesPromise = fetch(VACANCES_API_URL)
+    .then(res => res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)))
+    .then(json => {
+      const list = normalizeVacances(json.results || []);
+      _vacancesCache = list;
+      try { localStorage.setItem(VACANCES_LS_KEY, JSON.stringify({ ts: Date.now(), data: list })); } catch { /* quota */ }
+      return list;
+    })
+    .catch(() => { _vacancesCache = []; return []; });
+
+  return _vacancesPromise;
+}
+
+/**
+ * Retourne le label des vacances scolaires si au moins un des jours affichés
+ * (tableau de Date) tombe dans une période, sinon null.
+ * `list` provient de loadVacancesScolaires().
+ */
+export function matchVacancesScolaires(days, list) {
+  if (!days?.length || !list?.length) return null;
+  const isos  = days.map(d => toIso(d));
+  const first = isos[0], last = isos[isos.length - 1];
+  const m = list.find(v => v.from <= last && v.to >= first);
+  return m ? m.label : null;
 }
 
 export function getFrenchHolidays(year) {
