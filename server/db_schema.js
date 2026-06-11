@@ -11,7 +11,9 @@ function applySchema(db) {
       service TEXT DEFAULT 'geriatrie',
       tel     TEXT DEFAULT '',
       email   TEXT DEFAULT NULL,
-      actif   INTEGER NOT NULL DEFAULT 1
+      actif   INTEGER NOT NULL DEFAULT 1,
+      date_arrivee TEXT DEFAULT NULL,
+      date_depart  TEXT DEFAULT NULL
     )
   `);
   db.exec(`

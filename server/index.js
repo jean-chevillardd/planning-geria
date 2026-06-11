@@ -66,8 +66,14 @@ function createApp(dbLib) {
 
   app._setDbReady = () => { DB_READY = true; };
 
+  // Fragment SQL : médecin actif non parti (utilisé pour les validations d'affectation).
+  // Le filtre date_arrivee est volontairement absent : un PH dont l'arrivée est future
+  // doit pouvoir être affecté sur une semaine à venir (filtrage côté client selon dayIso).
+  const ACTIF_NOW =
+    `actif=1 AND (date_depart IS NULL OR date_depart > date('now','localtime'))`;
+
   const checkMedExists = (med_id) =>
-    !!dbLib.queryOne('SELECT 1 FROM medecins WHERE id=? AND actif=1', [med_id]);
+    !!dbLib.queryOne(`SELECT 1 FROM medecins WHERE id=? AND ${ACTIF_NOW}`, [med_id]);
 
   function logAudit(userId, action, tableName, recordId, payloadBefore, payloadAfter) {
     try {
@@ -154,7 +160,7 @@ function createApp(dbLib) {
     if (!v.ok) return res.status(400).json({ error: v.error });
     const { medecin_id, date_debut, date_fin, type, note } = v.data;
 
-    const med = dbLib.queryOne('SELECT * FROM medecins WHERE id=? AND actif=1', [medecin_id]);
+    const med = dbLib.queryOne(`SELECT * FROM medecins WHERE id=? AND ${ACTIF_NOW}`, [medecin_id]);
     if (!med) return res.status(400).json({ error: 'Praticien introuvable' });
     if (date_fin < date_debut) return res.status(400).json({ error: 'date_fin < date_debut' });
 
@@ -284,12 +290,15 @@ function createApp(dbLib) {
   // MÉDECINS
   // ═══════════════════════════════════════════════════════
   app.get('/api/medecins', (req, res) => {
-    const rows = dbLib.queryAll('SELECT * FROM medecins WHERE actif=1 ORDER BY type, nom');
+    const rows = dbLib.queryAll(`SELECT * FROM medecins WHERE ${ACTIF_NOW} ORDER BY type, nom`);
     res.json(rows.map(r => ({ ...r, sched: r.sched.split('').map(Number) })));
   });
 
   app.get('/api/medecins/archives', (req, res) => {
-    const rows = dbLib.queryAll('SELECT * FROM medecins WHERE actif=0 ORDER BY type, nom');
+    // Archivés explicites (actif=0) ou départ déjà effectif.
+    const rows = dbLib.queryAll(
+      `SELECT * FROM medecins WHERE actif=0 OR (date_depart IS NOT NULL AND date_depart <= date('now','localtime')) ORDER BY type, nom`
+    );
     res.json(rows.map(r => ({ ...r, sched: r.sched.split('').map(Number) })));
   });
 
@@ -298,21 +307,23 @@ function createApp(dbLib) {
   app.post('/api/medecins', (req, res) => {
     const v = validate(medecinsCreateSchema, req.body);
     if (!v.ok) return res.status(400).json({ error: v.error });
-    const { nom, type, sched, service, tel, email } = v.data;
+    const { nom, type, sched, service, tel, email, date_arrivee, date_depart } = v.data;
     const id = 'm_' + Date.now();
     const schedStr = (sched || Array(10).fill(1)).join('');
     const svc   = service || 'geriatrie';
     const phone = tel || '';
     const mail  = email || null;
-    dbLib.run('INSERT INTO medecins (id,nom,type,sched,service,tel,email) VALUES (?,?,?,?,?,?,?)', [id, nom, type, schedStr, svc, phone, mail]);
+    const arr   = date_arrivee || null;
+    const dep   = date_depart  || null;
+    dbLib.run('INSERT INTO medecins (id,nom,type,sched,service,tel,email,date_arrivee,date_depart) VALUES (?,?,?,?,?,?,?,?,?)', [id, nom, type, schedStr, svc, phone, mail, arr, dep]);
     logAudit('CREATE', 'medecins', id, null, { id, nom, type });
-    res.json({ id, nom, type, sched: schedStr.split('').map(Number), service: svc, tel: phone, email: mail });
+    res.json({ id, nom, type, sched: schedStr.split('').map(Number), service: svc, tel: phone, email: mail, date_arrivee: arr, date_depart: dep });
   });
 
   app.put('/api/medecins/:id', (req, res) => {
     const v = validate(medecinsUpdateSchema, req.body);
     if (!v.ok) return res.status(400).json({ error: v.error });
-    const { nom, type, sched, service, tel, email } = v.data;
+    const { nom, type, sched, service, tel, email, date_arrivee, date_depart } = v.data;
     const { id } = req.params;
     const sets = [];
     const vals = [];
@@ -325,6 +336,8 @@ function createApp(dbLib) {
     if (service !== undefined) { sets.push('service=?'); vals.push(service); }
     if (tel     !== undefined) { sets.push('tel=?');     vals.push(tel); }
     if (email   !== undefined) { sets.push('email=?');   vals.push(email || null); }
+    if (date_arrivee !== undefined) { sets.push('date_arrivee=?'); vals.push(date_arrivee || null); }
+    if (date_depart  !== undefined) { sets.push('date_depart=?');  vals.push(date_depart  || null); }
     if (sets.length > 0) {
       vals.push(id);
       dbLib.transaction(() => {
@@ -340,8 +353,16 @@ function createApp(dbLib) {
     const { id } = req.params;
     const med = dbLib.queryOne('SELECT id, nom, type FROM medecins WHERE id=?', [id]);
     if (!med) return res.status(404).json({ error: 'Médecin non trouvé' });
-    dbLib.run('UPDATE medecins SET actif=0 WHERE id=?', [id]);
-    logAudit('DELETE', 'medecins', id, med, null);
+    const today = new Date().toISOString().slice(0, 10);
+    const dateDepart = req.body?.date_depart;
+    if (dateDepart && dateDepart > today) {
+      // Archivage programmé : on pose la date de départ future sans désactiver tout de suite.
+      dbLib.run('UPDATE medecins SET date_depart=? WHERE id=?', [dateDepart, id]);
+      logAudit('UPDATE', 'medecins', id, med, { date_depart: dateDepart });
+    } else {
+      dbLib.run('UPDATE medecins SET actif=0 WHERE id=?', [id]);
+      logAudit('DELETE', 'medecins', id, med, null);
+    }
     res.json({ ok: true });
   });
 
@@ -349,7 +370,7 @@ function createApp(dbLib) {
     const { id } = req.params;
     const med = dbLib.queryOne('SELECT id, nom, type FROM medecins WHERE id=?', [id]);
     if (!med) return res.status(404).json({ error: 'Médecin non trouvé' });
-    dbLib.run('UPDATE medecins SET actif=1 WHERE id=?', [id]);
+    dbLib.run('UPDATE medecins SET actif=1, date_depart=NULL WHERE id=?', [id]);
     logAudit('UPDATE', 'medecins', id, { actif: 0 }, { actif: 1 });
     res.json({ ok: true });
   });
@@ -584,13 +605,13 @@ function createApp(dbLib) {
     if (Array.isArray(med_ids) && med_ids.length > 0) {
       const placeholders = med_ids.map(() => '?').join(',');
       medecins = dbLib.queryAll(
-        `SELECT id, nom, type, email FROM medecins WHERE id IN (${placeholders}) AND actif=1 AND email IS NOT NULL AND TRIM(email) != ''`,
+        `SELECT id, nom, type, email FROM medecins WHERE id IN (${placeholders}) AND ${ACTIF_NOW} AND email IS NOT NULL AND TRIM(email) != ''`,
         med_ids
       );
     } else {
       const placeholders = types.map(() => '?').join(',');
       medecins = dbLib.queryAll(
-        `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) AND actif=1 AND email IS NOT NULL AND TRIM(email) != ''`,
+        `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) AND ${ACTIF_NOW} AND email IS NOT NULL AND TRIM(email) != ''`,
         types
       );
     }
@@ -780,7 +801,7 @@ function createApp(dbLib) {
     if (!campaign) return res.status(404).json({ error: 'Aucune campagne trouvée' });
 
     const med = dbLib.queryOne(
-      'SELECT id, nom, type, email FROM medecins WHERE id=? AND actif=1',
+      `SELECT id, nom, type, email FROM medecins WHERE id=? AND ${ACTIF_NOW}`,
       [req.params.medId]
     );
     if (!med) return res.status(404).json({ error: 'Praticien introuvable' });
@@ -849,28 +870,84 @@ function createApp(dbLib) {
     }
   });
 
-  app.post('/api/conge/campaign/confirm/:medId', requireGestionnaire, (req, res) => {
+  app.post('/api/conge/campaign/confirm/:medId', requireGestionnaire, async (req, res) => {
     const campaign = dbLib.queryOne('SELECT id FROM conge_campaigns ORDER BY id DESC LIMIT 1');
     if (!campaign) return res.status(404).json({ error: 'Aucune campagne trouvée' });
-    const token = dbLib.queryOne(
-      'SELECT token FROM conge_tokens WHERE campaign_id=? AND med_id=? AND used_at IS NOT NULL',
+    const tokenRow = dbLib.queryOne(
+      'SELECT ct.token, m.nom, m.email FROM conge_tokens ct JOIN medecins m ON m.id=ct.med_id WHERE ct.campaign_id=? AND ct.med_id=? AND ct.used_at IS NOT NULL',
       [campaign.id, req.params.medId]
     );
-    if (!token) return res.status(404).json({ error: 'Aucune réponse trouvée pour ce praticien' });
+    if (!tokenRow) return res.status(404).json({ error: 'Aucune réponse trouvée pour ce praticien' });
     const pending = dbLib.queryAll(
-      'SELECT id FROM absences WHERE source_token=? AND confirmed=0',
-      [token.token]
+      'SELECT id, date_debut, date_fin, type_abs FROM absences WHERE source_token=? AND confirmed=0',
+      [tokenRow.token]
     );
-    dbLib.run('UPDATE absences SET confirmed=1 WHERE source_token=?', [token.token]);
+    dbLib.run('UPDATE absences SET confirmed=1 WHERE source_token=?', [tokenRow.token]);
     logAudit(req.authUser.userId, 'UPDATE', 'absences', null, null, { med_id: req.params.medId, confirmed: true, count: pending.length });
+
+    // Email de notification au praticien
+    if (tokenRow.email && emailConfig?.smtp_user && emailConfig?.smtp_pass && nodemailer) {
+      try {
+        const transporter = nodemailer.createTransport({
+          host: emailConfig.smtp_host, port: emailConfig.smtp_port, secure: emailConfig.smtp_secure ?? true,
+          auth: { user: emailConfig.smtp_user, pass: emailConfig.smtp_pass },
+        });
+        const lignes = pending.map(a =>
+          `• ${a.type_abs} : du ${a.date_debut} au ${a.date_fin}`
+        ).join('\n');
+        await transporter.sendMail({
+          from: `"Planning Gériatrie" <${emailConfig.from_email}>`,
+          to: tokenRow.email,
+          subject: 'Vos congés ont été validés — Planning Pôle Gériatrie',
+          text: `Bonjour ${tokenRow.nom},\n\nVos demandes de congé suivantes ont été validées :\n\n${lignes}\n\nCordialement,\nLe secrétariat du Pôle Gériatrie`,
+        });
+      } catch(_) { /* non bloquant */ }
+    }
+
     res.json({ ok: true, count: pending.length });
+  });
+
+  // Notification email après traitement manuel des absences (EditModal)
+  app.post('/api/conge/campaign/notify/:medId', requireGestionnaire, async (req, res) => {
+    if (!emailConfig?.smtp_user || !emailConfig?.smtp_pass || !nodemailer)
+      return res.json({ ok: false, reason: 'email non configuré' });
+    const campaign = dbLib.queryOne('SELECT id FROM conge_campaigns ORDER BY id DESC LIMIT 1');
+    if (!campaign) return res.status(404).json({ error: 'Aucune campagne' });
+    const tokenRow = dbLib.queryOne(
+      'SELECT ct.token, m.nom, m.email FROM conge_tokens ct JOIN medecins m ON m.id=ct.med_id WHERE ct.campaign_id=? AND ct.med_id=? AND ct.used_at IS NOT NULL',
+      [campaign.id, req.params.medId]
+    );
+    if (!tokenRow?.email) return res.json({ ok: false, reason: 'pas d\'email' });
+    const absences = dbLib.queryAll(
+      'SELECT date_debut, date_fin, type_abs, confirmed FROM absences WHERE source_token=?',
+      [tokenRow.token]
+    );
+    if (!absences.length) return res.json({ ok: false, reason: 'aucune absence' });
+    try {
+      const transporter = nodemailer.createTransport({
+        host: emailConfig.smtp_host, port: emailConfig.smtp_port, secure: emailConfig.smtp_secure ?? true,
+        auth: { user: emailConfig.smtp_user, pass: emailConfig.smtp_pass },
+      });
+      const lignes = absences.map(a =>
+        `• ${a.type_abs} : du ${a.date_debut} au ${a.date_fin} — ${a.confirmed === 1 ? 'Validé ✓' : 'En cours d\'examen'}`
+      ).join('\n');
+      await transporter.sendMail({
+        from: `"Planning Gériatrie" <${emailConfig.from_email}>`,
+        to: tokenRow.email,
+        subject: 'Mise à jour de vos congés — Planning Pôle Gériatrie',
+        text: `Bonjour ${tokenRow.nom},\n\nVoici l'état actuel de vos demandes de congé :\n\n${lignes}\n\nCordialement,\nLe secrétariat du Pôle Gériatrie`,
+      });
+      res.json({ ok: true });
+    } catch(e) {
+      res.json({ ok: false, reason: e.message });
+    }
   });
 
   app.post('/api/conge/campaign/edit-token/:medId', requireGestionnaire, (req, res) => {
     const campaign = dbLib.queryOne('SELECT id FROM conge_campaigns ORDER BY id DESC LIMIT 1');
     if (!campaign) return res.status(404).json({ error: 'Aucune campagne trouvée' });
     const med = dbLib.queryOne(
-      'SELECT id FROM medecins WHERE id=? AND actif=1',
+      `SELECT id FROM medecins WHERE id=? AND ${ACTIF_NOW}`,
       [req.params.medId]
     );
     if (!med) return res.status(404).json({ error: 'Praticien introuvable' });
@@ -964,7 +1041,7 @@ function createApp(dbLib) {
     if (types.length === 0) return res.json([]);
     const placeholders = types.map(() => '?').join(',');
     const rows = dbLib.queryAll(
-      `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) AND actif=1 ORDER BY nom`,
+      `SELECT id, nom, type, email FROM medecins WHERE type IN (${placeholders}) AND ${ACTIF_NOW} ORDER BY nom`,
       types
     );
     res.json(rows.map(r => ({ id: r.id, nom: r.nom, type: r.type, email: r.email || null })));
@@ -1078,6 +1155,20 @@ function createApp(dbLib) {
       ORDER BY med_id, semaines DESC
     `, [fromKey, toKey]);
 
+    const extrasRows = dbLib.queryAll(`
+      SELECT med_id, poste_id, COUNT(DISTINCT jour) AS jours
+      FROM extras
+      WHERE jour >= ? AND jour <= ?
+      GROUP BY med_id, poste_id
+    `, [fromKey, toKey]);
+
+    const renfortsRows = dbLib.queryAll(`
+      SELECT med_id, poste_id, COUNT(DISTINCT jour) AS jours
+      FROM renforts
+      WHERE jour >= ? AND jour <= ?
+      GROUP BY med_id, poste_id
+    `, [fromKey, toKey]);
+
     const absRows = dbLib.queryAll(`
       SELECT med_id, date_debut, date_fin, type_abs
       FROM absences
@@ -1085,12 +1176,19 @@ function createApp(dbLib) {
       ORDER BY med_id, date_debut
     `, [fromKey, toKey]);
 
-    const medecins = dbLib.queryAll('SELECT id FROM medecins WHERE actif=1 ORDER BY id');
+    const medecins = dbLib.queryAll(`SELECT id FROM medecins WHERE ${ACTIF_NOW} ORDER BY id`);
 
     const affByMed = {};
     for (const r of affRows) {
       if (!affByMed[r.med_id]) affByMed[r.med_id] = [];
       affByMed[r.med_id].push({ poste_id: r.poste_id, semaines: r.semaines });
+    }
+
+    // Fusionner extras + renforts en jours par (med_id, poste_id)
+    const extrasDaysByMed = {};
+    for (const r of [...extrasRows, ...renfortsRows]) {
+      if (!extrasDaysByMed[r.med_id]) extrasDaysByMed[r.med_id] = {};
+      extrasDaysByMed[r.med_id][r.poste_id] = (extrasDaysByMed[r.med_id][r.poste_id] || 0) + r.jours;
     }
 
     const absByMed = {};
@@ -1101,8 +1199,9 @@ function createApp(dbLib) {
 
     const result = medecins.map(({ id }) => ({
       med_id: id,
-      affectations: affByMed[id] || [],
-      absences:     absByMed[id] || [],
+      affectations:  affByMed[id] || [],
+      extras_jours:  extrasDaysByMed[id] || {},
+      absences:      absByMed[id] || [],
     }));
 
     res.json(result);
@@ -1310,6 +1409,13 @@ if (require.main === module) {
   const app   = createApp(dbLib);
 
   dbLib.init().then(() => {
+    // Auto-archive des PH dont la date de départ est aujourd'hui ou passée
+    try {
+      const archived = dbLib.run(
+        `UPDATE medecins SET actif=0 WHERE actif=1 AND date_depart IS NOT NULL AND date_depart <= date('now','localtime')`
+      );
+      if (archived?.changes > 0) console.log(`  ↳ ${archived.changes} PH auto-archivé(s) (date_depart atteinte)`);
+    } catch (e) { console.warn('Auto-archive PH :', e.message); }
     app._setDbReady();
     app.listen(PORT, () => {
       console.log(`\n✓ Serveur planning gériatrie → http://localhost:${PORT}`);

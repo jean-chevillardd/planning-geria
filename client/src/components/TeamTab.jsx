@@ -35,6 +35,8 @@ function normalizeMedecin(m) {
     tel: m.tel,
     email: m.email || '',
     presence: isAstreinte ? undefined : presence,
+    date_arrivee: m.date_arrivee || '',
+    date_depart:  m.date_depart  || '',
     _rawNom: m.nom, _rawType: m.type, _rawSched: [...sched], _rawService: m.service,
   };
 }
@@ -45,7 +47,13 @@ function denormalizeMedecin(data, existingMember) {
   const isAstreinte = data.cat === 'astreinte';
   const sched = isAstreinte ? Array(10).fill(0) : data.presence.flat();
   const service = isAstreinte ? (data.service || '') : 'geriatrie';
-  return { nom, type, sched, service, tel: existingMember?.tel || '', email: data.email || null };
+  return {
+    nom, type, sched, service,
+    tel: existingMember?.tel || '',
+    email: data.email || null,
+    date_arrivee: data.date_arrivee || null,
+    date_depart:  data.date_depart  || null,
+  };
 }
 
 // ── Avatar ───────────────────────────────────────────────────
@@ -236,6 +244,8 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
   const [cat,      setCat]      = useState(member?.cat     || selected?.defaultCat || 'ph');
   const [service,  setService]  = useState(member?.service || '');
   const [email,    setEmail]    = useState(member?.email   || '');
+  const [dateArrivee, setDateArrivee] = useState(member?.date_arrivee || '');
+  const [dateDepart,  setDateDepart]  = useState(member?.date_depart  || '');
   const [presence, setPresence] = useState(
     member?.presence || Array.from({ length: 5 }, () => [1, 1])
   );
@@ -258,7 +268,14 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       onToast('Adresse email invalide', 'err'); return;
     }
-    onSave({ prenom: prenom.trim(), nom: nom.trim(), cat, service: service.trim(), presence, email: email.trim() });
+    if (dateArrivee && dateDepart && dateDepart <= dateArrivee) {
+      onToast('La date de départ doit être après la date d\'arrivée', 'err'); return;
+    }
+    onSave({
+      prenom: prenom.trim(), nom: nom.trim(), cat, service: service.trim(),
+      presence, email: email.trim(),
+      date_arrivee: dateArrivee || null, date_depart: dateDepart || null,
+    });
   }
 
   return (
@@ -339,6 +356,18 @@ function MemberPanel({ selected, isSecretary, onClose, onSave, onDelete, onToast
             onChange={e => setEmail(e.target.value)}
             placeholder="prenom.nom@chu.fr"
           />
+        </div>
+
+        {/* Dates d'arrivée / départ — masquage automatique du planning */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+          <div className="form-row" style={{ marginBottom: 0 }}>
+            <label>Arrivée <span style={{ fontSize:9, color:'var(--text3)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>— optionnel</span></label>
+            <input type="date" value={dateArrivee} onChange={e => setDateArrivee(e.target.value)} />
+          </div>
+          <div className="form-row" style={{ marginBottom: 0 }}>
+            <label>Départ <span style={{ fontSize:9, color:'var(--text3)', fontWeight:400, textTransform:'none', letterSpacing:0 }}>— optionnel</span></label>
+            <input type="date" value={dateDepart} onChange={e => setDateDepart(e.target.value)} />
+          </div>
         </div>
 
         {/* Grille de présence */}
@@ -603,6 +632,8 @@ export default function TeamTab({ medecins, isSecretary = false, onReload, onToa
           nom: selected._rawNom, type: selected._rawType,
           sched: selected._rawSched, service: selected._rawService,
           tel: selected.tel, email: selected.email || null,
+          date_arrivee: selected.date_arrivee || null,
+          date_depart:  selected.date_depart  || null,
         };
         const medId = selected.id;
         await api.updateMedecin(medId, apiData);

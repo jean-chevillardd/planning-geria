@@ -28,6 +28,8 @@ const medecinsCreateSchema = z.object({
   service: z.string().optional(),
   tel:     z.string().optional(),
   email:   z.string().email('email invalide').optional().nullable(),
+  date_arrivee: isoDate.optional().nullable(),
+  date_depart:  isoDate.optional().nullable(),
 });
 
 const medecinsUpdateSchema = z.object({
@@ -37,6 +39,8 @@ const medecinsUpdateSchema = z.object({
   service: z.string().optional(),
   tel:     z.string().optional(),
   email:   z.string().email('email invalide').optional().nullable(),
+  date_arrivee: isoDate.optional().nullable(),
+  date_depart:  isoDate.optional().nullable(),
 });
 
 const absencesCreateSchema = z.object({
